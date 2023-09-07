@@ -1,0 +1,24 @@
+---
+layout: home
+
+hero:
+  name: "TickerQ"
+  text: ""
+  tagline: "Robust, Adaptive, Precise. Elevate your .NET background processing game."
+  actions:
+    - theme: brand
+      text: Get Started
+      link: /intro/getting-started
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/arcenox/TickerQ
+
+features:
+  - title: Self-contained and Simple Integration
+    details: TickerQ runs within your .NET application, eliminating the need for an extra server or service. Also can be easily integrated with a few lines of code.
+  - title: Scalability
+    details: TickerQ is suitable for small to large-scale applications, making it a scalable solution for managing scheduled tasks and background processing in .NET applications of varying sizes and complexities.
+  - title: Job Prioritization
+    details: TickerQ provides a flexible job prioritization system, allowing you to specify different priorities for different jobs, ensuring that high-priority jobs are processed first.
+---
+
