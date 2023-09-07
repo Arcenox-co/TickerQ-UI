@@ -30,7 +30,7 @@ jobs:
         host: ${{ secrets.SERVER_HOST }}
         username: ${{ secrets.SERVER_USERNAME }}
         password: ${{ secrets.SERVER_PASSWORD }}
-        source: "docker-compose.yml"
+        source: "${{ github.workspace }}/docker-compose.yml"
         target: "/root/ticker-q"
 
     - name: SSH and run docker-compose
