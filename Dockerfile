@@ -1,10 +1,10 @@
 ### STAGE 1: Build ###
-FROM node:12.7-alpine AS build
+FROM node:20-alpine AS build
 WORKDIR /usr/src/app
 COPY package.json ./
 RUN npm install
 COPY . .
-RUN npm run docs:build
+RUN npm run build
 ### STAGE 2: Run ###
 FROM nginx:1.16.1-alpine
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
