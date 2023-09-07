@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 COPY package.json ./
 RUN npm install
 COPY . .
-RUN npm run build -- --report
+RUN npm run docs:build
 ### STAGE 2: Run ###
 FROM nginx:1.16.1-alpine
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
