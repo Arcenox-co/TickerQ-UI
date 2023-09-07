@@ -31,7 +31,7 @@ jobs:
         username: ${{ secrets.SERVER_USERNAME }}
         password: ${{ secrets.SERVER_PASSWORD }}
         source: "docker-compose.yml"
-        target: "/path/on/server/to/docker-compose"
+        target: "/root/ticker-q"
 
     - name: SSH and run docker-compose
       uses: appleboy/ssh-action@master
@@ -40,6 +40,6 @@ jobs:
         username: ${{ secrets.SERVER_USERNAME }}
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
-          cd /path/on/server/to/docker-compose
+          cd /root/ticker-q
           docker-compose pull
           docker-compose up -d
