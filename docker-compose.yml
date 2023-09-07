@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  vue-app:
+    image: registry.arcenox.com/tickerq/ui:latest
+    container_name: tickerq-ui
+    ports:
+      - "8088:80"
+    environment:
+      - NODE_ENV=production
+    network_mode: host
