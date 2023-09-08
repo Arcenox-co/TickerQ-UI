@@ -3,6 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "TickerQ",
   themeConfig: {
+    darkModeSwitchLabel: "dark",
+    footer: {
+      copyright: 'Copyright © 2023-present Albert Kunushevci',
+    },
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Donate', link: 'https://www.paypal.com/donate?hosted_button_id=RSRE2QUK2AT3Q' },
