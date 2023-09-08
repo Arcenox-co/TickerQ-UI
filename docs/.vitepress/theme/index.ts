@@ -8,9 +8,12 @@ export default {
   // injects the slots
   Layout: MyLayout,
   async enhanceApp({ app }) {
-    const appearance = localStorage.getItem("vitepress-theme-appearance");
-    if(appearance == undefined || appearance == null){
-        localStorage.setItem("vitepress-theme-appearance", "dark");
+    if (typeof window !== 'undefined') {
+        // Access localStorage here
+        const appearance = localStorage.getItem("vitepress-theme-appearance");
+        if(appearance == undefined || appearance == null){
+            window.localStorage.setItem("vitepress-theme-appearance", "dark");
+        }
     }
   }
 }
