@@ -27,4 +27,6 @@ jobs:
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
           cd /root/ticker-q
+          docker-compose down
+          docker rmi registry.arcenox.com/tickerq/ui:latest
           docker-compose up --detach --remove-orphans --force-recreate
