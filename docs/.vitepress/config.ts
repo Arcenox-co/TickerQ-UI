@@ -3,9 +3,10 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "TickerQ",
   themeConfig: {
+    logo: '/arcenox-logo.png',
     darkModeSwitchLabel: "dark",
     footer: {
-      copyright: 'Copyright © 2023-present Albert Kunushevci',
+      copyright: 'Copyright © 2023-present',
     },
     nav: [
       { text: 'Home', link: '/' },

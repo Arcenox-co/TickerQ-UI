@@ -5,6 +5,8 @@ hero:
   name: "TickerQ"
   text: ""
   tagline: "Robust, Adaptive, Precise. Elevate your .NET background processing game."
+  image:
+    src: clock.png
   actions:
     - theme: brand
       text: Get Started
@@ -21,4 +23,3 @@ features:
   - title: Job Prioritization
     details: TickerQ provides a flexible job prioritization system, allowing you to specify different priorities for different jobs, ensuring that high-priority jobs are processed first.
 ---
-

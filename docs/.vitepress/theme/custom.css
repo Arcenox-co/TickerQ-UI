@@ -1,3 +1,19 @@
+.image-src{
+    border: 1px solid #867aff69;   
+    -moz-box-shadow: 0px 0px 20px 7px #2a2a31;
+    -webkit-box-shadow: 0px 0px 20px 7px #2a2a31;
+    box-shadow: 0px 0px 20px 7px #2a2a31;
+}
+
+.VPContent {
+    background-color: #161618;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    margin-top: auto !important;
+}
+
 @font-face {
     font-family: Inter var;
     font-weight: 100 900;
