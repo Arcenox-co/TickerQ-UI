@@ -6,7 +6,7 @@ hero:
   text: ""
   tagline: "Robust, Adaptive, Precise. Elevate your .NET background processing game."
   image:
-    src: clock.png
+    src: ticker-q.png
   actions:
     - theme: brand
       text: Get Started
