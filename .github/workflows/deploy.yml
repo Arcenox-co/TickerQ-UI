@@ -16,8 +16,8 @@ jobs:
     - name: Build and push Docker image
       run: |
         docker login registry.arcenox.com -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-        docker build -t registry.arcenox.com/tickerq/ui:latest .
-        docker push registry.arcenox.com/tickerq/ui:latest
+        docker build -t registry.arcenox.com/arcenox/tickerq_ui:latest .
+        docker push registry.arcenox.com/arcenox/tickerq_ui:latest
 
     - name: SSH and run docker-compose
       uses: appleboy/ssh-action@master
@@ -26,7 +26,7 @@ jobs:
         username: ${{ secrets.SERVER_USERNAME }}
         password: ${{ secrets.SERVER_PASSWORD }}
         script: |
-          cd /root/ticker-q
+          cd /root/tickerq_ui
           docker-compose down
-          docker rmi registry.arcenox.com/tickerq/ui:latest
+          docker rmi registry.arcenox.com/arcenox/tickerq_ui:latest
           docker-compose up --detach --remove-orphans --force-recreate
