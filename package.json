@@ -1,0 +1,18 @@
+{
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "dependencies": {
+    "vue": "^3.3.4"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.3",
+    "postcss": "^8.4.21",
+    "autoprefixer": "^10.4.21",
+    "vitepress": "^1.6.3",
+    "esbuild": "^0.25.2"
+  },
+  "type": "module"
+}
