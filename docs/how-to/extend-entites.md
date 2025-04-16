@@ -1,40 +1,48 @@
-# Extend Default Entities
+# Extending Default Entities
 
 <div class="danger custom-block" style="padding-top:8px;">
-    <p>This feature is available exclusively through the extension package: TickerQ.EntityFrameworkCore.</p>
+  <p>This feature is available exclusively through the extension package: <strong>TickerQ.EntityFrameworkCore</strong>.</p>
 </div>
 
-## Extend `Cron and Time` Ticker
-Create your class `Entity` and inherit it, then simply add your desire properties.
+## Customizing CronTicker & TimeTicker
+
+You can extend the default ticker entities by creating your own classes that inherit from `CronTicker` and `TimeTicker`, and then adding custom properties as needed.
 
 ```csharp
-
 public class MyCronTicker : CronTicker 
 {
-    public string Description { get; set; }
+    public string MyProperty { get; set; }
 }
 
 public class MyTimeTicker : TimeTicker 
 {
-    public string Description { get; set; }
+    public string MyProperty { get; set; }
 }
-
 ```
-:::info Register your Entities
-* After doing as the above example, add it at `TickerQ` Config.
+
+## Registering Custom Tickers
+
+To apply the custom entities, register them in your `AddTickerQ` setup:
+
 ```csharp
-....
-services.AddTicker(opt =>
+services.AddTickerQ(options =>
 {
-    options.AddOperationalStore<MyDbContext, MyTimeTicker, MyCronTicker>(); // [!code focus]
+    options.AddOperationalStore<MyDbContext, MyTimeTicker, MyCronTicker>();
 });
 ```
-* You have to run add-migration command in order the changes to take effect.
-```PM
-PM> add-migration "InitialCreate" -c MyDbContext
+
+After registering, generate the required schema updates by creating a migration:
+
+```powershell
+PM> Add-Migration "InitialCreate" -c MyDbContext
 ```
+
+
+## Notes on Schema
+
+:::tip Default Behavior
+By default, Ticker entities are stored in the `schema: Ticker`. You can override or extend the schema and table mappings using standard EF Core configuration techniques.
 :::
 
-:::tip Note
-By default Ticker entities are stored in `schema: Ticker` with minimal configurations you can adjust it by using `EFCore Configurations`.
-:::
+
+Customize your tickers to include domain-specific metadata, flags, or categorization logic for more advanced background job behavior.

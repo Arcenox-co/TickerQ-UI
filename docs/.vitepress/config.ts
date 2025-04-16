@@ -14,38 +14,53 @@ export default defineConfig({
     ],
     sidebar: [
       {
-        text: 'Introducton',
+        text: 'Introduction',
         collapsed: false,
         items: [
           { text: 'What is TickerQ?', link: '/intro/what-is-tickerq' },
-          { text: 'Getting Started', link: '/intro/getting-started' },
-          { text: 'TickerQ EF Core', link: '/intro/tickerq-ef-core' },
+          { text: 'Dashboard Overview', link: '/intro/dashboard-overview' },
+          { text: 'Comparison with Hangfire & Quartz.NET', link: '/comparison/comparison-other-libraries' }
         ]
       },
       {
-        text: 'Examples',
+        text: 'Getting Started',
         collapsed: false,
         items: [
-          { text: 'In-Memory Backgound Job', link: '/examples/in-memory-example.md' },
-          { text: 'In-Database Background Job', link: '/examples/in-database-example.md' },
+          { text: 'TickerQ Installation', link: '/setup/tickerq-core' },
+          { text: 'EF Core Integration', link: '/setup/tickerq-ef-core' },
+          { text: 'Dashboard Setup', link: '/setup/dashboard' }
+        ]
+      },
+      {
+        text: 'Core Concepts',
+        collapsed: false,
+        items: [
+          { text: 'In-Memory vs EF Core', link: '/modes/index' }
+        ]
+      },
+      {
+        text: 'Usage Examples',
+        collapsed: false,
+        items: [
+          { text: 'Using In-Memory Mode', link: '/examples/in-memory-example' },
+          { text: 'Using EF Core Mode', link: '/examples/in-database-example' }
         ]
       },
       {
         text: 'How To',
         collapsed: false,
         items: [
-          { text: 'To Async Method', link: '/how-to/to-async.md' },
-          { text: 'Change Priority', link: '/how-to/change-priority.md' },
-          { text: 'Handle Exceptions', link: '/how-to/handle-exceptions.md' },
-          { text: 'Extend Entites', link: '/how-to/extend-entites.md' },
-          { text: 'Adjust Request Data', link: '/how-to/adjust-request-data.md' }
+          { text: 'Convert to Async', link: '/how-to/to-async' },
+          { text: 'Change Job Priority', link: '/how-to/change-priority' },
+          { text: 'Handle Exceptions', link: '/how-to/handle-exceptions' },
+          { text: 'Extend Entity Models', link: '/how-to/extend-entites' }
         ]
       },
       {
-        text: "API's",
+        text: 'API Reference',
         collapsed: false,
         items: [
-          { text: "TickerQ Host API", link: '/apis/host-api.md' }
+          { text: 'TickerQ Host API', link: '/apis/host-api' }
         ]
       }
     ],

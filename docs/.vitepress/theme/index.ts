@@ -1,6 +1,7 @@
 import DefaultTheme from 'vitepress/theme'
 import MyLayout from './MyLayout.vue'
-
+import './style.css' // Tailwind styles
+import './tailwind.css' // or the path where you placed Tailwind directives
 export default {
   ...DefaultTheme,
   // override the Layout with a wrapper component that
