@@ -63,7 +63,7 @@ By default, `AddDashboardBasicAuth()` enables a simple login screen with usernam
 
 The dashboard requires jobs to be persisted via `TickerQ.EntityFramework`. Make sure the EF store is configured.
 
-> See [EF Core Setup](/intro/tickerq-ef-core) if not already configured.
+> See [EF Core Setup](/setup/tickerq-ef-core) if not already configured.
 
 ---
 

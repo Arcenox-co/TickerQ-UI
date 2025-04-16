@@ -34,6 +34,6 @@ TickerQ provides two primary modes: **In-Memory** and **EF Core**. Use the compa
 
 | Setup Type       | Required Packages                                                | Docs                                      |
 |------------------|------------------------------------------------------------------|-------------------------------------------|
-| In-Memory        | `TickerQ`                                                        | [Install](/intro/tickerq-core)            |
-| EF Core          | `TickerQ` + `TickerQ.EntityFramework`                            | [Install](/intro/tickerq-ef-core)         |
+| In-Memory        | `TickerQ`                                                        | [Install](/setup/tickerq-core.html)            |
+| EF Core          | `TickerQ` + `TickerQ.EntityFramework`                            | [Install](/setup/tickerq-ef-core)         |
 

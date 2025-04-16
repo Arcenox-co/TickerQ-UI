@@ -90,7 +90,8 @@ features:
 </div>
 
 <script>
-  window.showModal = function (src) {
+if (typeof window !== 'undefined') {
+window.showModal = function (src) {
     const modal = document.getElementById("imgModal");
     const image = document.getElementById("modalImage");
     image.src = src;
@@ -101,4 +102,5 @@ features:
     const modal = document.getElementById("imgModal");
     modal.classList.add("hidden");
   };
+}
 </script>
