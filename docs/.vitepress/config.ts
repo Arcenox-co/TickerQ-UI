@@ -6,7 +6,7 @@ export default defineConfig({
     logo: '/arcenox-logo.png',
     darkModeSwitchLabel: "dark",
     footer: {
-      copyright: 'Copyright © 2023-present',
+      copyright: 'Copyright © 2023-present Arcenox',
     },
     nav: [
       { text: 'Home', link: '/' },
@@ -35,7 +35,7 @@ export default defineConfig({
         text: 'Core Concepts',
         collapsed: false,
         items: [
-          { text: 'In-Memory vs EF Core', link: '/modes/index' }
+          { text: 'In-Memory vs EF Core', link: '/modes/mode-comparison' }
         ]
       },
       {

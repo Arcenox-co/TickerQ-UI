@@ -28,13 +28,13 @@ features:
 
 ## Dashboard Overview
 
-<div class="rounded-lg shadow p-8 space-y-16" style="background-color: #202127">
+<div class="rounded-lg">
 
   <!-- 1. Real-Time Status Summary & Machines -->
   <div class="flex flex-col lg:flex-row items-center gap-10">
     <div class="w-full lg:w-1/2">
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">System Status & Function Distribution</h3>
-      <p class="text-lg text-gray-700 dark:text-gray-300 leading-relaxed">
+      <h3 class="text-xl font-semibold mb-4">System Status & Function Distribution</h3>
+      <p class="text-lg leading-relaxed">
         This panel gives you a high-level snapshot of your TickerQ instance. It displays active status, job throughput from the past 7 days, current machine identity, max concurrency, and scheduled tick times. 
         The right panel breaks down job states (e.g., Done, DueDone, Failed) using both raw counts and percentage bars.
         Below, it lists <strong>Declared Functions</strong> and <strong>Used Machines</strong>, showing how jobs are distributed across nodes and what functions are registered for execution.
@@ -50,8 +50,8 @@ features:
   <!-- 2. CronTicker Activity and Visualization -->
   <div class="flex flex-col lg:flex-row-reverse items-center gap-10">
     <div class="w-full lg:w-1/2">
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">CronTickers Overview</h3>
-      <p class="text-lg text-gray-700 dark:text-gray-300 leading-relaxed">
+      <h3 class="text-xl font-semibold mb-4">CronTickers Overview</h3>
+      <p class="text-lg leading-relaxed">
         The CronTicker tab presents recurring task executions in detail. At the top, a pie chart and line graph visualize recent job states by date and type. You can observe how many jobs succeeded (Done), were deferred (DueDone), or failed.
         Below the chart, a structured table shows the list of cron tickers, including the function name, cron expression, retry intervals, initialization ID, and timestamps. Quick actions allow real-time inspection, editing, or deletion of any entry.
       </p>
@@ -66,8 +66,8 @@ features:
   <!-- 3. TimeTicker Execution & Status Tracking -->
   <div class="flex flex-col lg:flex-row items-center gap-10">
     <div class="w-full lg:w-1/2">
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">TimeTickers Execution History</h3>
-      <p class="text-lg text-gray-700 dark:text-gray-300 leading-relaxed">
+      <h3 class="text-xl font-semibold mb-4">TimeTickers Execution History</h3>
+      <p class="text-lg leading-relaxed">
         This section is dedicated to <strong>TimeTicker</strong> execution tracking. Visualizations include daily status lines that distinguish between Done, Failed, Idle, DueDone, and other states.
         The data grid beneath provides a log of all executions, including retry intervals, request types, lock holders (machine names), execution times, and runtime durations.
         Each row is color-coded based on outcome (e.g., green for success, red for failure), and includes tools to quickly re-run or edit failed jobs.
