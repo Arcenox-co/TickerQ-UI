@@ -2,6 +2,9 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: "TickerQ",
+  head: [
+    ['link', { rel: 'icon', href: '/arcenox-logo.svg' }]
+  ],
   themeConfig: {
     logo: '/arcenox-logo.png',
     darkModeSwitchLabel: "dark",
