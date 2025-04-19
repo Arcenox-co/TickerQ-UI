@@ -29,6 +29,9 @@ services.AddTickerQ(opt =>
   opt.SetMaxConcurrency(maxConcurrency: ...);
 });
 
+// Required only if you're targeting .NET Core 3.1 or earlier (.NET 5+ handles this via source generators)
+TickerQInstanceFactory.Initialize();
+
 ```
 
 ## Configure Middleware
