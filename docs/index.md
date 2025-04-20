@@ -6,7 +6,9 @@ hero:
   text: ""
   tagline: "Robust, Adaptive, Precise. Elevate your .NET background processing game."
   image:
-    src: ticker-q.png
+    src: /tickerq-logo.png
+    style:
+      max-width: 350px
   actions:
     - theme: brand
       text: Get Started
