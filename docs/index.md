@@ -4,7 +4,7 @@ layout: home
 hero:
   name: "TickerQ"
   text: ""
-  tagline: "Robust, Adaptive, Precise. Elevate your .NET background processing game."
+  tagline: "TickerQ is a fast, reflection-free background task scheduler for .NET — built with source generators, EF Core integration, cron + time-based execution, and a real-time dashboard."
   image:
     src: /tickerq-logo.png
     style:
