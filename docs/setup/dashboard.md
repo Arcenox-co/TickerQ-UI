@@ -28,8 +28,7 @@ builder.Services.AddTickerQ(opt => // [!code focus]
 {
     opt.AddOperationalStore<WebAppDbContext>();
     opt.SetInstanceIdentifier("TickerQ");
-    opt.CancelMissedTickersOnApplicationRestart();
-
+    ...
     // Enable Dashboard // [!code focus]
     opt.AddDashboard(basePath: "/tickerq-dashboard"); // [!code focus]
     opt.AddDashboardBasicAuth(); // [!code focus]
@@ -56,14 +55,6 @@ Add the following to your `appsettings.json`:
 This enables a login form at the dashboard endpoint using the credentials above.
 
 By default, `AddDashboardBasicAuth()` enables a simple login screen with username/password from appsettings.
-
----
-
-## EF Core Required
-
-The dashboard requires jobs to be persisted via `TickerQ.EntityFramework`. Make sure the EF store is configured.
-
-> See [EF Core Setup](/setup/tickerq-ef-core) if not already configured.
 
 ---
 

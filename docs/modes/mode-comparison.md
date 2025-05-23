@@ -16,7 +16,7 @@ TickerQ provides two primary modes: **In-Memory** and **EF Core**. Use the compa
 | Dependency Injection (DI)      | ✅                          | ✅                                       |
 | Reflection-free execution      | ✅                          | ✅                                       |
 | Source generator (Roslyn)      | ✅                          | ✅                                       |
-| Dashboard compatibility        | ❌                          | ✅ (requires additional package)         |
+| Dashboard compatibility        | ✅                         | ✅                                        |
 
 
 ## ✅ When to Use What

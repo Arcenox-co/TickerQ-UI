@@ -37,7 +37,7 @@ Ideal for:
 
 ### 📊 UI Companion: `TickerQ.Dashboard`
 
-Built with Tailwind and powered by SignalR, `TickerQ.Dashboard` offers a live, interactive interface to inspect running jobs, monitor system health, and perform manual operations. Visual charts, lock tracking, retry history, and job filtering make it easy to manage your infrastructure in production.
+Built with Vue Js and powered by SignalR, `TickerQ.Dashboard` offers a live, interactive interface to inspect running jobs, monitor system health, and perform manual operations. Visual charts, lock tracking, retry history, and job filtering make it easy to manage your infrastructure in production.
 
 Ideal for:
 - Real-time observability

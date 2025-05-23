@@ -24,19 +24,50 @@ using TickerQ.EntityFrameworkCore.DependencyInjection;
 
 services.AddTickerQ(opt =>
 {
+   // Set fallback time out to check for missed jobs and execute.
+  opt.UpdateMissedJobCheckDelay(timeSpan: ...);
+  // Set name of instance, default is Environment.MachineName.
+  opt.SetInstanceIdentifier(identifierName: ...)
   ....
   // Define the DbContext to use for storing Tickers. // [!code focus]
-  opt.AddOperationalStore<MyDbContext>(); // [!code focus]
-  // Set fallback time out to check for missed jobs and execute. // [!code focus]
-  opt.SetTimeOutJobChecker(timeSpan: ...); // [!code focus]
-  // Set name of instance, default is Environment.MachineName. // [!code focus]
-  opt.SetInstanceIdentifier(identifierName: ...) // [!code focus]
-  // Cancel missed jobs once application is restarted // [!code focus]
-  opt.CancelMissedTickersOnApplicationRestart(); // [!code focus]
-  
+  options.AddOperationalStore<MyDbContext>(efOpt => //[!code focus]
+    { //[!code focus]
+        efOpt.UseModelCustomizerForMigrations(); // Applies custom model customization only during EF Core migrations [!code focus]
+        efOpt.CancelMissedTickersOnApplicationRestart(); // Useful in distributed mode [!code focus]
+    }); // Enables EF-backed storage // [!code focus]
 });
 
 ```
+
+## ❗️If Not Using `UseModelCustomizerForMigrations()`
+
+### You must apply TickerQ configurations manually in your `DbContext`:
+
+```csharp
+public class MyDbContext : DbContext
+{
+    public MyDbContext(DbContextOptions<MyDbContext> options)
+        : base(options) { }
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+
+        // Apply TickerQ entity configurations explicitly
+        builder.ApplyConfiguration(new TimeTickerConfigurations()); // [!code focus]
+        builder.ApplyConfiguration(new CronTickerConfigurations()); // [!code focus]
+        builder.ApplyConfiguration(new CronTickerOccurrenceConfigurations()); // [!code focus]
+
+        // Alternatively, apply all configurations from assembly: // [!code focus]
+        // builder.ApplyConfigurationsFromAssembly(typeof(TimeTickerConfigurations).Assembly); // [!code focus]
+    }
+}
+```
+
+> 💡 **Recommendation:**  
+Use `UseModelCustomizerForMigrations()` to cleanly separate infrastructure concerns from your core domain model, especially during design-time operations like migrations.  
+**Note:** If you're using third-party libraries (e.g., OpenIddict) that also override `IModelCustomizer`, you must either merge customizations or fall back to manual configuration inside `OnModelCreating()` to avoid conflicts.
+
 
 ## Add Migrations
 
