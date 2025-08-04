@@ -21,7 +21,7 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Donate', link: 'https://www.paypal.com/donate?hosted_button_id=RSRE2QUK2AT3Q' },
-      { text: 'v2.1.0', link: 'https://github.com/arcenox/TickerQ/releases/tag/v2.1.0' }
+      { text: 'v2.1.0', link: 'https://github.com/Arcenox-co/TickerQ/releases/tag/v2.1.0' }
     ],
     sidebar: [
       {
@@ -76,7 +76,7 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/arcenox/TickerQ' }
+      { icon: 'github', link: 'https://github.com/Arcenox-co/TickerQ' }
     ],
     search: {
       provider: 'local'
