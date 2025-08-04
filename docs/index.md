@@ -15,7 +15,7 @@ hero:
       link: /intro/what-is-tickerq
     - theme: alt
       text: View on GitHub
-      link: https://github.com/arcenox/TickerQ
+      link: https://github.com/Arcenox-co/TickerQ
 
 features:
   - title: Minimal Core, Maximum Performance
