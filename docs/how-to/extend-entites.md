@@ -9,12 +9,12 @@
 You can extend the default ticker entities by creating your own classes that inherit from `CronTicker` and `TimeTicker`, and then adding custom properties as needed.
 
 ```csharp
-public class MyCronTicker : CronTicker 
+public class MyCronTicker : CronTickerEntity 
 {
     public string MyProperty { get; set; }
 }
 
-public class MyTimeTicker : TimeTicker 
+public class MyTimeTicker : TimeTickerEntity 
 {
     public string MyProperty { get; set; }
 }
