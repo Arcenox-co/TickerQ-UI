@@ -1,6 +1,6 @@
 # Change Priority
 ```csharp
-public class MyFirstExample : TickerController
+public class MyFirstExample
 {
   [TickerFunction(..., TaskPriority: TickerTaskPriority.High)] // [!code focus]
   public async Task ExampleCronTicker(CancellationToken cancellationToken)

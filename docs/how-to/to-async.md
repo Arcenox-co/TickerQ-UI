@@ -3,7 +3,7 @@
 ## Async Task Method
 
 ```csharp
-public class MyFirstExample : TickerController
+public class MyFirstExample
 {
   [TickerFunction(...)]
   public async Task ExampleTicker(CancellationToken cancellationToken) // [!code focus]
@@ -14,7 +14,7 @@ public class MyFirstExample : TickerController
 ```
 ## Async ValueTask Method
 ```csharp
-public class MyFirstExample : TickerController
+public class MyFirstExample
 {
   [TickerFunction(...)]
   public async ValueTask ExampleTicker(CancellationToken cancellationToken) // [!code focus]
