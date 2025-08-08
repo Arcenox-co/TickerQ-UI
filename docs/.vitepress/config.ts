@@ -20,7 +20,7 @@ export default defineConfig({
     },
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Donate', link: 'https://www.paypal.com/donate?hosted_button_id=RSRE2QUK2AT3Q' },
+      { text: 'Donate', link: 'https://opencollective.com/tickerq' },
       { text: 'v2.4.0', link: 'https://github.com/Arcenox-co/TickerQ/releases/tag/v2.4.0' }
     ],
     sidebar: [
