@@ -2,9 +2,12 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: "TickerQ",
+  description: "A powerful job scheduling library for .NET by Albert Kunushevci",
   head: [
     ['link', { rel: 'icon', href: '/arcenox-logo.svg' }],
-    ['script', { async: true, src: 'https://www.googletagmanager.com/gtag/js?id=G-D81DHQQ8WB' }],
+    ['meta', { name: 'author', content: 'Albert Kunushevci' }],
+    ['meta', { property: 'og:author', content: 'Albert Kunushevci' }],
+    ['script', { async: 'true', src: 'https://www.googletagmanager.com/gtag/js?id=G-D81DHQQ8WB' }],
     ['script', {}, `
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
@@ -17,6 +20,7 @@ export default defineConfig({
     darkModeSwitchLabel: "dark",
     footer: {
       copyright: 'Copyright © 2023-present Arcenox',
+      message: 'Built by Albert Kunushevci',
     },
     nav: [
       { text: 'Home', link: '/' },
@@ -76,7 +80,8 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Arcenox-co/TickerQ' }
+      { icon: 'github', link: 'https://github.com/Arcenox-co/TickerQ' },
+      { icon: 'linkedin', link: 'https://www.linkedin.com/in/albertkunushevci/' }
     ],
     search: {
       provider: 'local'
