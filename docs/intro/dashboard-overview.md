@@ -15,7 +15,7 @@ The main Dashboard displays:
 - Alerts and system-wide activity summary
 
     <div class="w-full">
-      <img src="/Screenshot_14-4-2025_155111_localhost.jpeg" alt="System Overview & Machines"
+      <img src="/Screenshot_Dashboard.jpeg" alt="System Overview & Machines"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -29,7 +29,7 @@ The **Time Tickers** panel allows you to:
 - Use visual tools like pie charts and execution timelines
 
  <div class="w-full">
-      <img src="/Screenshot_14-4-2025_155448_localhost.jpeg" alt="TimeTicker Execution Table"
+      <img src="/Screenshot_TimeTicker_View.jpeg" alt="TimeTicker Execution Table"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -44,7 +44,7 @@ The **Cron Tickers** panel includes:
 
 
  <div class="w-full">
-      <img src="/Screenshot_14-4-2025_15552_localhost.jpeg" alt="CronTicker Chart & Table"
+      <img src="/Screenshot_CronTicker_View.jpeg" alt="CronTicker Chart & Table"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -59,7 +59,7 @@ You can **create new TimeTicker or CronTicker jobs** with:
 - Optional immediate execution toggle
 
  <div class="w-full">
-      <img src="/Screenshot_16-4-2025_152227_localhost.jpeg" alt="New Job Creation"
+      <img src="/Screenshot_Add_New_Time_Ticker.jpeg" alt="New Job Creation"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -74,7 +74,7 @@ Editing an existing job allows you to:
 - Resubmit with new request data
 
 <div class="w-full">
-      <img src="/Screenshot_16-4-2025_152312_localhost.jpeg" alt="Job Editing"
+      <img src="/Screenshot_Update_Cron_Ticker.jpeg" alt="Job Editing"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -88,7 +88,7 @@ You can inspect individual occurrences (instances of executions) of any CronTick
 - Cancel or delete specific occurrences if needed
 
 <div class="w-full">
-      <img src="/Screenshot_16-4-2025_152331_localhost.jpeg" alt="Cron Job Occurrences"
+      <img src="/Screenshot_Show_Occurrecies.jpeg" alt="Cron Job Occurrences"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>

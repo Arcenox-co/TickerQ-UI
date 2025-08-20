@@ -43,7 +43,7 @@ features:
       </p>
     </div>
     <div class="w-full lg:w-1/2">
-      <img src="/Screenshot_14-4-2025_155111_localhost.jpeg" alt="System Overview & Machines"
+      <img src="/Screenshot_Dashboard.jpeg" alt="System Overview & Machines"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -59,7 +59,7 @@ features:
       </p>
     </div>
     <div class="w-full lg:w-1/2">
-      <img src="/Screenshot_14-4-2025_15552_localhost.jpeg" alt="CronTicker Chart & Table"
+      <img src="/Screenshot_CronTicker_View.jpeg" alt="CronTicker Chart & Table"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
@@ -76,7 +76,7 @@ features:
       </p>
     </div>
     <div class="w-full lg:w-1/2">
-      <img src="/Screenshot_14-4-2025_155448_localhost.jpeg" alt="TimeTicker Execution Table"
+      <img src="/Screenshot_TimeTicker_View.jpeg" alt="TimeTicker Execution Table"
            onclick="window.showModal(this.src)"
            class="cursor-zoom-in w-full rounded-lg shadow border border-gray-300 dark:border-gray-700 transition-transform hover:scale-105">
     </div>
