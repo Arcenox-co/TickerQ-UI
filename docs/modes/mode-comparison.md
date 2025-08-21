@@ -9,14 +9,14 @@ TickerQ provides two primary modes: **In-Memory** and **EF Core**. Use the compa
 | Feature                         | In-Memory Mode (`TickerQ`) | EF Core Mode (`TickerQ.EntityFramework`) |
 |--------------------------------|-----------------------------|------------------------------------------|
 | Cron-based scheduling          | ✅                          | ✅                                       |
-| Time-based scheduling (`TimeTicker`) | ❌                     | ✅                                       |
+| Time-based scheduling          | ✅                          | ✅                                       |
 | Job persistence                | ❌                          | ✅                                       |
-| Retry/cooldown tracking        | ❌                          | ✅                                       |
+| Retry/cooldown tracking        | ✅                          | ✅                                       |
 | Multi-node support             | ❌                          | ✅                                       |
 | Dependency Injection (DI)      | ✅                          | ✅                                       |
 | Reflection-free execution      | ✅                          | ✅                                       |
 | Source generator (Roslyn)      | ✅                          | ✅                                       |
-| Dashboard compatibility        | ✅                         | ✅                                        |
+| Dashboard compatibility        | ✅                          | ✅                                        |
 
 
 ## ✅ When to Use What
