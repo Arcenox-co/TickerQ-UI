@@ -81,16 +81,6 @@ public void ExampleMethod() { }
 
 In-memory mode **does not** support:
 - Job persistence or retry tracking
-- Time-based triggers (`TimeTicker`)
 - Multi-node execution
-- Dashboard integration
 
 For advanced scenarios, consider upgrading to [EF Core Mode](/examples/in-database-example).
-
-
-## Summary
-
-Use in-memory mode when:
-- You want a minimal, cron-based background task
-- You don’t need persistence or retry logic
-- You're running a single-node or local service

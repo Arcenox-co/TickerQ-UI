@@ -9,9 +9,14 @@
 ```csharp
 public class TickerExceptionHandler : ITickerExceptionHandler
 {
-    public Task HandleExceptionAsync(Exception exception, Guid tickerId, TickerType tickerType)
+    public async Task HandleExceptionAsync(Exception exception, Guid tickerId, TickerType tickerType)
     {
-        // Your Exception Handling logic...
+      // your logic...
+    }
+
+    public async Task HandleCanceledExceptionAsync(Exception exception, Guid tickerId, TickerType tickerType)
+    {
+      // your logic...
     }
 }
 ```

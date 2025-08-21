@@ -24,14 +24,38 @@ The **TickerQ.Dashboard** package provides a ready-to-use, real-time interface t
 Update your `Program.cs` to register the dashboard support:
 
 ```csharp
-builder.Services.AddTickerQ(opt => // [!code focus]
+builder.Services.AddTickerQ(options =>
 {
-    opt.AddOperationalStore<WebAppDbContext>();
-    opt.SetInstanceIdentifier("TickerQ");
-    ...
-    // Enable Dashboard // [!code focus]
-    opt.AddDashboard(basePath: "/tickerq-dashboard"); // [!code focus]
-    opt.AddDashboardBasicAuth(); // [!code focus]
+    options.AddOperationalStore<WebAppDbContext>();
+    options.SetInstanceIdentifier("TickerQ");
+    // ...
+    
+    // Dashboard configuration                                                     // [!code focus]
+    options.AddDashboard(dbopt =>                                                 // [!code focus]
+    {                                                                              // [!code focus]
+        // Mount path for the dashboard UI (default: "/tickerq-dashboard").        // [!code focus]
+        dbopt.BasePath = "/tickerq-dashboard";                                     // [!code focus]
+
+        // Allowed CORS origins for dashboard API (default: ["*"]).                // [!code focus]
+        dbopt.CorsOrigins = new[] { "https://arcenox.com" };                       // [!code focus]
+
+        // Backend API domain (scheme/SSL prefix supported).                       // [!code focus]
+        dbopt.BackendDomain = "ssl:arcenox.com";                                   // [!code focus]
+
+        // Authentication                                                           // [!code focus]
+        dbopt.EnableBuiltInAuth = true;  // Use TickerQ’s built-in auth (default). // [!code focus]
+        dbopt.UseHostAuthentication = false; // Use host auth instead (off by default). // [!code focus]
+        dbopt.RequiredRoles = new[] { "Admin", "Ops" };                            // [!code focus]
+        dbopt.RequiredPolicies = new[] { "TickerQDashboardAccess" };               // [!code focus]
+
+        // Basic auth toggle (default: false).                                      // [!code focus]
+        dbopt.EnableBasicAuth = true;                                              // [!code focus]
+
+        // Pipeline hooks                                                           // [!code focus]
+        dbopt.PreDashboardMiddleware = app => { /* e.g., request logging */ };     // [!code focus]
+        dbopt.CustomMiddleware      = app => { /* e.g., extra auth/rate limits */ }; // [!code focus]
+        dbopt.PostDashboardMiddleware = app => { /* e.g., metrics collection */ }; // [!code focus]
+    });                                                                            // [!code focus]
 });
 ```
 

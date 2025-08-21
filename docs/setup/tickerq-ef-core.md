@@ -29,12 +29,44 @@ services.AddTickerQ(opt =>
   // Set name of instance, default is Environment.MachineName.
   opt.SetInstanceIdentifier(identifierName: ...)
   ....
-  // Define the DbContext to use for storing Tickers. // [!code focus]
-  options.AddOperationalStore<MyDbContext>(efOpt => //[!code focus]
-    { //[!code focus]
-        efOpt.UseModelCustomizerForMigrations(); // Applies custom model customization only during EF Core migrations [!code focus]
-        efOpt.CancelMissedTickersOnApplicationRestart(); // Useful in distributed mode [!code focus]
-    }); // Enables EF-backed storage // [!code focus]
+
+   // Configure the EF Core–backed operational store for TickerQ metadata, locks, and state. // [!code focus]
+    options.AddOperationalStore<MyDbContext>(efOpt =>                     //[!code focus]
+    {                                                                      //[!code focus]
+        // Apply custom model configuration only during EF Core migrations                       // [!code focus]
+        // (design-time). The runtime model remains unaffected.                                  // [!code focus]
+        efOpt.UseModelCustomizerForMigrations();                                                // [!code focus]
+
+        // On app start, cancel tickers left in Expired or InProgress (terminated) states        // [!code focus]
+        // to prevent duplicate re-execution after crashes or abrupt shutdowns.                  // [!code focus]
+        efOpt.CancelMissedTickersOnAppStart(ReleaseAcquiredTermination.CancelExpired);          // [!code focus]
+
+        // Defined cron-based functions are auto-seeded in the database by default.                     // [!code focus]
+        // Example: [TickerFunction(..., "*/5 * * * *")]                                        // [!code focus]
+        // Use this to ignore them and keep seeds runtime-only.                                 // [!code focus]
+        ef.IgnoreSeedMemoryCronTickers();                                           // [!code focus]                                              
+
+        // Seed initial tickers (time-based and cron-based).                              // [!code focus]
+        ef.UseTickerSeeder(                                                               // [!code focus]
+            async timeTicker =>                                                           // [!code focus]
+            {                                                                             // [!code focus]
+                await timeTicker.AddAsync(new TimeTicker                                  // [!code focus]
+                {                                                                         // [!code focus]
+                    Id = Guid.NewGuid(),                                                  // [!code focus]
+                    Function = "CleanupLogs",                                             // [!code focus]
+                    ExecutionTime = DateTime.UtcNow.AddSeconds(5),                        // [!code focus]
+                });                                                                       // [!code focus]
+            },                                                                            // [!code focus]
+            async cronTicker =>                                                           // [!code focus]
+            {                                                                             // [!code focus]
+                await cronTicker.AddAsync(new CronTicker                                  // [!code focus]
+                {                                                                         // [!code focus]
+                    Id = Guid.NewGuid(),                                                  // [!code focus]
+                    Expression = "0 0 * * *", // every day at 00:00 UTC                   // [!code focus]
+                    Function = "CleanupLogs"                                              // [!code focus]
+                });                                                                       // [!code focus]
+        });                                                                               // [!code focus]
+    });                                                                                   // [!code focus]
 });
 
 ```
@@ -53,10 +85,11 @@ public class MyDbContext : DbContext
     {
         base.OnModelCreating(builder);
 
-        // Apply TickerQ entity configurations explicitly
-        builder.ApplyConfiguration(new TimeTickerConfigurations()); // [!code focus]
-        builder.ApplyConfiguration(new CronTickerConfigurations()); // [!code focus]
-        builder.ApplyConfiguration(new CronTickerOccurrenceConfigurations()); // [!code focus]
+        // Apply TickerQ entity configurations explicitly // [!code focus]
+        // Default Schema is "ticker". // [!code focus]
+        builder.ApplyConfiguration(new TimeTickerConfigurations(schema: ... ));  // [!code focus]
+        builder.ApplyConfiguration(new CronTickerConfigurations(schema: ...)); // [!code focus]
+        builder.ApplyConfiguration(new CronTickerOccurrenceConfigurations(schema: ...)); // [!code focus]
 
         // Alternatively, apply all configurations from assembly: // [!code focus]
         // builder.ApplyConfigurationsFromAssembly(typeof(TimeTickerConfigurations).Assembly); // [!code focus]
