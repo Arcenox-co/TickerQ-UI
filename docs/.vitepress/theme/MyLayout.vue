@@ -2,6 +2,7 @@
 import { useData } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
 import { nextTick, provide } from 'vue'
+import AnalyticsModal from './components/AnalyticsModal.vue'
 
 const { isDark } = useData()
 
@@ -41,6 +42,7 @@ provide('toggle-appearance', async ({ clientX: x, clientY: y }: MouseEvent) => {
 
 <template>
   <DefaultTheme.Layout />
+  <AnalyticsModal />
 </template>
 
 <style>
