@@ -1,5 +1,7 @@
 import DefaultTheme from 'vitepress/theme'
 import MyLayout from './MyLayout.vue'
+import ReviewCard from './components/ReviewCard.vue'
+import ReviewDialog from './components/ReviewDialog.vue'
 import './style.css' // Tailwind styles
 import './tailwind.css' // or the path where you placed Tailwind directives
 export default {
@@ -8,6 +10,9 @@ export default {
   // injects the slots
   Layout: MyLayout,
   async enhanceApp({ app }) {
+    app.component('ReviewCard', ReviewCard)
+    app.component('ReviewDialog', ReviewDialog)
+    
     if (typeof window !== 'undefined') {
         // Access localStorage here
         const appearance = localStorage.getItem("vitepress-theme-appearance");
