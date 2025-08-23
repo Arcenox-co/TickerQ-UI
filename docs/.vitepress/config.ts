@@ -25,7 +25,7 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Donate', link: 'https://opencollective.com/tickerq' },
-      { text: 'v2.4.0', link: 'https://github.com/Arcenox-co/TickerQ/releases/tag/v2.4.0' }
+      { text: 'v2.5.x', link: 'https://github.com/Arcenox-co/TickerQ' }
     ],
     sidebar: [
       {
