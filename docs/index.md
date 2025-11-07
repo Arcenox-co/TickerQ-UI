@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: "TickerQ `v8.0"
+  name: "TickerQ v8.0"
   text: ""
   tagline: "Enterprise-grade background task scheduler for .NET reflection-free execution, Entity Framework Core persistence, distributed coordination, and real-time monitoring dashboard."
   image:
