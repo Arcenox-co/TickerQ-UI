@@ -55,6 +55,7 @@ Run a lightweight API server that only queues jobs, with separate worker instanc
 builder.Services.AddTickerQ<TTimeTicker, TCronTicker>(options =>
 {
     options.DisableBackgroundServices();
+    options.IgnoreSeedDefinedCronTickers(); // The Worker will seed these.
 });
 
 // Worker Server - with processing
@@ -85,6 +86,24 @@ builder.Services.AddTickerQ<OrderTimeTicker, OrderCronTicker>(options =>
     options.ConfigureScheduler(scheduler =>
     {
         scheduler.NodeIdentifier = "order-worker-01";
+    });
+});
+```
+
+### Database migrations
+
+When using TickerQ in a distributed environment, with a common database for job storage, **only one instance should handle database migrations** to avoid conflicts or race conditions. Typically, the worker service is the natural choice to perform migrations, since it is responsible for job processing.
+Instances that only queue jobs, should disable automatic seeding of Cron Tickers by setting the `IgnoreSeedDefinedCronTickers` option:
+
+```csharp
+// API Server - disable migrations
+builder.Services.AddTickerQ<TTimeTicker, TCronTicker>(options =>
+{
+    options.DisableBackgroundServices();
+    options.IgnoreSeedDefinedCronTickers(); // The Worker will seed these.
+    options.AddOperationalStore(efOptions =>
+    {
+        // Configure shared database for job storage
     });
 });
 ```
