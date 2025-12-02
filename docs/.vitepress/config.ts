@@ -165,7 +165,8 @@ export default defineConfig({
                     { text: 'Overview', link: '/api-reference/configuration/core-configuration' },
                     { text: 'Scheduler', link: '/api-reference/configuration/core-configuration/scheduler-configuration' },
                     { text: 'Exception Handling', link: '/api-reference/configuration/core-configuration/exception-handling' },
-                    { text: 'Start Mode', link: '/api-reference/configuration/core-configuration/start-mode' }
+                    { text: 'Start Mode', link: '/api-reference/configuration/core-configuration/start-mode' },
+                    { text: 'Background Services', link: '/api-reference/configuration/core-configuration/background-services' }
                   ]
                 },
                 {
