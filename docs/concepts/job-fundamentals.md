@@ -115,21 +115,21 @@ public async Task LongRunningTask(
 
 ## Batch Operations
 
-TimeTickers can be grouped as batches with a parent:
+TimeTickers can be grouped as batches with a parent using `ParentId`:
 
 ```csharp
 var batchParent = new TimeTickerEntity
 {
+    Id = Guid.NewGuid(),
     Function = "ProcessBatch",
     ExecutionTime = DateTime.UtcNow,
-    // ... properties
+    // ... other properties
 };
 
 var batchChild1 = new TimeTickerEntity
 {
     Function = "ProcessItem1",
     ParentId = batchParent.Id,
-    BatchParent = batchParent.Id,
     RunCondition = RunCondition.OnSuccess
 };
 
@@ -137,10 +137,11 @@ var batchChild2 = new TimeTickerEntity
 {
     Function = "ProcessItem2",
     ParentId = batchParent.Id,
-    BatchParent = batchParent.Id,
     RunCondition = RunCondition.OnSuccess
 };
 ```
+
+**Note:** Use `ParentId` to establish parent-child relationships. The `Parent` navigation property is set automatically when the ticker is loaded from the database.
 
 ## Request Data Handling
 

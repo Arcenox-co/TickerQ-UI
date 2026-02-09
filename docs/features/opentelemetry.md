@@ -33,32 +33,50 @@ app.Run();
 
 ### Activity Hierarchy
 
-TickerQ creates the following activity structure:
+TickerQ creates activities at different stages of job lifecycle:
 
 ```
-tickerq.job.execute.timeticker (main job execution span)
-├── tickerq.job.enqueued (when job starts execution)
-├── tickerq.job.completed (on successful completion)
-├── tickerq.job.failed (on failure)
-├── tickerq.job.cancelled (on cancellation)
-├── tickerq.job.skipped (when skipped)
-├── tickerq.seeding.started (for data seeding)
-└── tickerq.seeding.completed (seeding completion)
+Job Lifecycle:
+tickerq.job.enqueued              (when job is added to queue)
+tickerq.job.execute.timeticker    (main TimeTicker execution span)
+  └── One of the following outcomes:
+      ├── tickerq.job.completed   (on completion)
+      ├── tickerq.job.failed      (on failure)
+      ├── tickerq.job.cancelled   (on cancellation)
+      └── tickerq.job.skipped     (when skipped)
+
+CronTicker Lifecycle:
+tickerq.job.execute.crontickeroccurrence (CronTicker occurrence execution)
+  └── Same outcomes as above
+
+Seeding Lifecycle:
+tickerq.seeding.started           (when seeding begins)
+tickerq.seeding.completed         (when seeding completes)
+
+Error Events:
+tickerq.job_request_serialization.failed (request deserialization failure)
 ```
 
 ### Activity Names
 
-- `tickerq.job.execute.timeticker` - Main TimeTicker execution
-- `tickerq.job.execute.crontickeroccurrence` - CronTicker occurrence execution
-- `tickerq.job.enqueued` - Job enqueued event
-- `tickerq.job.completed` - Job completed event
-- `tickerq.job.failed` - Job failed event
-- `tickerq.job.cancelled` - Job cancelled event
-- `tickerq.job.skipped` - Job skipped event
+| Activity Name | Description |
+|---------------|-------------|
+| `tickerq.job.execute.timeticker` | Main TimeTicker execution span |
+| `tickerq.job.execute.crontickeroccurrence` | CronTicker occurrence execution span |
+| `tickerq.job.enqueued` | Job enqueued event |
+| `tickerq.job.completed` | Job completed event |
+| `tickerq.job.failed` | Job failed event |
+| `tickerq.job.cancelled` | Job cancelled event |
+| `tickerq.job.skipped` | Job skipped event |
+| `tickerq.job_request_serialization.failed` | Request deserialization failure |
+| `tickerq.seeding.started` | Data seeding started |
+| `tickerq.seeding.completed` | Data seeding completed |
 
 ## Activity Tags
 
 TickerQ adds comprehensive tags to activities:
+
+### Job Execution Tags
 
 | Tag | Description | Example |
 |-----|-------------|---------|
@@ -67,21 +85,50 @@ TickerQ adds comprehensive tags to activities:
 | `tickerq.job.function` | Function name | `ProcessEmails` |
 | `tickerq.job.priority` | Job priority | `Normal`, `High`, `LongRunning` |
 | `tickerq.job.machine` | Machine executing job | `web-server-01` |
-| `tickerq.job.parent_id` | Parent job ID | `parent-job-guid` |
-| `tickerq.job.enqueued_from` | Where job was enqueued | `UserController.CreateUser (Program.cs:42)` |
-| `tickerq.job.is_due` | Whether job is due | `true`, `false` |
-| `tickerq.job.is_child` | Whether this is a child job | `true`, `false` |
 | `tickerq.job.retries` | Maximum retry attempts | `3` |
-| `tickerq.job.current_attempt` | Current retry attempt | `1`, `2`, `3` |
-| `tickerq.job.final_status` | Final execution status | `Done`, `Failed`, `Cancelled` |
-| `tickerq.job.final_retry_count` | Final retry count | `2` |
+| `tickerq.job.parent_id` | Parent job ID (if child job) | `parent-job-guid` |
+| `tickerq.job.run_condition` | Run condition for child jobs | `OnSuccess`, `OnFailure`, `Always` |
+
+### Job Enqueued Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `tickerq.job.enqueued_from` | Where job was enqueued | `UserController.CreateUser (Program.cs:42)` |
+
+### Job Completed Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
 | `tickerq.job.execution_time_ms` | Execution time in milliseconds | `1250` |
 | `tickerq.job.success` | Whether execution was successful | `true`, `false` |
+
+### Job Failed Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `tickerq.job.retry_count` | Current retry attempt | `1`, `2`, `3` |
 | `tickerq.job.error_type` | Exception type | `SqlException`, `TimeoutException` |
 | `tickerq.job.error_message` | Error message | `Connection timeout` |
 | `tickerq.job.error_stack_trace` | Full stack trace | `at MyService.ProcessData()...` |
+
+### Job Cancelled Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
 | `tickerq.job.cancellation_reason` | Reason for cancellation | `Task was cancelled` |
+
+### Job Skipped Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
 | `tickerq.job.skip_reason` | Reason for skipping | `Another instance is already running` |
+
+### Seeding Tags
+
+| Tag | Description | Example |
+|-----|-------------|---------|
+| `tickerq.seeding.type` | Type of ticker being seeded | `TimeTicker`, `CronTicker` |
+| `tickerq.seeding.environment` | Node identifier | `production-node-01` |
 
 ## Integration Examples
 
@@ -163,20 +210,35 @@ builder.Services.AddTickerQ(options =>
 
 ## Structured Logging
 
-TickerQ OpenTelemetry integration provides structured logging through `ILogger`:
+TickerQ provides structured logging through `ILogger` with consistent message templates:
 
 ### Log Output Examples
 
 ```
-[INF] TickerQ Job enqueued: TimeTicker - ProcessEmails (123e4567-e89b-12d3-a456-426614174000) from ExecutionTaskHandler
+[INF] TickerQ Job enqueued: TimeTicker - ProcessEmails (123e4567-e89b-12d3-a456-426614174000) from UserController.CreateUser (Program.cs:42)
+[INF] TickerQ Job started: TimeTicker - ProcessEmails (123e4567-e89b-12d3-a456-426614174000)
 [INF] TickerQ Job completed: ProcessEmails (123e4567-e89b-12d3-a456-426614174000) in 1250ms - Success: True
 [ERR] TickerQ Job failed: ProcessEmails (123e4567-e89b-12d3-a456-426614174000) - Retry 1 - Connection timeout
-[INF] TickerQ Job completed: ProcessEmails (123e4567-e89b-12d3-a456-426614174000) in 2500ms - Success: False
 [WRN] TickerQ Job cancelled: ProcessEmails (123e4567-e89b-12d3-a456-426614174000) - Task was cancelled
 [INF] TickerQ Job skipped: ProcessEmails (123e4567-e89b-12d3-a456-426614174000) - Another CronOccurrence is already running!
 [INF] TickerQ start seeding data: TimeTicker (production-node-01)
 [INF] TickerQ completed seeding data: TimeTicker (production-node-01)
+[ERR] Failed to deserialize request to OrderRequest - 123e4567-e89b-12d3-a456-426614174000 - TimeTicker: JsonException...
 ```
+
+### Log Message Templates
+
+| Event | Level | Template |
+|-------|-------|----------|
+| Job Enqueued | Information | `TickerQ Job enqueued: {JobType} - {Function} ({JobId}) from {EnqueuedFrom}` |
+| Job Started | Information | `TickerQ Job started: {JobType} - {Function} ({JobId})` |
+| Job Completed | Information | `TickerQ Job completed: {Function} ({JobId}) in {ExecutionTime}ms - Success: {Success}` |
+| Job Failed | Error | `TickerQ Job failed: {Function} ({JobId}) - Retry {RetryCount} - {Error}` |
+| Job Cancelled | Warning | `TickerQ Job cancelled: {Function} ({JobId}) - {Reason}` |
+| Job Skipped | Information | `TickerQ Job skipped: {Function} ({JobId}) - {Reason}` |
+| Seeding Started | Information | `TickerQ start seeding data: {TickerType} ({EnvironmentName})` |
+| Seeding Completed | Information | `TickerQ completed seeding data: {TickerType} ({EnvironmentName})` |
+| Deserialization Failed | Error | `Failed to deserialize request to {RequestType} - {TickerId} - {TickerType}: {Exception}` |
 
 ### Logging Frameworks
 

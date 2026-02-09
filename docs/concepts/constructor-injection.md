@@ -34,7 +34,7 @@ public class EmailJobs(ILogger<EmailJobs> logger)
 When your class has multiple constructors, use `[TickerQConstructor]` to mark the one TickerQ should use for dependency injection.
 
 ```csharp
-using TickerQ.Utilities;
+using TickerQ.Utilities.Base;
 
 public class ReportJobs
 {

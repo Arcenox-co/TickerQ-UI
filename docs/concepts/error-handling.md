@@ -96,7 +96,7 @@ public class CustomExceptionHandler : ITickerExceptionHandler
     }
     
     public async Task HandleCanceledExceptionAsync(
-        TaskCanceledException exception,
+        Exception exception,
         Guid tickerId,
         TickerType tickerType)
     {
@@ -104,6 +104,7 @@ public class CustomExceptionHandler : ITickerExceptionHandler
             "Job {TickerId} ({TickerType}) was cancelled",
             tickerId, tickerType);
         // Handle cancellation-specific logic
+        await Task.CompletedTask;
     }
     
     private bool IsCriticalJob(Guid tickerId)

@@ -7,20 +7,20 @@ Result type for all manager operations. Provides success status, result data, an
 ```csharp
 public class TickerResult<TEntity> where TEntity : class
 {
-    public bool IsSucceeded { get; }
-    public TEntity Result { get; }
-    public int AffectedRows { get; }
-    public Exception Exception { get; }
+    public readonly bool IsSucceeded;
+    public readonly int AffectedRows;
+    public readonly TEntity Result;
+    public readonly Exception Exception;
 }
 ```
 
-## Properties
+## Fields
 
-| Property | Type | Description |
-|----------|------|-------------|
+| Field | Type | Description |
+|-------|------|-------------|
 | `IsSucceeded` | `bool` | `true` if operation succeeded, `false` otherwise |
-| `Result` | `TEntity` | The entity returned (created/updated entity) |
 | `AffectedRows` | `int` | Number of database rows affected (for update/delete operations) |
+| `Result` | `TEntity` | The entity returned (created/updated entity) |
 | `Exception` | `Exception` | Exception thrown if operation failed |
 
 ## Usage

@@ -117,22 +117,34 @@ Use your application's existing authentication system.
 
 **Method:**
 ```csharp
-DashboardOptionsBuilder WithHostAuthentication();
+DashboardOptionsBuilder WithHostAuthentication(string? policy = null);
 ```
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `policy` | `string?` | Optional authorization policy name to require (e.g., "AdminPolicy"). If null or empty, uses the default policy. |
 
 **Example:**
 ```csharp
+// Use default authentication (any authenticated user)
 dashboardOptions.WithHostAuthentication();
+
+// Require a specific authorization policy
+dashboardOptions.WithHostAuthentication("AdminPolicy");
 ```
 
 **How It Works:**
 - Delegates authentication to your application's middleware
 - Works with ASP.NET Core Identity, JWT, Cookies, etc.
 - Uses the same authentication context as your app
+- Optionally enforces a specific authorization policy
 
 **Requirements:**
 - Authentication middleware must be configured in your application
 - User must be authenticated to access dashboard
+- If a policy is specified, user must satisfy that policy
 
 **Example Setup:**
 ```csharp
@@ -140,16 +152,29 @@ dashboardOptions.WithHostAuthentication();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options => { /* ... */ });
 
-// Configure TickerQ Dashboard
+// Configure authorization policies
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminPolicy", policy =>
+        policy.RequireRole("Admin"));
+});
+
+// Configure TickerQ Dashboard with policy
 options.AddDashboard(dashboardOptions =>
 {
     dashboardOptions.SetBasePath("/admin/tickerq");
-    dashboardOptions.WithHostAuthentication(); // Uses app's JWT auth
+    dashboardOptions.WithHostAuthentication("AdminPolicy"); // Requires Admin role
 });
 ```
 
-**With Role/Policy Requirements:**
-While `WithHostAuthentication()` doesn't accept parameters, you can enforce authorization in your application's authorization policies.
+**Without Policy (Any Authenticated User):**
+```csharp
+options.AddDashboard(dashboardOptions =>
+{
+    dashboardOptions.SetBasePath("/admin/tickerq");
+    dashboardOptions.WithHostAuthentication(); // Any authenticated user can access
+});
+```
 
 ## WithCustomAuth
 
@@ -245,11 +270,17 @@ options.AddDashboard(dashboardOptions =>
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => { /* ... */ });
 
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("DashboardAccess", policy =>
+        policy.RequireRole("Admin", "Manager"));
+});
+
 // TickerQ configuration
 options.AddDashboard(dashboardOptions =>
 {
     dashboardOptions.SetBasePath("/admin/tickerq");
-    dashboardOptions.WithHostAuthentication(); // Uses cookie auth
+    dashboardOptions.WithHostAuthentication("DashboardAccess"); // Requires Admin or Manager role
 });
 ```
 

@@ -18,13 +18,16 @@ builder.Host.ConfigureLogging(logging =>
 ### Structured Logging with Serilog
 
 ```csharp
+using Serilog;
+using Serilog.Events;
+
 builder.Host.UseSerilog((context, config) =>
 {
     config
         .MinimumLevel.Debug()
-        .MinimumLevel.Override("TickerQ", LogLevel.Debug)
+        .MinimumLevel.Override("TickerQ", LogEventLevel.Debug)
         .WriteTo.Console()
-        .WriteTo.File("logs/tickerq-.txt", 
+        .WriteTo.File("logs/tickerq-.txt",
             rollingInterval: RollingInterval.Day,
             outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss} [{Level}] {Message}{NewLine}{Exception}");
 });

@@ -26,14 +26,35 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started/installation' },
       { text: 'API Reference', link: '/api-reference/managers/index' },
       { text: 'Examples', link: '/examples/complete-example' },
-      { 
-        text: 'v8+', 
+      { text: 'Hub Docs', link: '/features/hub' },
+      {
+        text: 'v8+',
         items: [
           { text: 'v2.5.x (Legacy)', link: 'https://v2.tickerq.net' }
         ]
       }
     ],
     sidebar: {
+      '/features/hub/': [
+        {
+          text: 'TickerQ Hub',
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/features/hub' },
+            { text: 'Getting Started', link: '/features/hub/getting-started' },
+            { text: 'Creating an Application', link: '/features/hub/applications' },
+            { text: 'Managing Nodes', link: '/features/hub/nodes' }
+          ]
+        },
+        {
+          text: 'Integration',
+          collapsed: false,
+          items: [
+            { text: 'SDK (Remote Nodes)', link: '/features/hub/sdk' },
+            { text: 'Remote Executor (Host)', link: '/features/hub/remote-executor' }
+          ]
+        }
+      ],
       '/': [
         {
           text: 'Getting Started',

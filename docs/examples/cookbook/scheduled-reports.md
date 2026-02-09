@@ -7,34 +7,47 @@ Generate and distribute reports on schedules.
 Generate a daily report at midnight:
 
 ```csharp
-[TickerFunction("GenerateDailyReport", cronExpression: "0 0 0 * * *")]
-public async Task GenerateDailyReport(
-    TickerFunctionContext context,
-    CancellationToken cancellationToken)
+public class ReportJobs
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var reportService = scope.ServiceProvider.GetRequiredService<IReportService>();
-    
-    var yesterday = DateTime.UtcNow.AddDays(-1).Date;
-    var today = DateTime.UtcNow.Date;
-    
-    // Generate report data
-    var reportData = await dbContext.Orders
-        .Where(o => o.CreatedAt >= yesterday && o.CreatedAt < today)
-        .GroupBy(o => o.Status)
-        .Select(g => new { Status = g.Key, Count = g.Count() })
-        .ToListAsync(cancellationToken);
-    
-    // Generate PDF report
-    var report = await reportService.GeneratePdfAsync(reportData, cancellationToken);
-    
-    // Email to administrators
-    await _emailService.SendToAdminsAsync(
-        subject: $"Daily Report - {yesterday:yyyy-MM-dd}",
-        attachment: report,
-        cancellationToken
-    );
+    private readonly AppDbContext _dbContext;
+    private readonly IReportService _reportService;
+    private readonly IEmailService _emailService;
+
+    public ReportJobs(
+        AppDbContext dbContext,
+        IReportService reportService,
+        IEmailService emailService)
+    {
+        _dbContext = dbContext;
+        _reportService = reportService;
+        _emailService = emailService;
+    }
+
+    [TickerFunction("GenerateDailyReport", cronExpression: "0 0 0 * * *")]
+    public async Task GenerateDailyReport(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        var yesterday = DateTime.UtcNow.AddDays(-1).Date;
+        var today = DateTime.UtcNow.Date;
+
+        // Generate report data
+        var reportData = await _dbContext.Orders
+            .Where(o => o.CreatedAt >= yesterday && o.CreatedAt < today)
+            .GroupBy(o => o.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken);
+
+        // Generate PDF report
+        var report = await _reportService.GeneratePdfAsync(reportData, cancellationToken);
+
+        // Email to administrators
+        await _emailService.SendToAdminsAsync(
+            subject: $"Daily Report - {yesterday:yyyy-MM-dd}",
+            attachment: report,
+            cancellationToken
+        );
+    }
 }
 ```
 
@@ -104,20 +117,17 @@ public async Task GenerateConditionalReport(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
     // Check if report should be generated
-    var orderCount = await dbContext.Orders
+    var orderCount = await _dbContext.Orders
         .Where(o => o.CreatedAt >= DateTime.UtcNow.AddDays(-1))
         .CountAsync(cancellationToken);
-    
+
     if (orderCount < 10)
     {
         _logger.LogInformation("Order count below threshold, skipping report");
         return; // Skip report generation
     }
-    
+
     // Generate report
     await GenerateReportAsync(cancellationToken);
 }

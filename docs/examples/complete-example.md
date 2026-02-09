@@ -156,13 +156,16 @@ public class NotificationJobs
 {
     private readonly IEmailService _emailService;
     private readonly ILogger<NotificationJobs> _logger;
-    
+    private readonly AppDbContext _dbContext;
+
     public NotificationJobs(
         IEmailService emailService,
-        ILogger<NotificationJobs> logger)
+        ILogger<NotificationJobs> logger,
+        AppDbContext dbContext)
     {
         _emailService = emailService;
         _logger = logger;
+        _dbContext = dbContext;
     }
     
     [TickerFunction("SendWelcomeEmail")]
@@ -206,21 +209,18 @@ public async Task SendDailyDigest(
     CancellationToken cancellationToken)
 {
     _logger.LogInformation("Starting daily digest job");
-    
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
-    var users = await dbContext.Users.ToListAsync(cancellationToken);
-    
+
+    var users = await _dbContext.Users.ToListAsync(cancellationToken);
+
     foreach (var user in users)
     {
         try
         {
-            var notifications = await dbContext.Notifications
-                .Where(n => n.UserId == user.Id 
+            var notifications = await _dbContext.Notifications
+                .Where(n => n.UserId == user.Id
                     && n.CreatedAt >= DateTime.UtcNow.AddDays(-1))
                 .ToListAsync(cancellationToken);
-            
+
             if (notifications.Any())
             {
                 await _emailService.SendAsync(
@@ -237,7 +237,7 @@ public async Task SendDailyDigest(
             // Continue with other users
         }
     }
-    
+
     _logger.LogInformation("Daily digest job completed");
 }
 
@@ -263,18 +263,15 @@ public async Task CleanupOldNotifications(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
     var cutoffDate = DateTime.UtcNow.AddDays(-30);
-    
-    var oldNotifications = await dbContext.Notifications
+
+    var oldNotifications = await _dbContext.Notifications
         .Where(n => n.CreatedAt < cutoffDate)
         .ToListAsync(cancellationToken);
-    
-    dbContext.Notifications.RemoveRange(oldNotifications);
-    await dbContext.SaveChangesAsync(cancellationToken);
-    
+
+    _dbContext.Notifications.RemoveRange(oldNotifications);
+    await _dbContext.SaveChangesAsync(cancellationToken);
+
     _logger.LogInformation("Cleaned up {Count} old notifications", oldNotifications.Count);
 }
 ```
@@ -386,13 +383,14 @@ public class NotificationExceptionHandler : ITickerExceptionHandler
     }
     
     public async Task HandleCanceledExceptionAsync(
-        TaskCanceledException exception,
+        Exception exception,
         Guid tickerId,
         TickerType tickerType)
     {
         _logger.LogWarning(
             "Job {TickerId} ({TickerType}) was cancelled",
             tickerId, tickerType);
+        await Task.CompletedTask;
     }
 }
 ```

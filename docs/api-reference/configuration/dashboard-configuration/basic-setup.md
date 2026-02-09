@@ -11,8 +11,8 @@ Set the URL path where the dashboard will be accessible.
 void SetBasePath(string basePath);
 ```
 
-**Type:** `string`  
-**Default:** `"/"`
+**Type:** `string`
+**Default:** `"/tickerq/dashboard"`
 
 **Example:**
 ```csharp

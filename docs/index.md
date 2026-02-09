@@ -30,17 +30,26 @@ features:
     details: Monitor and control jobs via the real-time dashboard UI and coordinate multiple nodes with optional Redis heartbeats and dead-node cleanup.
 ---
 
-<div style="margin: 2.5rem 0 1.5rem; width: 100%; padding: 1.5rem 1.75rem; border: 1px solid var(--vp-c-divider); border-radius: 16px; background: linear-gradient(135deg, var(--vp-c-bg-soft) 0%, rgba(103, 123, 255, 0.08) 100%); box-shadow: 0 8px 28px var(--vp-c-shadow); display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; justify-content: space-between; position: relative; overflow: hidden;">
-<div style="position: absolute; inset: 0; background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), transparent 35%), radial-gradient(circle at 80% 10%, rgba(82, 101, 255, 0.12), transparent 30%); opacity: 0.8; pointer-events: none;"></div>
-<div style="display: flex; align-items: center; gap: 0.9rem; flex: 1 1 260px; position: relative; z-index: 1;">
+<div style="margin: 2.5rem 0 1.5rem; width: 100%; padding: 2rem 2rem; border: 2px solid transparent; border-radius: 20px; background: linear-gradient(var(--vp-c-bg), var(--vp-c-bg)) padding-box, linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%) border-box; box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25), 0 4px 12px var(--vp-c-shadow); display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; justify-content: space-between; position: relative; overflow: hidden;">
+<div style="position: absolute; inset: 0; background: radial-gradient(circle at 0% 0%, rgba(102, 126, 234, 0.15), transparent 50%), radial-gradient(circle at 100% 100%, rgba(240, 147, 251, 0.12), transparent 50%); pointer-events: none;"></div>
+<div style="position: absolute; top: -50%; right: -20%; width: 300px; height: 300px; background: radial-gradient(circle, rgba(118, 75, 162, 0.08) 0%, transparent 70%); pointer-events: none;"></div>
+<div style="display: flex; align-items: center; gap: 1rem; flex: 1 1 280px; position: relative; z-index: 1;">
+  <div style="flex-shrink: 0; width: 56px; height: 56px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+  </div>
   <div>
-    <div style="display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.65rem; background: var(--vp-c-bg); border: 1px solid var(--vp-c-divider); border-radius: 999px; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--vp-c-text-2); margin-bottom: 0.35rem;">Enterprise</div>
-    <h3 style="margin: 0; font-size: 1.15rem; color: var(--vp-c-text-1);">Join the TickerQ Enterprise whitelist</h3>
-    <p style="margin: 0.2rem 0 0; color: var(--vp-c-text-2); font-size: 0.95rem; line-height: 1.5;">Request whitelisting to explore our managed Enterprise offering built for teams that need compliance, SLAs, and dedicated support. TickerQ Enterprise adds power for large organizations and high-demand cloud environments.</p>
-    <p style="margin: 0.45rem 0 0; color: var(--vp-c-text-2); font-size: 0.95rem; line-height: 1.6;">TickerQ Core stays forever open-source.</p>
+    <div style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.75rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 999px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: white; margin-bottom: 0.5rem; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+      Hub
+    </div>
+    <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--vp-c-text-1);">TickerQ Hub — Distributed Job Orchestration</h3>
+    <p style="margin: 0.4rem 0 0; color: var(--vp-c-text-2); font-size: 0.95rem; line-height: 1.55;">Centralized metadata registry for distributed TickerQ deployments. Coordinate jobs across multiple nodes, track execution status in real-time, and scale your background processing effortlessly.</p>
   </div>
 </div>
-<a href="https://enterprise.tickerq.net" target="_blank" style="position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; padding: 0.85rem 1.4rem; background: linear-gradient(135deg, var(--vp-c-brand) 0%, var(--vp-c-brand-dark) 100%); color: white; text-decoration: none; border-radius: 12px; font-weight: 600; box-shadow: 0 6px 18px rgba(62, 86, 255, 0.35); border: 1px solid rgba(255, 255, 255, 0.25); min-width: 200px; text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;">Go to enterprise.tickerq.net</a>
+<a href="https://hub.tickerq.net" target="_blank" style="position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 1rem 1.6rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 14px; font-weight: 600; font-size: 0.95rem; box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4); border: none; min-width: 180px; text-align: center; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+  Visit hub.tickerq.net
+</a>
 </div>
 
 ## Our Sponsor
