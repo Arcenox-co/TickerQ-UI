@@ -69,17 +69,37 @@ services.AddDbContext<MyApplicationDbContext>(options =>
 
 ### Design-time DbContext Factory
 
-For migrations to work, create a design-time factory:
+For migrations to work, create a design-time factory. It is important to note that we need an initialized service collection with TickerQ dependencies registered to ensure the context can run `DbContext.OnConfiguring`.
 
 ```csharp
 public class TickerQDbContextFactory : IDesignTimeDbContextFactory<TickerQDbContext>
 {
     public TickerQDbContext CreateDbContext(string[] args)
     {
-        var optionsBuilder = new DbContextOptionsBuilder<TickerQDbContext>();
-        optionsBuilder.UseSqlServer("Server=localhost;Database=TickerQDb;Trusted_Connection=true;");
-        
-        return new TickerQDbContext(optionsBuilder.Options);
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json")
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddTickerQ(options =>
+        {
+            options.AddOperationalStore(ef =>
+                ef.UseTickerQDbContext<TickerQDbContext>(
+                    efBuilder =>
+                        efBuilder.UseSqlServer(
+                            configuration.GetConnectionString("DefaultConnection"),
+                            b => b.MigrationsAssembly(Assembly.GetExecutingAssembly().FullName!)
+                        ),
+                    "ticker"
+                )
+            );
+        });
+
+        var serviceProvider = services.BuildServiceProvider();
+        var context = serviceProvider.GetRequiredService<TickerQDbContext>();
+
+        return context;
     }
 }
 ```
@@ -89,7 +109,7 @@ public class TickerQDbContextFactory : IDesignTimeDbContextFactory<TickerQDbCont
 TickerQ migrations typically include:
 
 - **TimeTicker** table with scheduling and execution tracking
-- **CronTicker** table with cron expression support  
+- **CronTicker** table with cron expression support
 - **CronOccurrence** table for cron execution history
 - **Indexes** for performance optimization
 - **Foreign key relationships** between entities
@@ -101,7 +121,7 @@ protected override void OnModelCreating(ModelBuilder modelBuilder)
 {
     // Custom schema
     modelBuilder.HasDefaultSchema("job_scheduler");
-    
+
     // Configure TickerQ entities
     modelBuilder.ConfigureTickerQ();
 }
@@ -154,7 +174,7 @@ dotnet ef migrations add InitialTickerQSchema --context TickerQDbContext
 
 Generated migration includes:
 - TimeTicker table creation
-- CronTicker table creation  
+- CronTicker table creation
 - CronOccurrence table creation
 - Indexes and constraints
 - Foreign key relationships
@@ -181,13 +201,13 @@ Apply migrations during application startup:
 public static void Main(string[] args)
 {
     var host = CreateHostBuilder(args).Build();
-    
+
     using (var scope = host.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<TickerQDbContext>();
         context.Database.Migrate(); // Apply pending migrations
     }
-    
+
     host.Run();
 }
 ```
@@ -207,7 +227,7 @@ services:
       - ConnectionStrings__DefaultConnection=...
     depends_on:
       - database
-      
+
   app:
     image: myapp:latest
     depends_on:

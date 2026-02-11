@@ -13,6 +13,9 @@ Set up global exception handlers for job execution errors.
 ### [Start Mode](./start-mode)
 Control when TickerQ starts processing jobs.
 
+### [Background Services](./background-services)
+Enable or disable background job processing services for queue-only mode.
+
 ### Request Serialization
 Control how ticker request payloads are serialized and stored (plain JSON bytes or GZip-compressed).
 
@@ -71,4 +74,5 @@ builder.Services.AddTickerQ<TTimeTicker, TCronTicker>(options =>
 - [Scheduler Configuration](./scheduler-configuration) - Detailed scheduler options
 - [Exception Handling](./exception-handling) - Global exception handler setup
 - [Start Mode](./start-mode) - Application startup control
+- [Background Services](./background-services) - Enable or disable background processing
 - [Configuration Overview](../index) - All configuration sections
