@@ -4,6 +4,10 @@ TickerQ.Instrumentation.OpenTelemetry provides distributed tracing and structure
 
 ## Quick Start
 
+```shell
+dotnet package add TickerQ.Instrumentation.OpenTelemetry
+```
+
 ```csharp
 using TickerQ.DependencyInjection;
 using TickerQ.Instrumentation.OpenTelemetry;
