@@ -1,9 +1,30 @@
 <script setup lang="ts">
-import { useData } from 'vitepress'
+import { useData, useRoute } from 'vitepress'
 import DefaultTheme from 'vitepress/theme'
-import { nextTick, provide } from 'vue'
+import { computed, nextTick, provide } from 'vue'
 
 const { isDark } = useData()
+const route = useRoute()
+
+const section = computed(() => {
+  const path = route.path
+  if (path === '/' || path === '/index.html') {
+    return null
+  }
+  if (path.startsWith('/features/hub')) {
+    return { title: 'TickerQ Hub', class: 'hub' }
+  }
+  if (path.startsWith('/api-reference/') && !path.startsWith('/api-reference/configuration/')) {
+    return { title: 'API Reference', class: 'api-ref' }
+  }
+  if (path.startsWith('/releases')) {
+    return { title: 'Releases', class: 'releases' }
+  }
+  if (path.startsWith('/examples')) {
+    return { title: 'Examples', class: 'examples' }
+  }
+  return { title: 'Guide', class: 'guide' }
+})
 
 const enableTransitions = () =>
   'startViewTransition' in document &&
@@ -40,7 +61,13 @@ provide('toggle-appearance', async ({ clientX: x, clientY: y }: MouseEvent) => {
 </script>
 
 <template>
-  <DefaultTheme.Layout />
+  <DefaultTheme.Layout>
+    <template #nav-bar-title-after>
+      <span v-if="section" class="section-badge" :class="section.class">
+        [ {{ section.title }} ]
+      </span>
+    </template>
+  </DefaultTheme.Layout>
 </template>
 
 <style>
@@ -67,4 +94,30 @@ provide('toggle-appearance', async ({ clientX: x, clientY: y }: MouseEvent) => {
 .VPSwitchAppearance .check {
   transform: none !important;
 }
+
+.section-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  background: none;
+  border: none;
+}
+
+.section-badge.guide { color: #f3d5a3; }
+.section-badge.api-ref { color: #60a5fa; }
+.section-badge.hub { color: #a78bfa; }
+.section-badge.releases { color: #34d399; }
+.section-badge.examples { color: #fb923c; }
+
+:root:not(.dark) .section-badge.guide { color: #92600a; }
+:root:not(.dark) .section-badge.api-ref { color: #1d4ed8; }
+:root:not(.dark) .section-badge.hub { color: #6d28d9; }
+:root:not(.dark) .section-badge.releases { color: #047857; }
+:root:not(.dark) .section-badge.examples { color: #c2410c; }
 </style>

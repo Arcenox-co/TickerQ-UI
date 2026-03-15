@@ -7,47 +7,57 @@ Patterns for polling external APIs with TickerQ.
 Poll an external API every 5 minutes:
 
 ```csharp
-[TickerFunction("PollExternalApi", cronExpression: "0 */5 * * * *")]
-public async Task PollExternalApi(
-    TickerFunctionContext context,
-    CancellationToken cancellationToken)
+public class ApiPollingJobs
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var apiClient = scope.ServiceProvider.GetRequiredService<IExternalApiClient>();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
-    try
+    private readonly IExternalApiClient _apiClient;
+    private readonly AppDbContext _dbContext;
+    private readonly ILogger<ApiPollingJobs> _logger;
+
+    public ApiPollingJobs(
+        IExternalApiClient apiClient,
+        AppDbContext dbContext,
+        ILogger<ApiPollingJobs> logger)
     {
-        var data = await apiClient.FetchDataAsync(cancellationToken);
-        
-        // Process and store data
-        foreach (var item in data)
+        _apiClient = apiClient;
+        _dbContext = dbContext;
+        _logger = logger;
+    }
+
+    [TickerFunction("PollExternalApi", cronExpression: "0 */5 * * * *")]
+    public async Task PollExternalApi(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            var existing = await dbContext.DataItems
-                .FirstOrDefaultAsync(d => d.ExternalId == item.Id, cancellationToken);
-            
-            if (existing == null)
+            var data = await _apiClient.FetchDataAsync(cancellationToken);
+
+            foreach (var item in data)
             {
-                dbContext.DataItems.Add(new DataItem { /* ... */ });
+                var existing = await _dbContext.DataItems
+                    .FirstOrDefaultAsync(d => d.ExternalId == item.Id, cancellationToken);
+
+                if (existing == null)
+                {
+                    _dbContext.DataItems.Add(new DataItem { /* ... */ });
+                }
+                else
+                {
+                    existing.Value = item.Value;
+                }
             }
-            else
-            {
-                // Update existing
-                existing.Value = item.Value;
-            }
+
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
-        
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-    catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-    {
-        _logger.LogWarning("Rate limited, will retry on next occurrence");
-        // Don't throw - job will retry on next scheduled occurrence
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Failed to poll external API");
-        throw; // Will trigger retry if configured
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            _logger.LogWarning("Rate limited, will retry on next occurrence");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to poll external API");
+            throw;
+        }
     }
 }
 ```
@@ -62,28 +72,25 @@ public async Task PollWithBackoff(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    var apiClient = _serviceProvider.GetRequiredService<IExternalApiClient>();
-    
-    // Use retry count to implement exponential backoff
     var retryCount = context.RetryCount;
     var delaySeconds = (int)Math.Pow(2, retryCount); // 1s, 2s, 4s, 8s...
-    
+
     if (retryCount > 0)
     {
-        _logger.LogInformation("Retrying after {Delay}s (attempt {Attempt})", 
+        _logger.LogInformation("Retrying after {Delay}s (attempt {Attempt})",
             delaySeconds, retryCount + 1);
         await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
     }
-    
+
     try
     {
-        var data = await apiClient.FetchDataAsync(cancellationToken);
+        var data = await _apiClient.FetchDataAsync(cancellationToken);
         await ProcessDataAsync(data, cancellationToken);
     }
     catch (Exception ex) when (retryCount < 5)
     {
         _logger.LogWarning(ex, "API call failed, will retry");
-        throw; // Trigger retry
+        throw;
     }
 }
 ```

@@ -1,5 +1,130 @@
 import { defineConfig } from 'vitepress'
 
+const guideSidebar = [
+  {
+    text: 'Getting Started',
+    collapsed: false,
+    items: [
+      { text: 'Introduction', link: '/introduction/what-is-tickerq' },
+      { text: 'Installation', link: '/getting-started/installation' },
+      { text: 'Quick Start', link: '/getting-started/quick-start' }
+    ]
+  },
+  {
+    text: 'Essentials',
+    collapsed: false,
+    items: [
+      {
+        text: 'Core Concepts',
+        items: [
+          { text: 'Job Types', link: '/concepts/job-types' },
+          { text: 'Job Fundamentals', link: '/concepts/job-fundamentals' },
+          { text: 'Job Chaining', link: '/concepts/job-chaining' },
+          { text: 'Job Priorities', link: '/concepts/job-priorities' },
+          { text: 'Constructor Injection', link: '/concepts/constructor-injection' },
+          { text: 'Error Handling', link: '/concepts/error-handling' }
+        ]
+      }
+    ]
+  },
+  {
+    text: 'Integration',
+    collapsed: false,
+    items: [
+      {
+        text: 'Entity Framework Core',
+        items: [
+          { text: 'Overview', link: '/features/entity-framework' },
+          { text: 'Installation', link: '/features/entity-framework/installation' },
+          {
+            text: 'Setup',
+            items: [
+              { text: 'Overview', link: '/features/entity-framework/setup/index' },
+              { text: 'Built-in TickerQDbContext', link: '/features/entity-framework/setup/built-in-dbcontext' },
+              { text: 'Application DbContext', link: '/features/entity-framework/setup/application-dbcontext' },
+              { text: 'Custom Entities', link: '/features/entity-framework/setup/custom-entities' }
+            ]
+          },
+          { text: 'Migrations', link: '/features/entity-framework/migrations' }
+        ]
+      },
+      {
+        text: 'Dashboard',
+        items: [
+          { text: 'Overview', link: '/features/dashboard' },
+          { text: 'Installation', link: '/features/dashboard/installation' },
+          { text: 'Setup', link: '/features/dashboard/setup' },
+          { text: 'Authentication', link: '/features/dashboard/authentication' },
+          { text: 'Screenshots', link: '/features/dashboard#dashboard-screenshots' }
+        ]
+      },
+      {
+        text: 'Redis Caching',
+        items: [
+          { text: 'Overview', link: '/features/redis' }
+        ]
+      },
+      {
+        text: 'OpenTelemetry',
+        items: [
+          { text: 'Overview', link: '/features/opentelemetry' }
+        ]
+      }
+    ]
+  },
+  {
+    text: 'Configuration',
+    collapsed: false,
+    items: [
+      { text: 'Overview', link: '/api-reference/configuration/index' },
+      {
+        text: 'Core Configuration',
+        items: [
+          { text: 'Overview', link: '/api-reference/configuration/core-configuration' },
+          { text: 'Scheduler', link: '/api-reference/configuration/core-configuration/scheduler-configuration' },
+          { text: 'Exception Handling', link: '/api-reference/configuration/core-configuration/exception-handling' },
+          { text: 'Start Mode', link: '/api-reference/configuration/core-configuration/start-mode' }
+        ]
+      },
+      {
+        text: 'Entity Framework',
+        items: [
+          { text: 'Overview', link: '/api-reference/configuration/entity-framework-configuration' },
+          { text: 'DbContext Setup', link: '/api-reference/configuration/entity-framework-configuration/dbcontext-setup' },
+          { text: 'Connection & Pooling', link: '/api-reference/configuration/entity-framework-configuration/connection-pooling' },
+          {
+            text: 'Seeding',
+            items: [
+              { text: 'Overview', link: '/api-reference/configuration/seeding/index' },
+              { text: 'Automatic Seeding', link: '/api-reference/configuration/seeding/automatic-seeding' },
+              { text: 'Custom Seeding', link: '/api-reference/configuration/seeding/custom-seeding' },
+              { text: 'Disable Seeding', link: '/api-reference/configuration/seeding/disable-seeding' }
+            ]
+          }
+        ]
+      },
+      {
+        text: 'Dashboard',
+        items: [
+          { text: 'Overview', link: '/api-reference/configuration/dashboard-configuration' },
+          { text: 'Basic Setup', link: '/api-reference/configuration/dashboard-configuration/basic-setup' },
+          { text: 'Authentication', link: '/api-reference/configuration/dashboard-configuration/authentication' }
+        ]
+      },
+      { text: 'Redis', link: '/api-reference/configuration/redis-configuration' },
+      { text: 'OpenTelemetry', link: '/api-reference/configuration/opentelemetry-configuration' }
+    ]
+  },
+  {
+    text: 'Support',
+    collapsed: false,
+    items: [
+      { text: 'Common Issues', link: '/troubleshooting/common-issues' },
+      { text: 'Debugging', link: '/troubleshooting/debugging' }
+    ]
+  }
+]
+
 export default defineConfig({
   title: "TickerQ",
   description: "A powerful job scheduling library for .NET by Albert Kunushevci",
@@ -27,6 +152,7 @@ export default defineConfig({
       { text: 'API Reference', link: '/api-reference/managers/index' },
       { text: 'Examples', link: '/examples/complete-example' },
       { text: 'Hub Docs', link: '/features/hub' },
+      { text: 'Releases', link: '/releases/' },
       {
         text: 'v8+',
         items: [
@@ -55,78 +181,7 @@ export default defineConfig({
           ]
         }
       ],
-      '/': [
-        {
-          text: 'Getting Started',
-          collapsed: false,
-          items: [
-            { text: 'Introduction', link: '/introduction/what-is-tickerq' },
-            { text: 'Installation', link: '/getting-started/installation' },
-            { text: 'Quick Start', link: '/getting-started/quick-start' }
-          ]
-        },
-        {
-          text: 'Essentials',
-          collapsed: false,
-          items: [
-            {
-              text: 'Core Concepts',
-              items: [
-                { text: 'Job Types', link: '/concepts/job-types' },
-                { text: 'Job Fundamentals', link: '/concepts/job-fundamentals' },
-                { text: 'Job Chaining', link: '/concepts/job-chaining' },
-                { text: 'Job Priorities', link: '/concepts/job-priorities' },
-                { text: 'Constructor Injection', link: '/concepts/constructor-injection' },
-                { text: 'Error Handling', link: '/concepts/error-handling' }
-              ]
-            }
-          ]
-        },
-        {
-          text: 'Integration',
-          collapsed: false,
-          items: [
-            {
-              text: 'Entity Framework Core',
-              items: [
-                { text: 'Overview', link: '/features/entity-framework' },
-                { text: 'Installation', link: '/features/entity-framework/installation' },
-                {
-                  text: 'Setup',
-                  items: [
-                    { text: 'Overview', link: '/features/entity-framework/setup/index' },
-                    { text: 'Built-in TickerQDbContext', link: '/features/entity-framework/setup/built-in-dbcontext' },
-                    { text: 'Application DbContext', link: '/features/entity-framework/setup/application-dbcontext' },
-                    { text: 'Custom Entities', link: '/features/entity-framework/setup/custom-entities' }
-                  ]
-                },
-                { text: 'Migrations', link: '/features/entity-framework/migrations' }
-              ]
-            },
-            {
-              text: 'Dashboard',
-              items: [
-                { text: 'Overview', link: '/features/dashboard' },
-                { text: 'Installation', link: '/features/dashboard/installation' },
-                { text: 'Setup', link: '/features/dashboard/setup' },
-                { text: 'Authentication', link: '/features/dashboard/authentication' },
-                { text: 'Screenshots', link: '/features/dashboard#dashboard-screenshots' }
-              ]
-            },
-            {
-              text: 'Redis Caching',
-              items: [
-                { text: 'Overview', link: '/features/redis' }
-              ]
-            },
-            {
-              text: 'OpenTelemetry',
-              items: [
-                { text: 'Overview', link: '/features/opentelemetry' }
-              ]
-            }
-          ]
-        },
+      '/examples/': [
         {
           text: 'Examples',
           collapsed: false,
@@ -148,87 +203,65 @@ export default defineConfig({
               ]
             }
           ]
-        },
+        }
+      ],
+      '/releases/': [
+        {
+          text: 'Releases',
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/releases/' },
+            { text: 'v10.2.0 / v9.2.0 / v8.2.0', link: '/releases/v10.2.0' }
+          ]
+        }
+      ],
+      '/api-reference/configuration/': guideSidebar,
+      '/api-reference/': [
         {
           text: 'API Reference',
           collapsed: false,
           items: [
             { text: 'Attributes', link: '/api-reference/attributes' },
-            { text: 'Diagnostics', link: '/api-reference/diagnostics' },
-            {
-              text: 'Managers',
-              items: [
-                { text: 'Overview', link: '/api-reference/managers/index' },
-                { text: 'TimeTickerManager', link: '/api-reference/managers/time-ticker-manager' },
-                { text: 'CronTickerManager', link: '/api-reference/managers/cron-ticker-manager' },
-                { text: 'TickerResult', link: '/api-reference/managers/ticker-result' }
-              ]
-            },
-            {
-              text: 'Entities',
-              items: [
-                { text: 'Overview', link: '/api-reference/entities/index' },
-                { text: 'BaseTickerEntity', link: '/api-reference/entities/base-entity' },
-                { text: 'TimeTickerEntity', link: '/api-reference/entities/time-ticker-entity' },
-                { text: 'CronTickerEntity', link: '/api-reference/entities/cron-ticker-entity' },
-                { text: 'CronTickerOccurrenceEntity', link: '/api-reference/entities/cron-occurrence-entity' },
-                { text: 'Enums', link: '/api-reference/entities/enums' },
-                { text: 'Custom Entities', link: '/api-reference/entities/custom-entities' }
-              ]
-            },
-            {
-              text: 'Configuration',
-              items: [
-                { text: 'Overview', link: '/api-reference/configuration/index' },
-                {
-                  text: 'Core Configuration',
-                  items: [
-                    { text: 'Overview', link: '/api-reference/configuration/core-configuration' },
-                    { text: 'Scheduler', link: '/api-reference/configuration/core-configuration/scheduler-configuration' },
-                    { text: 'Exception Handling', link: '/api-reference/configuration/core-configuration/exception-handling' },
-                    { text: 'Start Mode', link: '/api-reference/configuration/core-configuration/start-mode' }
-                  ]
-                },
-                {
-                  text: 'Entity Framework',
-                  items: [
-                    { text: 'Overview', link: '/api-reference/configuration/entity-framework-configuration' },
-                    { text: 'DbContext Setup', link: '/api-reference/configuration/entity-framework-configuration/dbcontext-setup' },
-                    { text: 'Connection & Pooling', link: '/api-reference/configuration/entity-framework-configuration/connection-pooling' },
-                    {
-                      text: 'Seeding',
-                      items: [
-                        { text: 'Overview', link: '/api-reference/configuration/seeding/index' },
-                        { text: 'Automatic Seeding', link: '/api-reference/configuration/seeding/automatic-seeding' },
-                        { text: 'Custom Seeding', link: '/api-reference/configuration/seeding/custom-seeding' },
-                        { text: 'Disable Seeding', link: '/api-reference/configuration/seeding/disable-seeding' }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  text: 'Dashboard',
-                  items: [
-                    { text: 'Overview', link: '/api-reference/configuration/dashboard-configuration' },
-                    { text: 'Basic Setup', link: '/api-reference/configuration/dashboard-configuration/basic-setup' },
-                    { text: 'Authentication', link: '/api-reference/configuration/dashboard-configuration/authentication' }
-                  ]
-                },
-                { text: 'Redis', link: '/api-reference/configuration/redis-configuration' },
-                { text: 'OpenTelemetry', link: '/api-reference/configuration/opentelemetry-configuration' }
-              ]
-            }
+            { text: 'TickerFunctionContext', link: '/api-reference/context' },
+            { text: 'Diagnostics', link: '/api-reference/diagnostics' }
           ]
         },
         {
-          text: 'Support',
+          text: 'Managers',
           collapsed: false,
           items: [
-            { text: 'Common Issues', link: '/troubleshooting/common-issues' },
-            { text: 'Debugging', link: '/troubleshooting/debugging' }
+            { text: 'Overview', link: '/api-reference/managers/index' },
+            { text: 'ITimeTickerManager', link: '/api-reference/managers/time-ticker-manager' },
+            { text: 'ICronTickerManager', link: '/api-reference/managers/cron-ticker-manager' },
+            { text: 'TickerResult', link: '/api-reference/managers/ticker-result' }
           ]
-        }
-      ]
+        },
+        {
+          text: 'Entities',
+          collapsed: false,
+          items: [
+            { text: 'Overview', link: '/api-reference/entities/index' },
+            { text: 'BaseTickerEntity', link: '/api-reference/entities/base-entity' },
+            { text: 'TimeTickerEntity', link: '/api-reference/entities/time-ticker-entity' },
+            { text: 'CronTickerEntity', link: '/api-reference/entities/cron-ticker-entity' },
+            { text: 'CronTickerOccurrenceEntity', link: '/api-reference/entities/cron-occurrence-entity' },
+            { text: 'Enums', link: '/api-reference/entities/enums' },
+            { text: 'Custom Entities', link: '/api-reference/entities/custom-entities' }
+          ]
+        },
+        {
+          text: 'Utilities',
+          collapsed: false,
+          items: [
+            { text: 'TickerHelper', link: '/api-reference/ticker-helper' },
+            { text: 'FluentChainTickerBuilder', link: '/api-reference/fluent-chain-builder' },
+            { text: 'ITickerQHostScheduler', link: '/api-reference/host-scheduler' },
+            { text: 'PaginationResult', link: '/api-reference/pagination-result' },
+            { text: 'Exception Handling Types', link: '/api-reference/exception-handling' }
+          ]
+        },
+      ],
+      '/': guideSidebar
     },
     socialLinks: [
       { icon: 'github', link: 'https://github.com/Arcenox-co/TickerQ' },

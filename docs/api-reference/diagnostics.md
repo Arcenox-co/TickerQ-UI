@@ -77,3 +77,16 @@ Update the method signature so it only uses allowed parameter types:
 > The class '{0}' has multiple constructors with [TickerQConstructor] attribute. Only one constructor can be marked with [TickerQConstructor].
 
 Remove extra `[TickerQConstructor]` attributes so at most one constructor is marked.
+
+## TQ011 – InvalidMaxConcurrency
+
+> **Invalid maxConcurrency value**
+> The maxConcurrency value for function '{0}' must be >= 0 (0 = unlimited)
+
+The `maxConcurrency` parameter on `[TickerFunction]` must be zero or positive. `0` means unlimited concurrency (default). Negative values are not allowed.
+
+## See Also
+
+- [Attributes](/api-reference/attributes) — `[TickerFunction]` and `[TickerQConstructor]` reference
+- [TickerFunctionContext](/api-reference/context) — Valid method parameter types
+- [Job Fundamentals](/concepts/job-fundamentals) — How ticker functions work

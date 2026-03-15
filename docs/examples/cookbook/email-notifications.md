@@ -66,14 +66,10 @@ public async Task SendReminderEmail(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
-    // Get users who haven't logged in for 7 days
-    var users = await dbContext.Users
+    var users = await _dbContext.Users
         .Where(u => u.LastLoginDate < DateTime.UtcNow.AddDays(-7))
         .ToListAsync();
-    
+
     foreach (var user in users)
     {
         await _emailService.SendAsync(

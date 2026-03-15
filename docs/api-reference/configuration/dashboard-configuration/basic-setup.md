@@ -1,6 +1,6 @@
 # Dashboard Basic Setup
 
-Configure the dashboard URL path, backend domain, and CORS policies.
+Configure the dashboard URL path, backend domain, CORS policies, and additional options.
 
 ## SetBasePath
 
@@ -102,6 +102,62 @@ dashboardOptions.SetCorsPolicy(cors =>
     cors.WithOrigins("https://app.example.com")
         .WithMethods("GET", "POST", "PUT", "DELETE")
         .WithHeaders("Authorization", "Content-Type");
+});
+```
+
+## SetGroupName
+
+Set OpenAPI group name for dashboard endpoints.
+
+**Method:**
+```csharp
+void SetGroupName(string groupName);
+```
+
+**Example:**
+```csharp
+dashboardOptions.SetGroupName("TickerQ Dashboard");
+```
+
+**When to Use:**
+- When using OpenAPI/Swagger and want dashboard endpoints grouped separately
+- For API documentation organization
+
+## ConfigureDashboardJsonOptions
+
+Customize `System.Text.Json.JsonSerializerOptions` for dashboard API endpoints. These are separate from request serialization options to maintain dashboard integrity.
+
+**Method:**
+```csharp
+DashboardOptionsBuilder ConfigureDashboardJsonOptions(Action<JsonSerializerOptions> configure);
+```
+
+**Example:**
+```csharp
+dashboardOptions.ConfigureDashboardJsonOptions(json =>
+{
+    json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
+```
+
+## Custom Middleware
+
+Hook into the dashboard middleware pipeline for custom processing.
+
+```csharp
+options.AddDashboard(dashboardOptions =>
+{
+    // Runs before the dashboard middleware
+    dashboardOptions.PreDashboardMiddleware = app =>
+    {
+        app.UseMiddleware<MyRequestLoggingMiddleware>();
+    };
+
+    // Runs after the dashboard middleware
+    dashboardOptions.PostDashboardMiddleware = app =>
+    {
+        app.UseMiddleware<MyResponseTransformMiddleware>();
+    };
 });
 ```
 

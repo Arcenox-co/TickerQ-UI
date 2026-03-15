@@ -11,17 +11,19 @@ public class CronTickerEntity : BaseTickerEntity
     public byte[] Request { get; set; }
     public int Retries { get; set; }
     public int[] RetryIntervals { get; set; }
+    public bool IsEnabled { get; set; } = true;
 }
 ```
 
 ## Properties
 
-| Property | Type | Access | Description |
-|---------|------|--------|-------------|
-| `Expression` | `string` | Read/Write | Cron expression (6-part format required: `second minute hour day month day-of-week`) |
-| `Request` | `byte[]` | Read/Write | Serialized request data (use `TickerHelper.CreateTickerRequest`) |
-| `Retries` | `int` | Read/Write | Maximum number of retry attempts |
-| `RetryIntervals` | `int[]` | Read/Write | Retry intervals in seconds |
+| Property | Type | Default | Description |
+|---------|------|---------|-------------|
+| `Expression` | `string` | | Cron expression (6-part format required: `second minute hour day month day-of-week`) |
+| `Request` | `byte[]` | | Serialized request data (use `TickerHelper.CreateTickerRequest`) |
+| `Retries` | `int` | `0` | Maximum number of retry attempts |
+| `RetryIntervals` | `int[]` | | Retry intervals in seconds |
+| `IsEnabled` | `bool` | `true` | Whether the cron ticker is active. When `false`, no new occurrences are generated. Can be toggled from the dashboard or programmatically via the manager API. |
 
 ## Cron Expression Format
 
@@ -38,23 +40,6 @@ Must be 6-part format: `second minute hour day month day-of-week`
 ::: warning Required Format
 All cron expressions must include the seconds field (6 parts). The format is: `second minute hour day month day-of-week`.
 :::
-
-## Example Usage
-
-```csharp
-var cronTicker = new CronTickerEntity
-{
-    Function = "GenerateDailyReport",
-    Description = "Daily sales report",
-    Expression = "0 0 0 * * *", // Daily at midnight
-    Request = TickerHelper.CreateTickerRequest(new ReportRequest
-    {
-        ReportType = "Daily"
-    }),
-    Retries = 2,
-    RetryIntervals = new[] { 300, 900 }
-};
-```
 
 ## Property Constraints
 

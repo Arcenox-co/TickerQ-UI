@@ -55,37 +55,6 @@ public enum RunCondition
 }
 ```
 
-### Usage Examples
-
-```csharp
-// Run child only if parent succeeds
-var child = new TimeTickerEntity
-{
-    Function = "SendConfirmation",
-    ParentId = parent.Id,
-    RunCondition = RunCondition.OnSuccess,
-    ExecutionTime = DateTime.UtcNow.AddMinutes(1)
-};
-
-// Run child in parallel with parent
-var parallelChild = new TimeTickerEntity
-{
-    Function = "LogActivity",
-    ParentId = parent.Id,
-    RunCondition = RunCondition.InProgress,
-    ExecutionTime = DateTime.UtcNow
-};
-
-// Run child if parent fails (error recovery)
-var recoveryChild = new TimeTickerEntity
-{
-    Function = "NotifyFailure",
-    ParentId = parent.Id,
-    RunCondition = RunCondition.OnFailure,
-    ExecutionTime = DateTime.UtcNow.AddMinutes(1)
-};
-```
-
 ### Condition Behavior
 
 | Condition | When Child Runs | Parent Status |
@@ -111,21 +80,6 @@ public enum TickerTaskPriority
 }
 ```
 
-### Priority Usage
-
-Set priority in the `[TickerFunction]` attribute:
-
-```csharp
-[TickerFunction(
-    "MyJob",
-    taskPriority: TickerTaskPriority.High
-)]
-public async Task MyJob(TickerFunctionContext context, CancellationToken cancellationToken)
-{
-    // High priority job
-}
-```
-
 ### Priority Behavior
 
 - `High`: Executed before `Normal` and `Low` priority jobs
@@ -133,9 +87,47 @@ public async Task MyJob(TickerFunctionContext context, CancellationToken cancell
 - `Low`: Executed after higher priority jobs
 - `LongRunning`: Executes in separate thread pool (doesn't block other jobs)
 
+## TickerQStartMode
+
+Controls when TickerQ starts processing jobs.
+
+```csharp
+public enum TickerQStartMode
+{
+    Immediate,  // Start processing when UseTickerQ is called (default)
+    Manual      // Register services but wait for manual start via ITickerQHostScheduler
+}
+```
+
+| Value | Description |
+|-------|-------------|
+| `Immediate` | Start job processing immediately when `UseTickerQ()` is called. Background services are registered and start automatically |
+| `Manual` | Background services are registered but skip the first run. Job processing needs to be started manually via `ITickerQHostScheduler.StartAsync()` |
+
+See [Start Mode Configuration](/api-reference/configuration/core-configuration/start-mode) and [ITickerQHostScheduler](/api-reference/host-scheduler) for usage.
+
+## TickerType
+
+Identifies the type of ticker being executed. Available in `TickerFunctionContext.Type`.
+
+```csharp
+public enum TickerType
+{
+    CronTickerOccurrence,  // Execution of a cron-scheduled job
+    TimeTicker             // Execution of a time-based job
+}
+```
+
+| Value | Description |
+|-------|-------------|
+| `CronTickerOccurrence` | A single execution occurrence of a cron ticker |
+| `TimeTicker` | A one-time scheduled job execution |
+
 ## See Also
 
 - [TimeTickerEntity](./time-ticker-entity) - Uses TickerStatus and RunCondition
 - [CronTickerOccurrenceEntity](./cron-occurrence-entity) - Uses TickerStatus
+- [TickerFunctionContext](/api-reference/context) - Uses TickerType
+- [ITickerExceptionHandler](/api-reference/exception-handling) - Uses TickerType
 - [Job Fundamentals](../../concepts/job-fundamentals) - Understanding job relationships and priorities
 

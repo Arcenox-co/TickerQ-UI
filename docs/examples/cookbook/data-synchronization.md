@@ -7,38 +7,50 @@ Sync data between systems and databases.
 Sync data from source to target every 30 minutes:
 
 ```csharp
-[TickerFunction("SyncData", cronExpression: "0 */30 * * * *")]
-public async Task SyncData(
-    TickerFunctionContext context,
-    CancellationToken cancellationToken)
+public class SyncJobs
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var sourceDb = scope.ServiceProvider.GetRequiredService<SourceDbContext>();
-    var targetDb = scope.ServiceProvider.GetRequiredService<TargetDbContext>();
-    
-    // Get items to sync (last 30 minutes)
-    var since = DateTime.UtcNow.AddMinutes(-30);
-    var itemsToSync = await sourceDb.Items
-        .Where(i => i.UpdatedAt >= since)
-        .ToListAsync(cancellationToken);
-    
-    foreach (var item in itemsToSync)
+    private readonly SourceDbContext _sourceDb;
+    private readonly TargetDbContext _targetDb;
+    private readonly ILogger<SyncJobs> _logger;
+
+    public SyncJobs(
+        SourceDbContext sourceDb,
+        TargetDbContext targetDb,
+        ILogger<SyncJobs> logger)
     {
-        var existing = await targetDb.Items
-            .FirstOrDefaultAsync(i => i.SourceId == item.Id, cancellationToken);
-        
-        if (existing == null)
-        {
-            targetDb.Items.Add(MapItem(item));
-        }
-        else
-        {
-            UpdateItem(existing, item);
-        }
+        _sourceDb = sourceDb;
+        _targetDb = targetDb;
+        _logger = logger;
     }
-    
-    await targetDb.SaveChangesAsync(cancellationToken);
-    _logger.LogInformation("Synced {Count} items", itemsToSync.Count);
+
+    [TickerFunction("SyncData", cronExpression: "0 */30 * * * *")]
+    public async Task SyncData(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        var since = DateTime.UtcNow.AddMinutes(-30);
+        var itemsToSync = await _sourceDb.Items
+            .Where(i => i.UpdatedAt >= since)
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in itemsToSync)
+        {
+            var existing = await _targetDb.Items
+                .FirstOrDefaultAsync(i => i.SourceId == item.Id, cancellationToken);
+
+            if (existing == null)
+            {
+                _targetDb.Items.Add(MapItem(item));
+            }
+            else
+            {
+                UpdateItem(existing, item);
+            }
+        }
+
+        await _targetDb.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Synced {Count} items", itemsToSync.Count);
+    }
 }
 ```
 
@@ -52,25 +64,18 @@ public async Task IncrementalSync(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var sourceDb = scope.ServiceProvider.GetRequiredService<SourceDbContext>();
-    var targetDb = scope.ServiceProvider.GetRequiredService<TargetDbContext>();
-    
-    // Get last sync timestamp
-    var lastSync = await GetLastSyncTimestampAsync(targetDb, cancellationToken);
-    
-    // Get changed items since last sync
-    var changedItems = await sourceDb.Items
+    var lastSync = await GetLastSyncTimestampAsync(_targetDb, cancellationToken);
+
+    var changedItems = await _sourceDb.Items
         .Where(i => i.UpdatedAt > lastSync)
         .ToListAsync(cancellationToken);
-    
+
     foreach (var item in changedItems)
     {
-        await SyncItemAsync(item, targetDb, cancellationToken);
+        await SyncItemAsync(item, _targetDb, cancellationToken);
     }
-    
-    // Update sync timestamp
-    await UpdateLastSyncTimestampAsync(targetDb, DateTime.UtcNow, cancellationToken);
+
+    await UpdateLastSyncTimestampAsync(_targetDb, DateTime.UtcNow, cancellationToken);
 }
 ```
 

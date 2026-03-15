@@ -17,47 +17,6 @@ Manages cron-based jobs (CronTicker) - recurring jobs using cron expressions.
 ## [TickerResult](./ticker-result)
 Result type returned by all manager operations, providing success status and exception information.
 
-## Common Patterns
-
-### Dependency Injection
-
-Managers are registered as singletons and can be injected:
-
-```csharp
-public class MyService
-{
-    private readonly ITimeTickerManager<TimeTickerEntity> _timeTickerManager;
-    private readonly ICronTickerManager<CronTickerEntity> _cronTickerManager;
-    
-    public MyService(
-        ITimeTickerManager<TimeTickerEntity> timeTickerManager,
-        ICronTickerManager<CronTickerEntity> cronTickerManager)
-    {
-        _timeTickerManager = timeTickerManager;
-        _cronTickerManager = cronTickerManager;
-    }
-}
-```
-
-### Generic Types
-
-When using custom entity types:
-
-```csharp
-public class CustomTimeTicker : TimeTickerEntity<CustomTimeTicker> { }
-public class CustomCronTicker : CronTickerEntity { }
-
-// In service registration
-builder.Services.AddTickerQ<CustomTimeTicker, CustomCronTicker>(options => { });
-
-// In your service
-public class MyService
-{
-    private readonly ITimeTickerManager<CustomTimeTicker> _timeTickerManager;
-    private readonly ICronTickerManager<CustomCronTicker> _cronTickerManager;
-}
-```
-
 ## See Also
 
 - [Entity Reference](../entities/index) - Complete entity properties documentation
