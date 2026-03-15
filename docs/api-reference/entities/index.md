@@ -19,28 +19,6 @@ Represents a single execution occurrence of a CronTicker.
 ### [Enums](./enums)
 TickerStatus, RunCondition, and TickerTaskPriority enumerations.
 
-## Quick Reference
-
-### Creating Entities
-
-```csharp
-// TimeTicker
-var timeTicker = new TimeTickerEntity
-{
-    Function = "MyJob",
-    ExecutionTime = DateTime.UtcNow.AddMinutes(5),
-    Request = TickerHelper.CreateTickerRequest(myData)
-};
-
-// CronTicker
-var cronTicker = new CronTickerEntity
-{
-    Function = "MyCronJob",
-    Expression = "0 0 9 * * *",
-    Request = TickerHelper.CreateTickerRequest(myData)
-};
-```
-
 ## See Also
 
 - [Manager APIs](../managers/index) - Methods to create and manage entities

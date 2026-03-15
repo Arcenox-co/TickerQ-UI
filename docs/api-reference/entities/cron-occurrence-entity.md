@@ -51,24 +51,6 @@ public class CronTickerOccurrenceEntity<TCronTicker>
 - Occurrences can be queried to view execution history
 - Multiple occurrences can exist for the same CronTicker (past, present, future)
 
-## Querying Occurrences
-
-When using Entity Framework Core:
-
-```csharp
-// Get all occurrences for a CronTicker
-var occurrences = await _context.Set<CronTickerOccurrenceEntity>()
-    .Where(o => o.CronTickerId == cronTickerId)
-    .OrderByDescending(o => o.ExecutionTime)
-    .Take(10)
-    .ToListAsync();
-
-// Get failed occurrences
-var failedOccurrences = await _context.Set<CronTickerOccurrenceEntity>()
-    .Where(o => o.Status == TickerStatus.Failed)
-    .ToListAsync();
-```
-
 ## Relationship
 
 ```

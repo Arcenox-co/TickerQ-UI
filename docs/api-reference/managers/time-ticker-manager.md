@@ -1,6 +1,26 @@
-# ITimeTickerManager&lt;TTimeTicker&gt;
+# ITimeTickerManager\<TTimeTicker\>
 
 Manages time-based jobs (TimeTicker) - jobs scheduled for specific execution times.
+
+## Type Definition
+
+```csharp
+namespace TickerQ.Utilities.Interfaces.Managers;
+
+public interface ITimeTickerManager<TTimeTicker>
+    where TTimeTicker : TimeTickerEntity<TTimeTicker>
+```
+
+## Method Summary
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `AddAsync(TTimeTicker, CancellationToken)` | `Task<TickerResult<TTimeTicker>>` | Schedule a new TimeTicker job |
+| `UpdateAsync(TTimeTicker, CancellationToken)` | `Task<TickerResult<TTimeTicker>>` | Update an existing TimeTicker (only `Idle` status) |
+| `DeleteAsync(Guid, CancellationToken)` | `Task<TickerResult<TTimeTicker>>` | Delete a TimeTicker by ID |
+| `AddBatchAsync(List<TTimeTicker>, CancellationToken)` | `Task<TickerResult<List<TTimeTicker>>>` | Schedule multiple TimeTicker jobs |
+| `UpdateBatchAsync(List<TTimeTicker>, CancellationToken)` | `Task<TickerResult<List<TTimeTicker>>>` | Update multiple TimeTicker jobs |
+| `DeleteBatchAsync(List<Guid>, CancellationToken)` | `Task<TickerResult<TTimeTicker>>` | Delete multiple TimeTicker jobs |
 
 ## Methods
 
@@ -13,18 +33,6 @@ Schedule a new TimeTicker job.
 Task<TickerResult<TTimeTicker>> AddAsync(
     TTimeTicker entity,
     CancellationToken cancellationToken = default);
-```
-
-**Example:**
-```csharp
-var result = await _timeTickerManager.AddAsync(new TimeTickerEntity
-{
-    Function = "SendEmail",
-    ExecutionTime = DateTime.UtcNow.AddMinutes(5),
-    Request = TickerHelper.CreateTickerRequest(emailRequest),
-    Retries = 3,
-    RetryIntervals = new[] { 60, 300, 900 }
-}, cancellationToken);
 ```
 
 ### UpdateAsync
@@ -80,79 +88,6 @@ Delete multiple TimeTicker jobs by their IDs.
 Task<TickerResult<TTimeTicker>> DeleteBatchAsync(
     List<Guid> ids,
     CancellationToken cancellationToken = default);
-```
-
-## Common Patterns
-
-### Schedule Job After User Action
-
-```csharp
-public async Task<IActionResult> RegisterUser(UserRegistrationDto dto)
-{
-    var user = await CreateUserAsync(dto);
-    
-    var result = await _timeTickerManager.AddAsync(new TimeTickerEntity
-    {
-        Function = "SendWelcomeEmail",
-        ExecutionTime = DateTime.UtcNow.AddMinutes(5),
-        Request = TickerHelper.CreateTickerRequest(new EmailRequest
-        {
-            UserId = user.Id,
-            Email = user.Email
-        }),
-        Retries = 3,
-        RetryIntervals = new[] { 60, 300, 900 }
-    });
-    
-    if (!result.IsSucceeded)
-    {
-        _logger.LogError(result.Exception, "Failed to schedule welcome email");
-    }
-    
-    return Ok();
-}
-```
-
-### Reschedule Job
-
-```csharp
-public async Task RescheduleJob(Guid jobId, DateTime newExecutionTime)
-{
-    // Get job via persistence provider (when using EF Core)
-    var job = await _persistenceProvider.GetTimeTickerById(jobId, cancellationToken);
-    
-    if (job != null && job.Status == TickerStatus.Idle)
-    {
-        job.ExecutionTime = newExecutionTime;
-        var result = await _timeTickerManager.UpdateAsync(job, cancellationToken);
-        
-        if (result.IsSucceeded)
-        {
-            Console.WriteLine("Job rescheduled successfully");
-        }
-    }
-}
-```
-
-## Error Handling
-
-Always check the `IsSucceeded` property:
-
-```csharp
-var result = await _timeTickerManager.AddAsync(ticker);
-
-if (!result.IsSucceeded)
-{
-    switch (result.Exception)
-    {
-        case TickerValidatorException ex:
-            _logger.LogWarning("Validation error: {Message}", ex.Message);
-            break;
-        default:
-            _logger.LogError(result.Exception, "Unexpected error scheduling job");
-            break;
-    }
-}
 ```
 
 ## See Also

@@ -50,32 +50,6 @@ Idle → Queued → InProgress → Done/Failed/Cancelled/Skipped
 - **Children**: Can have up to 5 direct children
 - **Grandchildren**: Children can have up to 5 grandchildren each
 
-## Example Usage
-
-```csharp
-var ticker = new TimeTickerEntity
-{
-    Function = "ProcessOrder",
-    Description = "Process order payment",
-    ExecutionTime = DateTime.UtcNow.AddMinutes(30),
-    Request = TickerHelper.CreateTickerRequest(new OrderRequest 
-    { 
-        OrderId = 12345 
-    }),
-    Retries = 3,
-    RetryIntervals = new[] { 60, 300, 900 }
-};
-
-// Add children
-ticker.Children.Add(new TimeTickerEntity
-{
-    Function = "SendConfirmation",
-    ParentId = ticker.Id,
-    RunCondition = RunCondition.OnSuccess,
-    ExecutionTime = DateTime.UtcNow.AddMinutes(35)
-});
-```
-
 ## Property Constraints
 
 - `Function` - Must not be null or empty, must match `[TickerFunction]` attribute

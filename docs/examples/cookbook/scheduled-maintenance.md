@@ -7,21 +7,28 @@ Automate database optimization and maintenance tasks.
 Optimize database weekly on Sunday at 3 AM:
 
 ```csharp
-[TickerFunction("OptimizeDatabase", cronExpression: "0 0 3 * * 0")]
-public async Task OptimizeDatabase(
-    TickerFunctionContext context,
-    CancellationToken cancellationToken)
+public class MaintenanceJobs
 {
-    // Runs every Sunday at 3 AM
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
-    // Rebuild indexes, update statistics, etc.
-    await dbContext.Database.ExecuteSqlRawAsync(
-        "EXEC sp_updatestats", 
-        cancellationToken);
-    
-    _logger.LogInformation("Database optimization completed");
+    private readonly AppDbContext _dbContext;
+    private readonly ILogger<MaintenanceJobs> _logger;
+
+    public MaintenanceJobs(AppDbContext dbContext, ILogger<MaintenanceJobs> logger)
+    {
+        _dbContext = dbContext;
+        _logger = logger;
+    }
+
+    [TickerFunction("OptimizeDatabase", cronExpression: "0 0 3 * * 0")]
+    public async Task OptimizeDatabase(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        await _dbContext.Database.ExecuteSqlRawAsync(
+            "EXEC sp_updatestats",
+            cancellationToken);
+
+        _logger.LogInformation("Database optimization completed");
+    }
 }
 ```
 
@@ -35,20 +42,17 @@ public async Task MaintainIndexes(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    using var scope = context.ServiceScope.ServiceProvider.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
-    var indexes = await GetFragmentedIndexesAsync(dbContext, cancellationToken);
-    
+    var indexes = await GetFragmentedIndexesAsync(_dbContext, cancellationToken);
+
     foreach (var index in indexes)
     {
         if (index.Fragmentation > 30)
         {
-            await RebuildIndexAsync(index, dbContext, cancellationToken);
+            await RebuildIndexAsync(index, _dbContext, cancellationToken);
         }
         else
         {
-            await ReorganizeIndexAsync(index, dbContext, cancellationToken);
+            await ReorganizeIndexAsync(index, _dbContext, cancellationToken);
         }
     }
 }
@@ -64,13 +68,11 @@ public async Task VerifyBackups(
     TickerFunctionContext context,
     CancellationToken cancellationToken)
 {
-    var backupService = _serviceProvider.GetRequiredService<IBackupService>();
-    
-    var backups = await backupService.GetRecentBackupsAsync(cancellationToken);
+    var backups = await _backupService.GetRecentBackupsAsync(cancellationToken);
     
     foreach (var backup in backups)
     {
-        var isValid = await backupService.VerifyBackupAsync(backup, cancellationToken);
+        var isValid = await _backupService.VerifyBackupAsync(backup, cancellationToken);
         
         if (!isValid)
         {

@@ -131,6 +131,24 @@ options.ConfigureScheduler(scheduler =>
 - Decrease if you need faster job detection (10-30 seconds)
 - Default is usually sufficient for most scenarios
 
+### MinPollingInterval
+
+Minimum interval between database polls. Prevents tight loops when tasks are due or when the database is empty.
+
+**Type:** `TimeSpan`
+**Default:** `TimeSpan.FromSeconds(1)`
+
+```csharp
+options.ConfigureScheduler(scheduler =>
+{
+    scheduler.MinPollingInterval = TimeSpan.FromSeconds(2);
+});
+```
+
+**When to Adjust:**
+- Increase if database load is a concern and you don't need sub-second scheduling precision
+- Decrease only if you need tighter scheduling accuracy (not recommended below 500ms)
+
 ### SchedulerTimeZone
 
 Timezone for scheduling calculations.

@@ -30,14 +30,23 @@ builder.Services.AddTickerQ<TTimeTicker, TCronTicker>(options =>
         scheduler.MaxConcurrency = 10;
         scheduler.NodeIdentifier = "production-server-01";
     });
-    
+
     // Request serialization
     // By default, requests are stored as plain UTF-8 JSON bytes.
     // Call UseGZipCompression to reduce payload size at the cost of CPU.
     options.UseGZipCompression();
-    
+
+    // Custom JSON serialization for request payloads
+    options.ConfigureRequestJsonOptions(json =>
+    {
+        json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    });
+
     // Exception handling
     options.SetExceptionHandler<MyExceptionHandler>();
+
+    // Disable background services (registers only managers, no job processing)
+    // options.DisableBackgroundServices();
 
     // Seeding (works with both in-memory and EF Core providers)
     // Disable auto seeding of code-defined cron tickers:
@@ -63,6 +72,37 @@ builder.Services.AddTickerQ<TTimeTicker, TCronTicker>(options =>
                 Expression = "0 0 2 * * *" // Every day at 02:00
             });
         });
+});
+```
+
+## DisableBackgroundServices
+
+Registers only the manager APIs (`ITimeTickerManager`, `ICronTickerManager`) without starting any background job processing. Useful when you need a service that only creates/manages jobs but doesn't execute them (e.g., an API gateway that schedules work for worker nodes).
+
+```csharp
+builder.Services.AddTickerQ(options =>
+{
+    options.DisableBackgroundServices();
+
+    options.AddOperationalStore(ef =>
+    {
+        ef.UseApplicationDbContext<AppDbContext>(ConfigurationType.UseModelCustomizer);
+    });
+});
+
+// Now you can inject ITimeTickerManager / ICronTickerManager
+// to create jobs without running a scheduler
+```
+
+## ConfigureRequestJsonOptions
+
+Customize `System.Text.Json.JsonSerializerOptions` used for serializing/deserializing ticker request payloads.
+
+```csharp
+options.ConfigureRequestJsonOptions(json =>
+{
+    json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    json.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
 ```
 
