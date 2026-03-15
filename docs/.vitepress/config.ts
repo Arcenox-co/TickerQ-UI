@@ -59,7 +59,7 @@ const guideSidebar = [
         ]
       },
       {
-        text: 'Redis Caching',
+        text: 'Redis Storage',
         items: [
           { text: 'Overview', link: '/features/redis' }
         ]

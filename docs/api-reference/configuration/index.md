@@ -14,7 +14,7 @@ Database persistence, DbContext setup, and migrations.
 UI setup, authentication, and customization.
 
 ### [Redis Configuration](./redis-configuration)
-Distributed coordination and multi-node support.
+Redis job persistence provider and multi-node coordination.
 
 ### [OpenTelemetry Configuration](./opentelemetry-configuration)
 Observability and distributed tracing.
