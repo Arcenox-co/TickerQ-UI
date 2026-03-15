@@ -105,7 +105,7 @@ dotnet add package TickerQ.Dashboard --version 10.*
 
 ### Redis
 
-For multi-node coordination:
+For Redis-based job storage and multi-node coordination:
 
 ::: code-group
 
@@ -358,7 +358,7 @@ builder.Services.AddTickerQ(options =>
         efOptions.SetDbContextPoolSize(34);
     });
     
-    // Redis for multi-node coordination
+    // Redis for job storage + multi-node coordination
     options.AddStackExchangeRedis(redisOptions =>
     {
         redisOptions.Configuration = "localhost:6379";

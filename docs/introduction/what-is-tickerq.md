@@ -86,7 +86,7 @@ TickerQ follows a modular, extensible architecture built on a lightweight core f
 
 - **TickerQ.Dashboard**: Production-ready web interface for job monitoring and management. Includes authentication, real-time updates via SignalR, and comprehensive job lifecycle visualization.
 
-- **TickerQ.Caching.StackExchangeRedis**: Distributed coordination for multi-node deployments. Provides node heartbeat tracking, distributed locking, and cache coordination for horizontal scaling.
+- **TickerQ.Caching.StackExchangeRedis**: Redis-based job persistence provider and multi-node coordination. Stores all job data directly in Redis as a lightweight alternative to EF Core, with built-in node heartbeat tracking, dead-node detection, and distributed locking for horizontal scaling.
 
 - **TickerQ.Instrumentation.OpenTelemetry**: Observability integration for distributed tracing, structured logging, and metrics collection. Enables integration with monitoring platforms (Jaeger, Zipkin, Application Insights, etc.).
 
