@@ -1,0 +1,4 @@
+{
+  "title": "Defining Jobs",
+  "pages": ["attribute", "interface", "lambda", "groups", "constructor-injection", "priorities"]
+}

@@ -1,0 +1,10 @@
+---
+title: v10.2.4
+description: Dashboard Host authentication fix.
+---
+
+**Release Date:** March 21, 2026
+
+## Bug Fixes
+
+- Fix dashboard `InvalidOperationException` when using `WithHostAuthentication()` — adds missing `UseAuthorization()` to the dashboard pipeline

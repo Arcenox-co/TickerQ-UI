@@ -1,0 +1,26 @@
+---
+icon: Package
+title: Installation
+description: Install TickerQ and optional packages.
+---
+
+## Requirements
+
+- .NET 8.0 or later
+
+## Core package
+
+```bash
+dotnet add package TickerQ
+```
+
+Jobs are stored **in memory** by default. Add a persistence package for production.
+
+## Optional packages
+
+| Package | Purpose |
+|---------|---------|
+| `TickerQ.EntityFrameworkCore` | SQL persistence (SQL Server, PostgreSQL, SQLite) |
+| `TickerQ.Caching.StackExchangeRedis` | Redis persistence and multi-node coordination |
+| `TickerQ.Dashboard` | Real-time SignalR web UI |
+| `TickerQ.Instrumentation.OpenTelemetry` | Distributed tracing |

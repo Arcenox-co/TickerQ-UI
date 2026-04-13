@@ -1,0 +1,102 @@
+---
+title: Customization
+description: Base path, CORS, backend domain, and middleware hooks.
+---
+
+All options are set inside the `AddDashboard` lambda on `DashboardOptionsBuilder`.
+
+## Base path
+
+Change where the dashboard is served (default: `/tickerq/dashboard`):
+
+```csharp
+dashboard.SetBasePath("/admin/jobs");
+```
+
+## Backend domain
+
+When running behind a reverse proxy, set the backend domain so the Vue.js frontend connects to the correct API and SignalR endpoints:
+
+```csharp
+dashboard.SetBackendDomain("https://api.example.com");
+```
+
+## CORS policy
+
+The default CORS policy allows all origins, any header, and credentials. Override it:
+
+```csharp
+dashboard.SetCorsPolicy(cors =>
+{
+    cors.WithOrigins("https://myapp.com")
+        .AllowAnyHeader()
+        .AllowCredentials();
+});
+```
+
+## OpenAPI group name
+
+Tag dashboard endpoints with a group name for OpenAPI/Swagger:
+
+```csharp
+dashboard.SetGroupName("TickerQ Dashboard");
+```
+
+---
+
+## Middleware hooks
+
+Inject custom middleware at three points in the dashboard pipeline:
+
+```csharp
+dashboard.PreDashboardMiddleware = app =>
+{
+    // Runs BEFORE dashboard static files and API routes
+    app.Use(async (context, next) =>
+    {
+        context.Response.Headers.Append("X-Frame-Options", "DENY");
+        await next();
+    });
+};
+
+dashboard.PostDashboardMiddleware = app =>
+{
+    // Runs AFTER dashboard routes
+};
+
+dashboard.CustomMiddleware = app =>
+{
+    // Runs between auth middleware and API endpoints
+};
+```
+
+### Pipeline order
+
+1. `PreDashboardMiddleware`
+2. Static files (embedded Vue.js SPA)
+3. Routing + CORS + Authorization
+4. Auth middleware (if auth enabled)
+5. `CustomMiddleware`
+6. API endpoints + SignalR hub
+7. `PostDashboardMiddleware`
+8. SPA fallback (serves `index.html` for client-side routing)
+
+---
+
+## Full example
+
+```csharp
+opt.AddDashboard(dashboard =>
+{
+    dashboard.SetBasePath("/admin/tickerq");
+    dashboard.SetBackendDomain("https://api.myapp.com");
+    dashboard.WithBasicAuth("admin", "s3cret");
+    dashboard.WithSessionTimeout(120);
+    dashboard.SetCorsPolicy(cors =>
+    {
+        cors.WithOrigins("https://myapp.com")
+            .AllowAnyHeader()
+            .AllowCredentials();
+    });
+});
+```

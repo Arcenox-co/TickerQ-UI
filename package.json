@@ -1,18 +1,47 @@
 {
+  "name": "tickerq_docs",
+  "version": "0.0.0",
+  "private": true,
   "scripts": {
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "build": "next build",
+    "dev": "next dev",
+    "start": "next start",
+    "types:check": "fumadocs-mdx && next typegen && tsc --noEmit",
+    "postinstall": "fumadocs-mdx",
+    "lint": "eslint"
   },
   "dependencies": {
-    "vue": "^3.3.4"
+    "@ai-sdk/openai": "^3.0.50",
+    "@ai-sdk/react": "^3.0.147",
+    "@radix-ui/react-presence": "^1.1.5",
+    "ai": "^6.0.145",
+    "flexsearch": "^0.8.212",
+    "fumadocs-core": "16.7.9",
+    "fumadocs-mdx": "14.2.11",
+    "fumadocs-ui": "16.7.9",
+    "iconoir-react": "^7.11.0",
+    "lucide-react": "^1.7.0",
+    "motion": "^12.38.0",
+    "next": "16.2.1",
+    "next-themes": "^0.4.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-markdown": "^10.1.0",
+    "rough-notation": "^0.5.1",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "tailwindcss": "^3.3.3",
-    "postcss": "^8.4.21",
-    "autoprefixer": "^10.4.21",
-    "vitepress": "^1.0.0-rc.39",
-    "esbuild": "^0.25.2"
-  },
-  "type": "module"
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/mdx": "^2.0.13",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^10.1.0",
+    "eslint-config-next": "16.2.1",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^6.0.2"
+  }
 }

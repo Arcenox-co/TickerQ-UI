@@ -1,0 +1,29 @@
+---
+title: TickerQ.Dashboard
+description: Real-time web UI for monitoring and managing jobs.
+---
+
+TickerQ.Dashboard is a built-in Vue.js web UI served from embedded static files. It connects to your app via SignalR for live updates.
+
+## Features
+
+- **Live job monitoring** — status updates in real-time via SignalR
+- **CRUD operations** — create, update, delete TimeTicker and CronTicker jobs
+- **Cron management** — toggle, run, and inspect cron schedules and their occurrences
+- **Host control** — start, stop, and restart the scheduler
+- **Job history** — view execution times, statuses, and exception details
+- **Active threads** — monitor concurrent job execution
+- **Multi-node aware** — see which node is processing each job
+
+## How it works
+
+The dashboard is an embedded Vue.js SPA served at a configurable base path (default: `/tickerq/dashboard`). It communicates with your app through:
+
+- **REST API** — endpoints under `/api/*` for CRUD and queries
+- **SignalR hub** — at `/ticker-notification-hub` for real-time push notifications
+
+All dashboard middleware is auto-configured when you call `UseTickerQ()` — no extra route mapping needed.
+
+<Callout type="info">
+  The dashboard works with **any** persistence provider, including the default in-memory store. No EF Core or Redis required.
+</Callout>

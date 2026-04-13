@@ -1,0 +1,32 @@
+---
+title: TickerQ.EntityFrameworkCore
+description: SQL persistence for TickerQ via Entity Framework Core.
+---
+
+TickerQ.EntityFrameworkCore persists jobs to a SQL database using Entity Framework Core. Jobs survive application restarts and can be shared across multiple nodes.
+
+## Supported databases
+
+Any database supported by EF Core — SQL Server, PostgreSQL, SQLite, MySQL, etc.
+
+## Tables created
+
+All tables are created in a configurable schema (default: `ticker`):
+
+| Table | Description |
+|-------|-------------|
+| `TimeTickers` | One-off scheduled jobs |
+| `CronTickers` | Recurring cron schedules |
+| `CronTickerOccurrences` | Individual executions of cron jobs |
+
+## Two setup paths
+
+1. **Dedicated DbContext** — use `TickerQDbContext` (or a subclass) with its own connection. Best when you want TickerQ isolated from your app's database.
+
+2. **Application DbContext** — share your existing `DbContext`. Best when you want everything in one database and one migration set.
+
+See [DbContext Setup](/docs/entity-framework/dbcontext) for details on both.
+
+## Multi-node safe
+
+All persistence operations use EF Core's atomic `ExecuteUpdateAsync` and `ExecuteDeleteAsync` — no read-modify-write race conditions. Multiple application instances can safely share the same database without distributed locks or conflicting updates.

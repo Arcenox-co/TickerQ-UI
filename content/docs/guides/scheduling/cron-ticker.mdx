@@ -1,0 +1,79 @@
+---
+title: CronTicker
+description: Schedule recurring jobs with cron expressions.
+---
+
+A CronTicker runs **repeatedly** on a cron schedule. Use it for periodic tasks like reports, syncs, health checks, or cleanup.
+
+## Define with the attribute
+
+The simplest way — auto-seeded on startup:
+
+```csharp
+[TickerFunction("daily-report", cronExpression: "0 0 9 * * *")]
+public async Task DailyReport(TickerFunctionContext ctx, CancellationToken ct)
+{
+    await _reports.GenerateAsync(ct);
+}
+```
+
+## Define with the builder
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<HealthCheckJob>()
+    .WithCron("*/5 * * * *");
+```
+
+## Create dynamically at runtime
+
+Inject `ICronTickerManager<CronTickerEntity>`:
+
+```csharp
+await cronManager.AddAsync(new CronTickerEntity
+{
+    Function   = "sync-data",
+    Expression = "0 */6 * * *",
+    IsEnabled  = true,
+    Retries    = 2,
+    RetryIntervals = new[] { 300 },
+});
+```
+
+### Update and delete
+
+```csharp
+// Change schedule
+cron.Expression = "0 */12 * * *";
+await cronManager.UpdateAsync(cron);
+
+// Disable
+cron.IsEnabled = false;
+await cronManager.UpdateAsync(cron);
+
+// Delete
+await cronManager.DeleteAsync(cronId);
+```
+
+---
+
+## Cron expression format
+
+Both **5-part** and **6-part** expressions are accepted. A 5-part expression is auto-expanded with `0` for seconds.
+
+```
+5-part:  minute hour day month weekday        →  "0 9 * * *"
+6-part:  second minute hour day month weekday →  "30 0 9 * * *"
+```
+
+### Common expressions
+
+| Expression | Meaning |
+|------------|---------|
+| `*/10 * * * *` | Every 10 minutes |
+| `0 * * * *` | Every hour |
+| `0 9 * * *` | Daily at 09:00 |
+| `0 9 * * 1` | Every Monday at 09:00 |
+| `0 0 1 * *` | First of every month |
+| `0 9,17 * * *` | Daily at 09:00 and 17:00 |
+| `*/10 * * * * *` | Every 10 seconds (6-part) |
+| `0 30 14 * * 1` | Monday at 14:30 (6-part) |

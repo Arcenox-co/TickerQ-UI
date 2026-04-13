@@ -1,0 +1,166 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+@custom-variant dark (&:is(.dark *));
+@plugin 'tailwindcss-animate';
+
+/* Magic UI Animated Theme Toggler — view transition root (see magicui.design/docs/components/animated-theme-toggler) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Narrower `container` max-width on large screens (ties to breakpoint values). */
+  --breakpoint-xl: 70rem;
+  --breakpoint-2xl: 40rem;
+
+  /* Landing palette — use `bg-prussian-blue`, `text-deep-navy`, `border-platinum`, etc. */
+  --color-prussian-blue: hsl(226 66% 10%);
+  --color-bright-snow: hsl(240 33% 98%);
+  --color-blue-slate: hsl(226 11% 45%);
+  --color-ghost-white: hsl(240 100% 98%);
+  --color-deep-navy: hsl(225 66% 21%);
+  --color-pale-slate: hsl(233 9% 82%);
+  --color-platinum: hsl(225 16% 90%);
+  --color-ghost-white-2: hsl(231 52% 95%);
+  --color-space-indigo: hsl(226 66% 17%);
+  --color-lavender-grey: hsl(226 18% 66%);
+
+  --color-brand: hsl(217, 91%, 60%);
+  --color-brand-foreground: white;
+
+  --animate-marquee: marquee var(--duration) infinite linear;
+  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+
+  @keyframes marquee-vertical {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(calc(-100% - var(--gap)));
+    }
+  }
+
+  /* Magic UI Animated Gradient Text (magicui.design/docs/components/animated-gradient-text) */
+  --animate-gradient: gradient 8s linear infinite;
+
+  @keyframes gradient {
+    to {
+      background-position: 100% 50%;
+    }
+  }
+}
+
+/* Section accent colors — overrides --color-fd-primary per docs tab */
+:root {
+  /* Landing design tokens — use in CSS as `var(--prussian-blue)`; in markup prefer `bg-prussian-blue` / `text-deep-navy` */
+  --prussian-blue: var(--color-prussian-blue);
+  --bright-snow: var(--color-bright-snow);
+  --blue-slate: var(--color-blue-slate);
+  --ghost-white: var(--color-ghost-white);
+  --deep-navy: var(--color-deep-navy);
+  --pale-slate: var(--color-pale-slate);
+  --platinum: var(--color-platinum);
+  --ghost-white-2: var(--color-ghost-white-2);
+  --space-indigo: var(--color-space-indigo);
+  --lavender-grey: var(--color-lavender-grey);
+
+  --core-color: hsl(217, 91%, 60%);
+  --dashboard-color: hsl(262, 83%, 58%);
+  --entity-framework-color: hsl(142, 71%, 45%);
+  --redis-color: hsl(0, 84%, 60%);
+  --opentelemetry-color: hsl(25, 95%, 53%);
+  --api-reference-color: hsl(215, 16%, 47%);
+  --examples-color: hsl(38, 92%, 50%);
+}
+
+.dark {
+  --color-brand: hsl(217, 91%, 72%);
+  --color-brand-foreground: hsl(222, 47%, 11%);
+
+  --core-color: hsl(217, 91%, 72%);
+  --dashboard-color: hsl(262, 83%, 75%);
+  --entity-framework-color: hsl(142, 71%, 60%);
+  --redis-color: hsl(0, 84%, 72%);
+  --opentelemetry-color: hsl(25, 95%, 68%);
+  --api-reference-color: hsl(215, 16%, 65%);
+  --examples-color: hsl(38, 92%, 65%);
+}
+
+/* Apply section color as fd-primary when body carries the section class */
+body.section-core {
+  --color-fd-primary: var(--core-color);
+}
+body.section-dashboard {
+  --color-fd-primary: var(--dashboard-color);
+}
+body.section-entity-framework {
+  --color-fd-primary: var(--entity-framework-color);
+}
+body.section-redis {
+  --color-fd-primary: var(--redis-color);
+}
+body.section-opentelemetry {
+  --color-fd-primary: var(--opentelemetry-color);
+}
+body.section-api-reference {
+  --color-fd-primary: var(--api-reference-color);
+}
+body.section-examples {
+  --color-fd-primary: var(--examples-color);
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+body {
+  background-color: var(--color-fd-background);
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@theme inline {
+  --animate-marquee: marquee var(--duration) infinite linear;
+  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
+  @keyframes marquee {
+  from {
+    transform: translateX(0);
+    }
+  to {
+    transform: translateX(calc(-100% - var(--gap)));
+    }
+  }
+  @keyframes marquee-vertical {
+  from {
+    transform: translateY(0);
+    }
+  to {
+    transform: translateY(calc(-100% - var(--gap)));
+    }
+  }
+}

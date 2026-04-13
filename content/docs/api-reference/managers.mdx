@@ -1,0 +1,69 @@
+---
+title: Managers
+description: ITimeTickerManager, ICronTickerManager, and TickerResult.
+---
+
+## ITimeTickerManager\<TTimeTicker\>
+
+**Generic constraint:** `TTimeTicker : TimeTickerEntity<TTimeTicker>`
+
+### Single operations
+
+```csharp
+Task<TickerResult<TTimeTicker>> AddAsync(TTimeTicker entity, CancellationToken ct = default);
+Task<TickerResult<TTimeTicker>> UpdateAsync(TTimeTicker timeTicker, CancellationToken ct = default);
+Task<TickerResult<TTimeTicker>> DeleteAsync(Guid id, CancellationToken ct = default);
+```
+
+### Batch operations
+
+```csharp
+Task<TickerResult<List<TTimeTicker>>> AddBatchAsync(List<TTimeTicker> entities, CancellationToken ct = default);
+Task<TickerResult<List<TTimeTicker>>> UpdateBatchAsync(List<TTimeTicker> timeTickers, CancellationToken ct = default);
+Task<TickerResult<TTimeTicker>> DeleteBatchAsync(List<Guid> ids, CancellationToken ct = default);
+```
+
+### Type-safe scheduling
+
+```csharp
+Task<TickerResult<TTimeTicker>> AddAsync<TFunction>(
+    DateTime? executionTime = null,
+    CancellationToken ct = default
+) where TFunction : class, ITickerFunction;
+
+Task<TickerResult<TTimeTicker>> AddAsync<TFunction, TRequest>(
+    DateTime? executionTime,
+    TRequest request,
+    CancellationToken ct = default
+) where TFunction : class, ITickerFunction<TRequest>;
+```
+
+---
+
+## ICronTickerManager\<TCronTicker\>
+
+**Generic constraint:** `TCronTicker : CronTickerEntity`
+
+```csharp
+Task<TickerResult<TCronTicker>> AddAsync(TCronTicker entity, CancellationToken ct = default);
+Task<TickerResult<TCronTicker>> UpdateAsync(TCronTicker cronTicker, CancellationToken ct = default);
+Task<TickerResult<TCronTicker>> DeleteAsync(Guid id, CancellationToken ct = default);
+Task<TickerResult<List<TCronTicker>>> AddBatchAsync(List<TCronTicker> entities, CancellationToken ct = default);
+Task<TickerResult<List<TCronTicker>>> UpdateBatchAsync(List<TCronTicker> cronTickers, CancellationToken ct = default);
+Task<TickerResult<TCronTicker>> DeleteBatchAsync(List<Guid> ids, CancellationToken ct = default);
+```
+
+---
+
+## TickerResult\<TEntity\>
+
+**Generic constraint:** `TEntity : class`
+
+All fields are **readonly**.
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `IsSucceeded` | `bool` | Whether the operation succeeded. |
+| `AffectedRows` | `int` | Number of rows affected. |
+| `Result` | `TEntity` | The resulting entity or entities. |
+| `Exception` | `Exception` | The exception if the operation failed. |

@@ -1,0 +1,26 @@
+---
+title: Installation
+description: Install and register Redis persistence for TickerQ.
+---
+
+## Install
+
+```bash
+dotnet add package TickerQ.Caching.StackExchangeRedis
+```
+
+## Register
+
+Chain `.AddStackExchangeRedis()` on `TickerOptionsBuilder`:
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddStackExchangeRedis(redis =>
+    {
+        redis.Configuration = "localhost:6379";
+    });
+});
+```
+
+You must provide either `Configuration` (connection string) or `ConfigurationOptions` (StackExchange.Redis object). TickerQ throws `InvalidOperationException` at startup if neither is set.

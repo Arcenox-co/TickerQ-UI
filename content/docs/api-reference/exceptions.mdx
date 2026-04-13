@@ -1,0 +1,30 @@
+---
+title: Exceptions
+description: TerminateExecutionException reference.
+---
+
+## TerminateExecutionException
+
+Inherits `Exception`. Throwing this exception immediately terminates the current ticker execution without triggering retries.
+
+**Internal field:** `readonly TickerStatus Status` (defaults to `Skipped`)
+
+### Constructors
+
+```csharp
+TerminateExecutionException(string message);
+// Status = Skipped
+
+TerminateExecutionException(TickerStatus tickerType, string message);
+// Custom status
+
+TerminateExecutionException(string message, Exception innerException);
+// Status = Skipped
+
+TerminateExecutionException(TickerStatus tickerType, string message, Exception innerException);
+// Custom status + inner exception
+```
+
+<Callout type="info">
+The parameter is named `tickerType` in source but it accepts a `TickerStatus` value. No retries are triggered regardless of which constructor is used.
+</Callout>

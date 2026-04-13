@@ -1,0 +1,41 @@
+---
+title: Installation
+description: Install and register the TickerQ dashboard.
+---
+
+## Install
+
+```bash
+dotnet add package TickerQ.Dashboard
+```
+
+## Register
+
+Chain `.AddDashboard()` on `TickerOptionsBuilder`:
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddDashboard();
+});
+
+var app = builder.Build();
+app.UseTickerQ();
+app.Run();
+```
+
+The dashboard is now available at **`/tickerq/dashboard`**.
+
+That's it — `UseTickerQ()` auto-configures all dashboard middleware, static files, API endpoints, and the SignalR hub. No extra route mapping needed.
+
+## With options
+
+```csharp
+opt.AddDashboard(dashboard =>
+{
+    dashboard.SetBasePath("/admin/tickerq");
+    dashboard.WithBasicAuth("admin", "secret");
+});
+```
+
+See [Authentication](/docs/dashboard/authentication) and [Customization](/docs/dashboard/customization) for all options.

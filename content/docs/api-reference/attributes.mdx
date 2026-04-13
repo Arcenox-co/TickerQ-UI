@@ -1,0 +1,53 @@
+---
+title: Attributes
+description: TickerFunctionAttribute and TickerQConstructorAttribute.
+---
+
+## TickerFunctionAttribute
+
+```csharp
+[AttributeUsage(AttributeTargets.Method)]
+```
+
+Marks a method as a TickerQ function.
+
+### Constructors
+
+```csharp
+TickerFunctionAttribute(
+    string functionName,
+    string cronExpression = null,
+    TickerTaskPriority taskPriority = TickerTaskPriority.Normal,
+    int maxConcurrency = 0
+);
+
+TickerFunctionAttribute(
+    string functionName,
+    TickerTaskPriority taskPriority,
+    int maxConcurrency = 0
+);
+```
+
+### Parameters
+
+| Parameter | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `functionName` | `string` | Yes | | Unique name identifying this ticker function. |
+| `cronExpression` | `string` | No | `null` | 5 or 6 part cron expression. When provided, auto-seeds a `CronTickerEntity`. |
+| `taskPriority` | `TickerTaskPriority` | No | `Normal` | Execution priority for the task. |
+| `maxConcurrency` | `int` | No | `0` | Maximum concurrent executions. `0` means unlimited. |
+
+---
+
+## TickerQConstructorAttribute
+
+```csharp
+[AttributeUsage(AttributeTargets.Constructor)]
+```
+
+Marks which constructor TickerQ should use for dependency injection when multiple constructors exist on a ticker function class. No parameters.
+
+```csharp
+[TickerQConstructor]
+public MyService(IDependency dep) { }
+```

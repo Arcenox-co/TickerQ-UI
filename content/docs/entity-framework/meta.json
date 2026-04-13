@@ -1,0 +1,5 @@
+{
+  "title": "TickerQ.EntityFrameworkCore",
+  "root": true,
+  "pages": ["index", "installation", "dbcontext", "custom-entities", "migrations"]
+}

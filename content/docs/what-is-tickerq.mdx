@@ -1,0 +1,71 @@
+---
+icon: Info
+title: What is TickerQ?
+description: Architecture, philosophy, and how TickerQ compares to other .NET job schedulers.
+---
+
+TickerQ is a background job scheduler for .NET that uses **C# source generators** to wire up job handlers at compile time. No reflection, no runtime code generation, full **Native AOT** compatibility.
+
+## Why TickerQ?
+
+Most .NET job schedulers rely on runtime reflection to discover and invoke job handlers. This works, but it means:
+
+- Slower startup — scanning assemblies at boot
+- No AOT support — reflection is incompatible with Native AOT trimming
+- Runtime failures — misspelled function names fail at execution, not at compile time
+
+TickerQ eliminates all of this. The source generator discovers `[TickerFunction]` methods during compilation and generates the wiring code. If a function name is wrong, you get a **compile error**, not a runtime surprise.
+
+## How it works
+
+```
+[TickerFunction("send-email")]     ──→  Source Generator  ──→  Compiled registration
+public async Task SendEmail(...)         (build time)          (zero reflection)
+```
+
+1. You decorate methods with `[TickerFunction]` or register them via `MapTicker<T>()`
+2. At build time, the source generator creates factory code that resolves your classes from DI and invokes the correct method
+3. At runtime, the scheduler polls the persistence store for due jobs and dispatches them to a custom task scheduler
+4. Jobs run on a configurable thread pool with priority support (`LongRunning` gets its own thread)
+
+## Two job types
+
+| | TimeTicker | CronTicker |
+|---|---|---|
+| **Fires** | Once at a specific time | Repeatedly on a cron schedule |
+| **Use case** | Delayed tasks, event-driven work | Periodic reports, syncs, cleanup |
+| **Children** | Supports parent-child chaining | No chaining |
+
+## Persistence options
+
+By default, jobs live in memory. For production, plug in a persistence provider:
+
+| Provider | Package | Best for |
+|----------|---------|----------|
+| In-memory | included | Development, testing |
+| SQL (EF Core) | `TickerQ.EntityFrameworkCore` | Single-node or multi-node with SQL |
+| Redis | `TickerQ.Caching.StackExchangeRedis` | High throughput, multi-node |
+
+All providers implement the same interface — swap with one line of config.
+
+## Ecosystem
+
+| Package | Purpose |
+|---------|---------|
+| `TickerQ` | Core scheduler, source generator, task pool |
+| `TickerQ.EntityFrameworkCore` | SQL persistence (SQL Server, PostgreSQL, SQLite) |
+| `TickerQ.Caching.StackExchangeRedis` | Redis persistence + multi-node coordination |
+| `TickerQ.Dashboard` | Real-time Vue.js web UI for monitoring |
+| `TickerQ.Instrumentation.OpenTelemetry` | Distributed tracing + structured logging |
+
+## How it compares
+
+| Feature | TickerQ | Hangfire | Quartz.NET |
+|---------|---------|----------|------------|
+| AOT support | Native AOT ready | No | No |
+| Discovery | Source generator (compile time) | Reflection (runtime) | Reflection (runtime) |
+| Cron jobs | 5/6-part expressions | Cron + recurring | Cron |
+| Job chaining | Built-in (parent/child) | Continuations | Listeners |
+| Dashboard | Built-in (Vue.js + SignalR) | Built-in | None (third-party) |
+| Persistence | EF Core, Redis, in-memory | SQL Server, Redis | ADO.NET |
+| Open source | Yes | Partial (Pro features) | Yes |

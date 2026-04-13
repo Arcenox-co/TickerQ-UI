@@ -1,0 +1,229 @@
+---
+title: Complete Example
+description: Full working application with EF Core, Dashboard, and multiple job types.
+---
+
+A production-ready application that combines EF Core persistence, the real-time dashboard, attribute-based jobs, interface-based jobs, and runtime scheduling.
+
+## File structure
+
+```
+MyApp/
+├── Program.cs
+├── Jobs/
+│   ├── InvoiceJobs.cs          # [TickerFunction] attribute jobs
+│   └── WelcomeEmailJob.cs      # ITickerFunction<T> implementation
+├── Payloads/
+│   ├── InvoicePayload.cs
+│   └── WelcomeEmailPayload.cs
+├── Services/
+│   └── OrderService.cs         # Schedules jobs at runtime
+└── appsettings.json
+```
+
+---
+
+## Program.cs
+
+```csharp title="Program.cs"
+using TickerQ.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using TickerQ.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var connectionString = builder.Configuration.GetConnectionString("Default");
+
+builder.Services.AddTickerQ(opt =>
+{
+    // EF Core persistence
+    opt.AddOperationalStore(ef =>
+    {
+        ef.UseTickerQDbContext<TickerQDbContext>(db =>
+            db.UseSqlServer(connectionString,
+                sql => sql.MigrationsAssembly("MyApp")));
+    });
+
+    // Dashboard with Basic auth
+    opt.AddDashboard(dashboard =>
+    {
+        dashboard.WithBasicAuth("admin", "s3cret");
+    });
+});
+
+// Interface-based job registration
+builder.Services.MapTicker<WelcomeEmailJob, WelcomeEmailPayload>();
+
+builder.Services.AddScoped<OrderService>();
+
+var app = builder.Build();
+
+app.UseTickerQ();
+app.MapControllers();
+app.Run();
+```
+
+---
+
+## Payloads
+
+```csharp title="Payloads/WelcomeEmailPayload.cs"
+public class WelcomeEmailPayload
+{
+    public string Email { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
+}
+```
+
+```csharp title="Payloads/InvoicePayload.cs"
+public class InvoicePayload
+{
+    public int OrderId { get; set; }
+    public decimal Amount { get; set; }
+}
+```
+
+---
+
+## Interface-based job
+
+```csharp title="Jobs/WelcomeEmailJob.cs"
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+public class WelcomeEmailJob : ITickerFunction<WelcomeEmailPayload>
+{
+    private readonly ILogger<WelcomeEmailJob> _logger;
+
+    public WelcomeEmailJob(ILogger<WelcomeEmailJob> logger) => _logger = logger;
+
+    public async Task ExecuteAsync(
+        TickerFunctionContext<WelcomeEmailPayload> context,
+        CancellationToken cancellationToken)
+    {
+        var payload = context.Request;
+
+        _logger.LogInformation(
+            "Sending welcome email to {Email} for user {Name}",
+            payload.Email,
+            payload.UserName);
+
+        // Send email via your mail provider
+        await Task.CompletedTask;
+    }
+}
+```
+
+---
+
+## Attribute-based job with typed payload
+
+```csharp title="Jobs/InvoiceJobs.cs"
+using TickerQ.Utilities.Base;
+
+public class InvoiceJobs
+{
+    private readonly ILogger<InvoiceJobs> _logger;
+
+    public InvoiceJobs(ILogger<InvoiceJobs> logger) => _logger = logger;
+
+    [TickerFunction("generate-invoice")]
+    public async Task GenerateInvoice(
+        TickerFunctionContext<InvoicePayload> context,
+        CancellationToken cancellationToken)
+    {
+        var payload = context.Request;
+
+        _logger.LogInformation(
+            "Generating invoice for order {OrderId}, amount {Amount}",
+            payload.OrderId,
+            payload.Amount);
+
+        await Task.CompletedTask;
+    }
+
+    [TickerFunction("daily-summary", cronExpression: "0 0 18 * * *")]
+    public async Task DailySummary(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Running daily invoice summary at {Time}", DateTime.UtcNow);
+        await Task.CompletedTask;
+    }
+}
+```
+
+---
+
+## Service that schedules jobs
+
+```csharp title="Services/OrderService.cs"
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+public class OrderService
+{
+    private readonly ITimeTickerManager<TimeTickerEntity> _timeTicker;
+    private readonly ILogger<OrderService> _logger;
+
+    public OrderService(
+        ITimeTickerManager<TimeTickerEntity> timeTicker,
+        ILogger<OrderService> logger)
+    {
+        _timeTicker = timeTicker;
+        _logger = logger;
+    }
+
+    public async Task OnUserRegisteredAsync(string email, string userName)
+    {
+        // Schedule welcome email 5 minutes after registration
+        var result = await _timeTicker.AddAsync<WelcomeEmailJob, WelcomeEmailPayload>(
+            DateTime.UtcNow.AddMinutes(5),
+            new WelcomeEmailPayload { Email = email, UserName = userName });
+
+        if (result.IsSucceeded)
+            _logger.LogInformation("Scheduled welcome email {Id}", result.Result.Id);
+    }
+
+    public async Task OnOrderPlacedAsync(int orderId, decimal amount)
+    {
+        // Schedule invoice generation using function name
+        var result = await _timeTicker.AddAsync(new TimeTickerEntity
+        {
+            Function      = "generate-invoice",
+            ExecutionTime = DateTime.UtcNow.AddMinutes(1),
+            Request       = TickerHelper.CreateTickerRequest(
+                                new InvoicePayload { OrderId = orderId, Amount = amount }),
+            Retries        = 3,
+            RetryIntervals = new[] { 30, 120, 600 },
+        });
+
+        if (result.IsSucceeded)
+            _logger.LogInformation("Scheduled invoice for order {OrderId}", orderId);
+    }
+}
+```
+
+---
+
+## appsettings.json
+
+```json title="appsettings.json"
+{
+  "ConnectionStrings": {
+    "Default": "Server=localhost;Database=MyApp;Trusted_Connection=True;TrustServerCertificate=True;"
+  }
+}
+```
+
+---
+
+## Run
+
+```bash
+dotnet ef migrations add InitTickerQ --context TickerQDbContext
+dotnet ef database update --context TickerQDbContext
+dotnet run
+```
+
+The dashboard is available at **`/tickerq/dashboard`** (login: `admin` / `s3cret`). The `daily-summary` cron job is auto-seeded on startup. Call `OrderService` methods from your controllers or endpoints to schedule time-based jobs on demand.

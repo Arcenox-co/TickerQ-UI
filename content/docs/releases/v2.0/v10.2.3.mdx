@@ -1,0 +1,19 @@
+---
+title: v10.2.3
+description: Deferred initialization, race condition fix, startup validation.
+---
+
+**Release Date:** March 21, 2026
+
+## Bug Fixes
+
+- Fix `TickerFunctionProvider.Build()` race condition — `Build()` is now thread-safe, preventing concurrent hosts from overwriting function registrations
+- Fix `NullReferenceException` on dashboard API when `UseTickerQ()` is not called
+- Fix timezone parsing for dashboard date/time display
+
+## Improvements
+
+- Deferred initialization — `UseTickerQ()` no longer performs I/O. All startup work (DB seeding, function discovery) is deferred to a hosted service, so design-time tools (`dotnet-ef`, OpenAPI generators) no longer crash
+- Proper async seeding — eliminates potential deadlocks from `.GetAwaiter().GetResult()`
+- Startup validation — warns when `UseTickerQ()` was not called or no `[TickerFunction]` methods are found
+- Source Link & `.snupkg` symbol packages for improved debugging

@@ -1,0 +1,23 @@
+---
+title: "{net}.0.0"
+description: Initial release.
+---
+
+**Release Date:** December 11, 2025
+**Versions:** `10.0.0` / `9.0.0` / `8.0.0`
+
+## Features
+
+- Source-generated job registration — zero reflection, Native AOT ready
+- TimeTicker (one-off) and CronTicker (recurring) job types
+- EF Core persistence with configurable schema
+- Redis persistence with multi-node coordination and heartbeats
+- Real-time Vue.js + SignalR dashboard with authentication
+- OpenTelemetry distributed tracing
+- Job chaining with `RunCondition` and `FluentChainTickerBuilder`
+- Configurable retry policies with `RetryIntervals`
+- `TerminateExecutionException` for controlled job termination
+- `DisableBackgroundServices()` for queue-only apps
+- `UseTickerSeeder` for startup job seeding
+- Schema override via `SetSchema()`
+- Custom entity support via generic `AddTickerQ<TTimeTicker, TCronTicker>`

@@ -1,0 +1,249 @@
+---
+title: Common Patterns
+description: Recipes for frequent TickerQ use cases.
+---
+
+## Delayed email after registration
+
+Schedule a one-off `TimeTicker` with a typed payload when a user signs up.
+
+```csharp title="Jobs/WelcomeEmailJob.cs"
+public class WelcomeEmailJob : ITickerFunction<WelcomeEmailPayload>
+{
+    private readonly IMailer _mailer;
+    public WelcomeEmailJob(IMailer mailer) => _mailer = mailer;
+
+    public async Task ExecuteAsync(
+        TickerFunctionContext<WelcomeEmailPayload> context,
+        CancellationToken ct)
+    {
+        await _mailer.SendAsync(context.Request.Email, "Welcome!", ct);
+    }
+}
+
+public class WelcomeEmailPayload
+{
+    public string Email { get; set; } = string.Empty;
+}
+```
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<WelcomeEmailJob, WelcomeEmailPayload>();
+```
+
+```csharp title="Scheduling"
+// In your registration handler
+await timeTicker.AddAsync<WelcomeEmailJob, WelcomeEmailPayload>(
+    DateTime.UtcNow.AddMinutes(5),
+    new WelcomeEmailPayload { Email = user.Email });
+```
+
+---
+
+## Daily report with cron attribute
+
+Auto-seed a recurring job with `[TickerFunction]` and a `cronExpression`. No runtime scheduling needed.
+
+```csharp title="Jobs/ReportJobs.cs"
+public class ReportJobs
+{
+    private readonly IReportService _reports;
+    public ReportJobs(IReportService reports) => _reports = reports;
+
+    [TickerFunction("daily-report", cronExpression: "0 0 9 * * *")]
+    public async Task DailyReport(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        await _reports.GenerateAsync(cancellationToken);
+    }
+}
+```
+
+The cron entity is created automatically on startup. The 6-part expression `0 0 9 * * *` fires daily at 09:00:00.
+
+---
+
+## Dynamic cron scheduling
+
+Create, update, and toggle cron jobs at runtime using `ICronTickerManager`.
+
+```csharp
+public class SyncScheduler
+{
+    private readonly ICronTickerManager<CronTickerEntity> _cronManager;
+
+    public SyncScheduler(ICronTickerManager<CronTickerEntity> cronManager)
+        => _cronManager = cronManager;
+
+    public async Task CreateSyncJobAsync()
+    {
+        var result = await _cronManager.AddAsync(new CronTickerEntity
+        {
+            Function   = "sync-data",
+            Expression = "0 */6 * * *",
+            IsEnabled  = true,
+            Retries    = 2,
+            RetryIntervals = new[] { 300 },
+        });
+    }
+
+    public async Task UpdateScheduleAsync(CronTickerEntity cron)
+    {
+        // Change from every 6 hours to every 12 hours
+        cron.Expression = "0 */12 * * *";
+        await _cronManager.UpdateAsync(cron);
+    }
+
+    public async Task DisableJobAsync(CronTickerEntity cron)
+    {
+        cron.IsEnabled = false;
+        await _cronManager.UpdateAsync(cron);
+    }
+
+    public async Task RemoveJobAsync(Guid cronId)
+    {
+        await _cronManager.DeleteAsync(cronId);
+    }
+}
+```
+
+---
+
+## Job chaining pipeline
+
+Use `FluentChainTickerBuilder` to create parent-child workflows with conditional execution.
+
+```csharp
+using TickerQ.Utilities.Base;
+
+var chain = FluentChainTickerBuilder<TimeTickerEntity>
+    .BeginWith(p =>
+    {
+        p.SetFunction("process-order")
+         .SetExecutionTime(DateTime.UtcNow);
+    })
+    .WithFirstChild(c =>
+        c.SetFunction("send-confirmation")
+         .SetRunCondition(RunCondition.OnSuccess))
+    .WithSecondChild(c =>
+        c.SetFunction("alert-ops")
+         .SetRunCondition(RunCondition.OnFailure))
+    .Build();
+
+await timeTicker.AddAsync(chain);
+```
+
+You can also nest grandchildren for multi-step pipelines:
+
+```csharp
+var pipeline = FluentChainTickerBuilder<TimeTickerEntity>
+    .BeginWith(p =>
+    {
+        p.SetFunction("validate-order")
+         .SetExecutionTime(DateTime.UtcNow);
+    })
+    .WithFirstChild(c =>
+        c.SetFunction("charge-payment")
+         .SetRunCondition(RunCondition.OnSuccess))
+        .WithFirstGrandChild(gc =>
+            gc.SetFunction("ship-order")
+              .SetRunCondition(RunCondition.OnSuccess))
+    .WithSecondChild(c =>
+        c.SetFunction("notify-failure")
+         .SetRunCondition(RunCondition.OnFailure))
+    .Build();
+
+await timeTicker.AddAsync(pipeline);
+```
+
+| Run condition | Triggers when parent... |
+|---------------|------------------------|
+| `OnSuccess` | completes with `Done` or `DueDone` |
+| `OnFailure` | completes with `Failed` |
+| `OnCancelled` | completes with `Cancelled` |
+| `OnFailureOrCancelled` | completes with `Failed` or `Cancelled` |
+| `OnAnyCompletedStatus` | reaches any terminal status |
+| `InProgress` | starts (runs in parallel) |
+
+---
+
+## Grouped functions
+
+Use `MapTickerGroup` to organise related jobs under a shared prefix with default settings.
+
+```csharp title="Program.cs"
+builder.Services.MapTickerGroup("Billing", group =>
+{
+    group.WithPriority(TickerTaskPriority.High);
+    group.WithMaxConcurrency(4);
+
+    group.MapTicker<ChargeJob>();       // registered as "Billing.ChargeJob"
+    group.MapTicker<RefundJob>();       // registered as "Billing.RefundJob"
+});
+
+builder.Services.MapTickerGroup("Reports", group =>
+{
+    group.WithPriority(TickerTaskPriority.Normal);
+
+    group.MapTicker<DailyReportJob>()
+         .WithCron("0 9 * * *")
+         .WithPriority(TickerTaskPriority.High);   // overrides group default
+
+    group.MapTicker<WeeklyReportJob>()
+         .WithCron("0 9 * * 1");                    // inherits group priority
+});
+```
+
+Individual `MapTicker` calls within a group can chain `.WithCron()`, `.WithPriority()`, and `.WithMaxConcurrency()` to override the group defaults.
+
+---
+
+## Queue-only app
+
+An application that only schedules jobs but does not process them. Useful for web APIs that enqueue work for a separate worker service.
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddOperationalStore(ef =>
+    {
+        ef.UseTickerQDbContext<TickerQDbContext>(db =>
+            db.UseSqlServer(connectionString));
+    });
+
+    opt.DisableBackgroundServices();
+});
+```
+
+With `DisableBackgroundServices()` the scheduler and all background workers are turned off. Only `ITimeTickerManager` and `ICronTickerManager` are available for scheduling.
+
+```csharp title="Controllers/OrdersController.cs"
+[ApiController]
+[Route("api/[controller]")]
+public class OrdersController : ControllerBase
+{
+    private readonly ITimeTickerManager<TimeTickerEntity> _timeTicker;
+
+    public OrdersController(ITimeTickerManager<TimeTickerEntity> timeTicker)
+        => _timeTicker = timeTicker;
+
+    [HttpPost]
+    public async Task<IActionResult> Create(CreateOrderRequest request)
+    {
+        // ... create the order ...
+
+        await _timeTicker.AddAsync(new TimeTickerEntity
+        {
+            Function      = "process-order",
+            ExecutionTime = DateTime.UtcNow,
+            Request       = TickerHelper.CreateTickerRequest(
+                                new OrderPayload { OrderId = request.Id }),
+        });
+
+        return Ok();
+    }
+}
+```
+
+A separate worker service with the same `AddTickerQ` configuration (without `DisableBackgroundServices`) picks up and processes the jobs.

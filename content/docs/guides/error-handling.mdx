@@ -1,0 +1,95 @@
+---
+title: Error Handling
+description: Retries and exception handling.
+---
+
+For job states after failures, see [Job Lifecycle](/docs/guides/job-lifecycle#states).
+
+---
+
+## Retries
+
+Set `Retries` and `RetryIntervals` when scheduling:
+
+```csharp
+new TimeTickerEntity
+{
+    Function       = "process-payment",
+    ExecutionTime  = DateTime.UtcNow,
+    Retries        = 3,
+    RetryIntervals = new[] { 30, 120, 600 }, // seconds between attempts
+}
+```
+
+When a job throws, TickerQ waits the interval and retries. After all attempts the status becomes `Failed`. If `RetryIntervals` is shorter than `Retries`, remaining intervals default to 30 seconds.
+
+| Strategy | Intervals |
+|----------|-----------|
+| Fixed | `{ 60, 60, 60 }` |
+| Exponential | `{ 2, 4, 8, 16 }` |
+| Progressive | `{ 30, 120, 600 }` |
+| Immediate | `{ 0, 0, 0 }` |
+
+### Selective catching
+
+Control which exceptions trigger a retry:
+
+```csharp
+try { await _api.CallAsync(ct); }
+catch (HttpRequestException) { throw; }   // transient → retry
+catch (ValidationException) { return; }    // permanent → complete without retry
+```
+
+---
+
+## Global exception handler
+
+Implement `ITickerExceptionHandler` to centralise logging for all job failures:
+
+```csharp
+public class AppExceptionHandler : ITickerExceptionHandler
+{
+    private readonly ILogger<AppExceptionHandler> _logger;
+    public AppExceptionHandler(ILogger<AppExceptionHandler> logger) => _logger = logger;
+
+    public Task HandleExceptionAsync(Exception exception, Guid tickerId, TickerType tickerType)
+    {
+        _logger.LogError(exception, "Job {Id} ({Type}) failed", tickerId, tickerType);
+        return Task.CompletedTask;
+    }
+
+    public Task HandleCanceledExceptionAsync(Exception exception, Guid tickerId, TickerType tickerType)
+    {
+        _logger.LogWarning("Job {Id} cancelled", tickerId);
+        return Task.CompletedTask;
+    }
+}
+```
+
+Register it:
+
+```csharp
+builder.Services.AddTickerQ(opt => opt.SetExceptionHandler<AppExceptionHandler>());
+```
+
+<Callout type="info">
+  `HandleExceptionAsync` fires on **every failed attempt**, not just the final one.
+</Callout>
+
+---
+
+## TerminateExecutionException
+
+Stop a job immediately **without retrying**:
+
+```csharp
+using TickerQ.Exceptions;
+
+throw new TerminateExecutionException("Already running — skipped");
+// status → Skipped (default)
+
+throw new TerminateExecutionException(TickerStatus.Failed, "Config missing");
+// status → Failed
+```
+
+See [API Reference — Exceptions](/docs/api-reference/exceptions) for all constructor overloads.

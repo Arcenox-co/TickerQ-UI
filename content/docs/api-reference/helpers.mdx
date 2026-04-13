@@ -1,0 +1,79 @@
+---
+title: Helpers
+description: TickerHelper, CronExpression, PaginationResult.
+---
+
+## TickerHelper
+
+Static class for serializing and deserializing ticker request payloads.
+
+### Properties
+
+| Property | Type | Default | Description |
+| --- | --- | --- | --- |
+| `RequestJsonSerializerOptions` | `JsonSerializerOptions` | `new()` | JSON serializer options used for request payloads. |
+| `UseGZipCompression` | `bool` | `false` | When `true`, compresses request payloads with GZip. |
+
+### Methods
+
+```csharp
+static byte[] CreateTickerRequest<T>(T data);
+static T ReadTickerRequest<T>(byte[] bytes);
+static string ReadTickerRequestAsString(byte[] bytes);
+```
+
+**AOT-compatible overloads:**
+
+```csharp
+static byte[] CreateTickerRequest<T>(T data, JsonTypeInfo<T> typeInfo);
+static T ReadTickerRequest<T>(byte[] bytes, JsonTypeInfo<T> typeInfo);
+```
+
+---
+
+## CronExpression
+
+Readonly struct implementing `IEquatable<CronExpression>`.
+
+### Property
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `Value` | `string` | The normalized 6-part cron expression string. |
+
+### Static methods
+
+```csharp
+static CronExpression Parse(string expression);
+static bool TryParse(string expression, out CronExpression result);
+```
+
+### Implicit conversions
+
+```csharp
+// string to CronExpression
+CronExpression expr = "*/5 * * * *";
+
+// CronExpression to string
+string raw = expr;
+```
+
+<Callout type="info">
+5-part expressions are automatically expanded to 6-part by prepending `"0 "` (zero seconds).
+</Callout>
+
+---
+
+## PaginationResult\<T\>
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `Items` | `IEnumerable<T>` | The items for the current page. |
+| `TotalCount` | `int` | Total number of items across all pages. |
+| `PageNumber` | `int` | Current page number. |
+| `PageSize` | `int` | Number of items per page. |
+| `TotalPages` | `int` | Computed total number of pages. |
+| `HasPreviousPage` | `bool` | Whether a previous page exists. |
+| `HasNextPage` | `bool` | Whether a next page exists. |
+| `FirstItemIndex` | `int` | Index of the first item on the current page. |
+| `LastItemIndex` | `int` | Index of the last item on the current page. |

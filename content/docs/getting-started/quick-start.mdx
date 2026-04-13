@@ -1,0 +1,94 @@
+---
+icon: Zap
+title: Quick Start
+description: Get TickerQ running in under 5 minutes.
+---
+
+## 1. Install
+
+```bash
+dotnet add package TickerQ
+```
+
+## 2. Register services
+
+```csharp title="Program.cs"
+using TickerQ.DependencyInjection;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddTickerQ();
+
+var app = builder.Build();
+app.UseTickerQ();
+app.Run();
+```
+
+## 3. Define and schedule a job
+
+<Tabs items={["Attribute", "MapTicker (version *.3.0+)"]}>
+  <Tab value="Attribute">
+
+```csharp title="Jobs/WelcomeJobs.cs"
+using TickerQ.Utilities.Base;
+
+public class WelcomeJobs
+{
+    [TickerFunction("send-welcome")]
+    public async Task SendWelcome(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"Job {context.Id} executed");
+    }
+}
+```
+
+Schedule it by function name:
+
+```csharp
+var result = await timeTicker.AddAsync(new TimeTickerEntity
+{
+    Function      = "send-welcome",
+    ExecutionTime = DateTime.UtcNow.AddSeconds(30),
+});
+```
+
+  </Tab>
+  <Tab value="MapTicker (version *.3.0+)">
+
+```csharp title="Jobs/WelcomeJob.cs"
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+public class WelcomeJob : ITickerFunction
+{
+    public async Task ExecuteAsync(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"Job {context.Id} executed");
+    }
+}
+```
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<WelcomeJob>();
+```
+
+Schedule it by type — no magic strings:
+
+```csharp
+var result = await timeTicker.AddAsync<WelcomeJob>(
+    executionTime: DateTime.UtcNow.AddSeconds(30));
+```
+
+  </Tab>
+</Tabs>
+
+## 4. Run
+
+```bash
+dotnet run
+```
+
+The job fires 30 seconds later.

@@ -1,0 +1,90 @@
+---
+title: Job Chaining
+description: Parent-child workflows with conditional execution.
+---
+
+Chain `TimeTickerEntity` jobs so children fire automatically based on how the parent completed.
+
+<Callout type="info">
+  Chaining is supported on **TimeTicker** only.
+</Callout>
+
+## Run conditions
+
+| Condition | Parent status |
+|-----------|---------------|
+| `OnSuccess` | `Done` or `DueDone` |
+| `OnFailure` | `Failed` |
+| `OnCancelled` | `Cancelled` |
+| `OnFailureOrCancelled` | `Failed` or `Cancelled` |
+| `OnAnyCompletedStatus` | Any terminal status |
+| `InProgress` | Runs in parallel with parent |
+
+Children do **not** need `ExecutionTime` — the scheduler fires them when the condition is met.
+
+---
+
+## Direct chaining
+
+```csharp
+var parent = new TimeTickerEntity
+{
+    Function      = "process-order",
+    ExecutionTime = DateTime.UtcNow,
+};
+
+parent.Children.Add(new TimeTickerEntity
+{
+    Function     = "send-confirmation",
+    ParentId     = parent.Id,
+    RunCondition = RunCondition.OnSuccess,
+});
+
+parent.Children.Add(new TimeTickerEntity
+{
+    Function     = "alert-ops",
+    ParentId     = parent.Id,
+    RunCondition = RunCondition.OnFailure,
+});
+
+await timeTicker.AddAsync(parent);
+```
+
+---
+
+## Fluent builder
+
+```csharp
+var chain = FluentChainTickerBuilder<TimeTickerEntity>
+    .BeginWith(p =>
+    {
+        p.SetFunction("process-order")
+         .SetExecutionTime(DateTime.UtcNow);
+    })
+    .WithFirstChild(c =>
+        c.SetFunction("send-confirmation").SetRunCondition(RunCondition.OnSuccess))
+    .WithSecondChild(c =>
+        c.SetFunction("alert-ops").SetRunCondition(RunCondition.OnFailure))
+    .Build();
+
+await timeTicker.AddAsync(chain);
+```
+
+Supports up to 5 children and 5 grandchildren per child:
+
+```csharp
+.WithFirstChild(c => c.SetFunction("charge").SetRunCondition(RunCondition.OnSuccess))
+    .WithFirstGrandChild(gc =>
+        gc.SetFunction("ship").SetRunCondition(RunCondition.OnSuccess))
+```
+
+---
+
+## When to use
+
+| Scenario | Pattern |
+|----------|---------|
+| Sequential pipeline | `OnSuccess` chain |
+| Compensation on failure | `OnFailure` branch |
+| Notify regardless of outcome | `OnAnyCompletedStatus` |
+| Parallel fan-out | `InProgress` children |

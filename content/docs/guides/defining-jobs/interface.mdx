@@ -1,0 +1,64 @@
+---
+title: ITickerFunction Interface
+description: Class-based handlers registered programmatically with MapTicker.
+---
+
+<Callout type="info">
+  Available in version **\*.3.0** or later.
+</Callout>
+
+Implement `ITickerFunction` and register with `MapTicker<T>()` for programmatic control.
+
+## Without payload
+
+```csharp
+public class CleanupJob : ITickerFunction
+{
+    public async Task ExecuteAsync(TickerFunctionContext context, CancellationToken ct)
+    {
+        // cleanup logic
+    }
+}
+```
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<CleanupJob>();
+```
+
+## With typed payload
+
+Implement `ITickerFunction<TRequest>`:
+
+```csharp
+public class EmailJob : ITickerFunction<EmailPayload>
+{
+    private readonly IMailer _mailer;
+    public EmailJob(IMailer mailer) => _mailer = mailer;
+
+    public async Task ExecuteAsync(TickerFunctionContext<EmailPayload> context, CancellationToken ct)
+    {
+        await _mailer.SendAsync(context.Request.To, ct);
+    }
+}
+```
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<EmailJob, EmailPayload>();
+```
+
+## Builder options
+
+Every `MapTicker` call returns a `TickerFunctionBuilder` for further configuration:
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<ProcessOrderJob, OrderPayload>()
+    .WithCron("*/5 * * * *")
+    .WithMaxConcurrency(3)
+    .WithPriority(TickerTaskPriority.High);
+```
+
+| Method | Description |
+|--------|-------------|
+| `.WithCron(string)` | Attach a cron schedule (auto-seeded on startup) |
+| `.WithMaxConcurrency(int)` | Limit parallel executions |
+| `.WithPriority(TickerTaskPriority)` | Set execution priority |

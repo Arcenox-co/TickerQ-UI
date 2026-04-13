@@ -1,0 +1,37 @@
+---
+title: Installation
+description: Install and register EF Core persistence for TickerQ.
+---
+
+## Install
+
+```bash
+dotnet add package TickerQ.EntityFrameworkCore
+```
+
+## Register
+
+Chain `.AddOperationalStore()` on `TickerOptionsBuilder`:
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddOperationalStore(ef =>
+    {
+        ef.UseTickerQDbContext<TickerQDbContext>(db =>
+            db.UseSqlServer(builder.Configuration.GetConnectionString("Default"),
+                sql => sql.MigrationsAssembly("MyApp")));
+    });
+});
+```
+
+This uses a **dedicated** `TickerQDbContext` with its own connection. For sharing your app's existing DbContext, see [DbContext Setup](/docs/entity-framework/dbcontext).
+
+## Options
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `UseTickerQDbContext<T>(Action<DbContextOptionsBuilder>, string?)` | — | Dedicated TickerQ database context |
+| `UseApplicationDbContext<T>(ConfigurationType)` | — | Share your app's DbContext |
+| `SetDbContextPoolSize(int)` | `1024` | Connection pool size |
+| `SetSchema(string)` | `"ticker"` | Database schema for all TickerQ tables |

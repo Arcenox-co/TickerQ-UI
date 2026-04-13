@@ -1,0 +1,22 @@
+---
+title: Releases
+description: Track new features, improvements, and bug fixes across TickerQ versions.
+---
+
+TickerQ uses **version parity** — each release ships for .NET 8, 9, and 10 simultaneously with the same features and fixes. Version numbers differ only in the major digit (`8.2.0` / `9.2.0` / `10.2.0`).
+
+Choose the track that matches your .NET runtime:
+
+| .NET Target | Version prefix | Status |
+|-------------|---------------|--------|
+| .NET 10 | `10.x.x` | Active |
+| .NET 9 | `9.x.x` | Active |
+| .NET 8 (LTS) | `8.x.x` | Active |
+
+## Upgrading
+
+```bash
+dotnet add package TickerQ --version 10.2.5
+```
+
+Within the same minor version (e.g. `10.2.0` → `10.2.5`) — no breaking changes.

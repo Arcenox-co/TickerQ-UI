@@ -1,0 +1,81 @@
+---
+title: TimeTicker
+description: Schedule one-off jobs that fire at a specific time.
+---
+
+A TimeTicker runs **once** at a specific UTC time. Use it for delayed tasks, deferred processing, or any job triggered by a business event.
+
+## Schedule a job
+
+Inject `ITimeTickerManager<TimeTickerEntity>` and call `AddAsync`:
+
+```csharp
+var result = await timeTicker.AddAsync(new TimeTickerEntity
+{
+    Function      = "send-receipt",
+    ExecutionTime = DateTime.UtcNow.AddMinutes(5),
+    Request       = TickerHelper.CreateTickerRequest(new ReceiptPayload { OrderId = 42 }),
+});
+```
+
+Scheduling in the past fires immediately.
+
+---
+
+## Type-safe scheduling
+
+If your handler was registered with `MapTicker<T>`, schedule by type instead of string:
+
+```csharp
+// No payload
+await timeTicker.AddAsync<CleanupJob>(
+    executionTime: DateTime.UtcNow.AddHours(1));
+
+// With typed payload
+await timeTicker.AddAsync<EmailJob, EmailPayload>(
+    DateTime.UtcNow.AddMinutes(2),
+    new EmailPayload { To = "user@example.com" });
+```
+
+---
+
+## Handling results
+
+Every manager operation returns `TickerResult<T>`:
+
+```csharp
+var result = await timeTicker.AddAsync(job);
+
+if (result.IsSucceeded)
+{
+    var id = result.Result.Id;       // the created entity
+    var rows = result.AffectedRows;  // affected row count
+}
+else
+{
+    var error = result.Exception;    // what went wrong
+}
+```
+
+---
+
+## Update and delete
+
+```csharp
+// Update execution time
+job.ExecutionTime = DateTime.UtcNow.AddHours(2);
+await timeTicker.UpdateAsync(job);
+
+// Delete
+await timeTicker.DeleteAsync(jobId);
+```
+
+---
+
+## Batch operations
+
+```csharp
+await timeTicker.AddBatchAsync(new List<TimeTickerEntity> { job1, job2, job3 });
+await timeTicker.UpdateBatchAsync(jobs);
+await timeTicker.DeleteBatchAsync(new List<Guid> { id1, id2 });
+```

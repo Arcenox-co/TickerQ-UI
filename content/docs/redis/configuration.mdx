@@ -1,0 +1,61 @@
+---
+title: Configuration
+description: Redis connection options and multi-node heartbeat settings.
+---
+
+`TickerQRedisOptionBuilder` extends `RedisCacheOptions` from `Microsoft.Extensions.Caching.StackExchangeRedis`, so all standard Redis cache options are available.
+
+## Options
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `Configuration` | — | Redis connection string (e.g. `"localhost:6379"`) |
+| `ConfigurationOptions` | — | StackExchange.Redis `ConfigurationOptions` object |
+| `InstanceName` | `"tickerq:"` | Key prefix for `IDistributedCache` entries |
+| `NodeHeartbeatInterval` | 1 minute | How often this node sends a heartbeat |
+
+## Connection string
+
+```csharp
+opt.AddStackExchangeRedis(redis =>
+{
+    redis.Configuration = "redis-server:6379,password=secret,ssl=true";
+});
+```
+
+## ConfigurationOptions
+
+For advanced scenarios, use the StackExchange.Redis configuration object:
+
+```csharp
+opt.AddStackExchangeRedis(redis =>
+{
+    redis.ConfigurationOptions = new ConfigurationOptions
+    {
+        EndPoints = { "redis-primary:6379", "redis-replica:6379" },
+        Password = "secret",
+        Ssl = true,
+        AbortOnConnectFail = false,
+        ConnectTimeout = 5000,
+    };
+});
+```
+
+## Heartbeat interval
+
+Each node writes a `hb:<node>` key with a TTL of `interval + 20 seconds`. Other nodes detect a node as dead when its heartbeat key expires.
+
+```csharp
+opt.AddStackExchangeRedis(redis =>
+{
+    redis.Configuration = "localhost:6379";
+    redis.NodeHeartbeatInterval = TimeSpan.FromSeconds(30); // more aggressive detection
+});
+```
+
+## Multi-node lifecycle
+
+1. **Startup** — node sends an initial heartbeat and registers in `nodes:registry`
+2. **Every interval** — node checks for dead nodes, recovers their locked jobs, then sends a fresh heartbeat
+3. **Dead-node recovery** — Lua script atomically clears `LockHolder`, sets status to `Idle`, and re-queues the job
+4. **Shutdown** — heartbeat key expires after TTL, other nodes detect and recover resources

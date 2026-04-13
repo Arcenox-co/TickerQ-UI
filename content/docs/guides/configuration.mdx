@@ -1,0 +1,140 @@
+---
+title: Configuration
+description: Scheduler options, serialization, seeding, and persistence.
+---
+
+All options are configured inside the `AddTickerQ` lambda. See [Quick Start](/docs/getting-started/quick-start) for the minimal setup.
+
+## Start modes
+
+| Mode | Behaviour |
+|------|-----------|
+| `Immediate` | Starts processing as soon as the host is ready **(default)** |
+| `Manual` | Skips first run — call `ITickerQHostScheduler.StartAsync()` to begin |
+
+```csharp
+app.UseTickerQ(TickerQStartMode.Manual);
+```
+
+---
+
+## Scheduler options
+
+```csharp
+opt.ConfigureScheduler(s =>
+{
+    s.MaxConcurrency        = 16;
+    s.NodeIdentifier        = Environment.MachineName;
+    s.SchedulerTimeZone     = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+    s.MinPollingInterval    = TimeSpan.FromSeconds(1);
+    s.FallbackIntervalChecker = TimeSpan.FromSeconds(30);
+    s.IdleWorkerTimeOut     = TimeSpan.FromMinutes(1);
+});
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `MaxConcurrency` | `ProcessorCount` | Max parallel jobs (excludes `LongRunning`) |
+| `NodeIdentifier` | `MachineName` | Instance ID for multi-node |
+| `SchedulerTimeZone` | `Local` | Timezone for cron evaluation |
+| `MinPollingInterval` | 1s | Min pause between DB polls |
+| `FallbackIntervalChecker` | 30s | Fallback check for stuck jobs |
+| `IdleWorkerTimeOut` | 1min | Idle worker thread lifetime |
+
+---
+
+## Queue-only mode
+
+For apps that only schedule jobs but don't process them:
+
+```csharp
+opt.DisableBackgroundServices();
+```
+
+Only `ITimeTickerManager` and `ICronTickerManager` are available.
+
+---
+
+## Serialization
+
+### Custom JSON options
+
+```csharp
+opt.ConfigureRequestJsonOptions(json =>
+{
+    json.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
+```
+
+### AOT / trimming
+
+```csharp
+[JsonSerializable(typeof(OrderPayload))]
+public partial class AppJsonContext : JsonSerializerContext { }
+
+// Registration
+opt.WithJsonContext(AppJsonContext.Default);
+```
+
+### GZip compression
+
+```csharp
+opt.UseGZipCompression();
+```
+
+Payloads are created with `TickerHelper.CreateTickerRequest<T>()` and read back transparently.
+
+---
+
+## Seeding
+
+### Automatic cron seeding
+
+Functions with `cronExpression` in `[TickerFunction]` are auto-seeded on startup. Disable with:
+
+```csharp
+opt.IgnoreSeedDefinedCronTickers();
+```
+
+### Custom seeding
+
+```csharp
+opt.UseTickerSeeder(
+    async timeManager =>
+    {
+        await timeManager.AddAsync(new TimeTickerEntity
+        {
+            Function      = "initial-setup",
+            ExecutionTime = DateTime.UtcNow.AddSeconds(10),
+        });
+    },
+    async cronManager =>
+    {
+        await cronManager.AddAsync(new CronTickerEntity
+        {
+            Function   = "weekly-cleanup",
+            Expression = "0 3 * * 0",
+            IsEnabled  = true,
+        });
+    }
+);
+```
+
+Seeding order: dead-node cleanup → auto cron seeding → custom time seeder → custom cron seeder → scheduler starts.
+
+---
+
+## Persistence
+
+Jobs are in-memory by default. Add a provider for production:
+
+```csharp
+// EF Core
+opt.AddOperationalStore(ef =>
+    ef.UseTickerQDbContext<TickerQDbContext>(o => o.UseSqlServer(connectionString)));
+
+// Redis
+opt.AddStackExchangeRedis(r => r.Configuration = "localhost:6379");
+```
+
+See [Entity Framework Core](/docs/entity-framework) and [Redis](/docs/redis).

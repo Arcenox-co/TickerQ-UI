@@ -1,0 +1,54 @@
+---
+title: Constructor Injection
+description: How TickerQ resolves dependencies for job classes.
+---
+
+TickerQ resolves job classes from DI on every execution. Standard constructor injection works automatically.
+
+## Single constructor
+
+No special setup needed:
+
+```csharp
+public class BillingJobs(IBillingService billing, ILogger<BillingJobs> logger)
+{
+    [TickerFunction("charge")]
+    public async Task Charge(TickerFunctionContext ctx, CancellationToken ct)
+        => await billing.ChargeAsync(ct);
+}
+```
+
+## Multiple constructors
+
+Mark the one TickerQ should use with `[TickerQConstructor]`:
+
+```csharp
+public class ReportJobs
+{
+    private readonly IReportService _reports;
+    private readonly ILogger<ReportJobs>? _logger;
+
+    public ReportJobs(IReportService reports)
+        => _reports = reports;
+
+    [TickerQConstructor]
+    public ReportJobs(IReportService reports, ILogger<ReportJobs> logger)
+    {
+        _reports = reports;
+        _logger = logger;
+    }
+
+    [TickerFunction("daily-report")]
+    public async Task DailyReport(TickerFunctionContext ctx, CancellationToken ct)
+        => await _reports.GenerateAsync(ct);
+}
+```
+
+## Rules
+
+| Scenario | Result |
+|----------|--------|
+| One constructor | Used automatically |
+| Multiple, one `[TickerQConstructor]` | Marked constructor used |
+| Multiple, no attribute | Compile **warning** — first constructor used |
+| Multiple `[TickerQConstructor]` | Compile **error** |

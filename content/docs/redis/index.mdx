@@ -1,0 +1,21 @@
+---
+title: TickerQ.Redis
+description: Redis persistence and multi-node coordination via StackExchange.Redis.
+---
+
+TickerQ.Caching.StackExchangeRedis persists jobs in Redis for in-memory speed with multi-node support. Built on [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis).
+
+## How it works
+
+- **Entities as JSON strings** — each TimeTicker, CronTicker, and CronOccurrence is stored as a JSON string at `tq:tt:<id>`, `tq:cron:<id>`, `tq:co:<id>`
+- **Sorted sets for scheduling** — pending jobs are ordered by execution time in `tq:tt:pending` and `tq:co:pending` for efficient polling
+- **Lua scripts for atomicity** — lock acquisition, release, and dead-node recovery are single-round-trip Lua scripts with no race conditions
+
+## Multi-node safe
+
+Multiple application instances can share the same Redis server. TickerQ handles:
+
+- **Heartbeats** — each node sends a periodic heartbeat (`hb:<node>` key with TTL). Default interval: 1 minute.
+- **Dead-node detection** — nodes without a heartbeat are detected automatically
+- **Resource recovery** — jobs locked by a dead node are atomically released and re-queued via Lua scripts
+- **Optimistic concurrency** — lock acquisition validates `UpdatedAt` timestamps to prevent conflicting updates

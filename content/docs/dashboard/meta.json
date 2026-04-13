@@ -1,0 +1,5 @@
+{
+  "title": "TickerQ.Dashboard",
+  "root": true,
+  "pages": ["index", "installation", "authentication", "customization"]
+}

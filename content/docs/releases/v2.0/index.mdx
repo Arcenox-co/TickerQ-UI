@@ -1,0 +1,43 @@
+---
+title: "{net}.2.0"
+description: Per-function concurrency, CronTicker IsEnabled, 15+ bug fixes.
+---
+
+**Release Date:** March 15, 2026
+**Versions:** `10.2.0` / `9.2.0` / `8.2.0`
+
+## Features
+
+- **Per-function concurrency control** — new `maxConcurrency` parameter on `[TickerFunction]` to limit concurrent executions per function. Excess work is queued, not skipped. Default `0` = unlimited.
+- **CronTicker `IsEnabled` property** — disable/enable individual cron tickers from dashboard or code. Disabled tickers stop generating new occurrences.
+- **Dashboard timezone-aware date formatting** — European (`dd/MM`), American (`MM/dd`), and ISO (`yyyy-MM-dd`) formats based on selected timezone.
+- **Dashboard OpenAPI group name** — `SetGroupName()` for organizing dashboard endpoints in API docs.
+
+## Bug Fixes
+
+- Redis persistence not filtering disabled cron tickers
+- Dashboard cron ticker toggle dialog showing inverted text
+- Dashboard `BasePath` not working with `UsePathBase`
+- CSP compliance — eliminated inline scripts for `script-src 'self'`
+- `JsonException` when deserializing empty request payloads
+- Source generator namespace sanitization for invalid C# identifier characters
+- Design-time DbContext crash when `TickerQEfCoreOptionBuilder` unavailable
+- `AddStackExchangeRedis` overriding EF Core persistence provider
+- Dashboard failing with old `Startup.cs` pattern
+- `TickerModelCustomizer` not applying configured schema
+- EF Core MySQL type mapping error in `MigrateDefinedCronTickers`
+- Dashboard reflection-based JSON replaced with source-generated serializers
+- `UseApplicationDbContext` implementation fix
+
+## Migration Required
+
+<Callout type="warn">
+  **EF Core users** — this release adds the `IsEnabled` column to the `CronTicker` table:
+
+  ```bash
+  dotnet ef migrations add AddCronTickerIsEnabled
+  dotnet ef database update
+  ```
+
+  Defaults to `true` — no behavior change for existing cron tickers.
+</Callout>

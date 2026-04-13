@@ -1,0 +1,23 @@
+---
+title: "{net}.1.1"
+description: Host auth policy, platform decoupling, thread-safety fixes.
+---
+
+**Release Date:** February 11, 2026
+**Versions:** `10.1.1` / `9.1.1` / `8.1.1`
+
+## Features
+
+- Configurable policy name for Host authentication — `WithHostAuthentication("AdminPolicy")`
+- Remove ASP.NET Core dependency from `TickerQ.Utilities` — enables Console, MAUI, WPF, and Worker Service apps
+
+## Bug Fixes
+
+- Fix CronTickerOccurrence execution time update
+- Fix Host auth depending on Authorization header instead of ASP.NET Core identity
+- Fix missing `await` in `AuthenticateHostAsync` call
+- Fix missing `Z` suffix when formatting execution time
+- Fix StackOverflow in `JsonExampleGenerator`
+- Fix thread-safety bugs, resource leaks, and scheduling issues
+- Fix null reference and orphaned cron ticker bugs
+- Convert array parameters to lists in EF Core LINQ queries

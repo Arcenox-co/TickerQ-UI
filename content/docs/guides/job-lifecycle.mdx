@@ -1,0 +1,105 @@
+---
+title: Job Lifecycle
+description: Execution flow, states, context, and cancellation.
+---
+
+## States
+
+Every job moves through these states:
+
+```
+Idle → Queued → InProgress → Done | DueDone | Failed | Cancelled | Skipped
+```
+
+| State | Meaning |
+|-------|---------|
+| `Idle` | Created, not yet picked up by the scheduler |
+| `Queued` | Picked up, waiting for a worker thread |
+| `InProgress` | Currently executing |
+| `Done` | Completed after the scheduled time |
+| `DueDone` | Completed on time |
+| `Failed` | All retry attempts exhausted |
+| `Cancelled` | Cancelled via token or `RequestCancellation()` |
+| `Skipped` | Skipped via `TerminateExecutionException` or `SkipIfAlreadyRunning()` |
+
+---
+
+## Execution context
+
+Every handler receives a `TickerFunctionContext` with metadata about the current run:
+
+```csharp
+[TickerFunction("my-job")]
+public async Task MyJob(TickerFunctionContext context, CancellationToken ct)
+{
+    context.Id            // Guid  — unique job ID
+    context.ScheduledFor  // DateTime (UTC) — intended fire time
+    context.RetryCount    // int — 0 on first attempt
+    context.Type          // TickerType.TimeTicker or CronTickerOccurrence
+    context.FunctionName  // string — registered name
+    context.IsDue         // bool — true if fired on time
+}
+```
+
+<Callout type="info">
+  Use `context.ScheduledFor` when your logic depends on the *intended* fire time. For a cron job at 09:00, `ScheduledFor` is `09:00` even if execution starts at 09:00:02.
+</Callout>
+
+### Typed payloads
+
+`TickerFunctionContext<TRequest>` adds a `Request` property with the deserialized payload:
+
+```csharp
+[TickerFunction("send-invoice")]
+public async Task SendInvoice(TickerFunctionContext<InvoicePayload> context, CancellationToken ct)
+{
+    var invoice = context.Request; // InvoicePayload
+}
+```
+
+See [Configuration — Serialization](/docs/guides/configuration#serialization) for how payloads are encoded.
+
+---
+
+## Cancellation
+
+The `CancellationToken` parameter is linked to application shutdown. For long-running work, check it:
+
+```csharp
+foreach (var item in items)
+{
+    ct.ThrowIfCancellationRequested();
+    await ProcessAsync(item, ct);
+}
+```
+
+You can also cancel from within the handler:
+
+```csharp
+context.RequestCancellation(); // sets status to Cancelled
+```
+
+---
+
+## Preventing overlapping cron runs
+
+If a cron job takes longer than its interval, the next occurrence can overlap. Prevent this:
+
+```csharp
+[TickerFunction("nightly-sync", cronExpression: "0 0 2 * * *")]
+public async Task NightlySync(TickerFunctionContext ctx, CancellationToken ct)
+{
+    ctx.CronOccurrenceOperations.SkipIfAlreadyRunning();
+    await _sync.RunAsync(ct);
+}
+```
+
+The occurrence is marked `Skipped` if another instance of the same cron job is already running.
+
+---
+
+## Cron occurrences
+
+Each CronTicker execution creates a `CronTickerOccurrenceEntity` that tracks that individual run — its status, execution time, elapsed time, and retry count. The parent `CronTickerEntity` holds the schedule; occurrences hold the execution history.
+
+See [API Reference — Entities](/docs/api-reference/entities) for the full property list.

@@ -1,0 +1,57 @@
+---
+title: Lambda Handlers
+description: Inline function registration without a class.
+---
+
+<Callout type="info">
+  Available in version **\*.3.0** or later.
+</Callout>
+
+`MapTicker` accepts inline lambdas for lightweight jobs that don't need a class.
+
+## Simple
+
+```csharp title="Program.cs"
+builder.Services.MapTicker("log-heartbeat", async (context, ct) =>
+{
+    Console.WriteLine("Heartbeat");
+});
+```
+
+## With service provider
+
+Access DI services via `IServiceProvider`:
+
+```csharp title="Program.cs"
+builder.Services.MapTicker("notify", async (context, sp, ct) =>
+{
+    var mailer = sp.GetRequiredService<IMailer>();
+    await mailer.SendAsync(ct);
+});
+```
+
+## With typed request
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<OrderPayload>("process-order", async (context, ct) =>
+{
+    var order = context.Request; // OrderPayload
+});
+
+// With typed request + service provider
+builder.Services.MapTicker<OrderPayload>("process-order", async (context, sp, ct) =>
+{
+    var repo = sp.GetRequiredService<IOrderRepo>();
+    await repo.ProcessAsync(context.Request, ct);
+});
+```
+
+## Builder options
+
+Lambda registrations also return `TickerFunctionBuilder`:
+
+```csharp title="Program.cs"
+builder.Services.MapTicker("cleanup", async (ctx, ct) => { /* ... */ })
+    .WithCron("0 0 * * *")
+    .WithPriority(TickerTaskPriority.Low);
+```

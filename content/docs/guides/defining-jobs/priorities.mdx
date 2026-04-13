@@ -1,0 +1,46 @@
+---
+title: Priorities
+description: Control execution priority and thread allocation.
+---
+
+Set priority on the function definition — via the attribute or the builder.
+
+## Priority levels
+
+| Priority | Behaviour |
+|----------|-----------|
+| `LongRunning` | Runs on a dedicated thread via `TaskCreationOptions.LongRunning`. Does **not** count against `MaxConcurrency`. |
+| `High` | Same worker pool as Normal — metadata for dashboard and tracing. |
+| `Normal` | Default. |
+| `Low` | Same worker pool as Normal — metadata for dashboard and tracing. |
+
+## Setting priority
+
+### Via attribute
+
+```csharp
+[TickerFunction("index-rebuild", taskPriority: TickerTaskPriority.LongRunning)]
+public async Task RebuildIndex(TickerFunctionContext ctx, CancellationToken ct) { ... }
+```
+
+### Via builder
+
+```csharp title="Program.cs"
+builder.Services.MapTicker<RebuildJob>()
+    .WithPriority(TickerTaskPriority.LongRunning);
+```
+
+### Via group
+
+```csharp title="Program.cs"
+builder.Services.MapTickerGroup("Critical", group =>
+{
+    group.WithPriority(TickerTaskPriority.High);
+    group.MapTicker<PaymentJob>();
+    group.MapTicker<FraudCheckJob>();
+});
+```
+
+<Callout type="info">
+  Priority is set on the **function**, not on individual scheduled jobs. All scheduled instances of a function share the same priority.
+</Callout>

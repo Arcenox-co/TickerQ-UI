@@ -1,0 +1,86 @@
+---
+title: Authentication
+description: Protect the dashboard with Basic, API key, host, or custom auth.
+---
+
+By default the dashboard has **no authentication** — it's publicly accessible. Configure an auth mode to restrict access.
+
+## None (default)
+
+```csharp
+dashboard.WithNoAuth(); // explicit, same as not configuring auth
+```
+
+---
+
+## Basic auth
+
+Username and password. Credentials are Base64-encoded internally.
+
+```csharp
+dashboard.WithBasicAuth("admin", "s3cret");
+```
+
+---
+
+## API key
+
+A single key sent as a Bearer token in the `Authorization` header.
+
+```csharp
+dashboard.WithApiKey("my-api-key-here");
+```
+
+---
+
+## Host authentication
+
+Delegates to your application's existing ASP.NET Core authentication and authorization. Optionally pass a policy name.
+
+```csharp
+// Use default authorization policy
+dashboard.WithHostAuthentication();
+
+// Use a specific policy
+dashboard.WithHostAuthentication("AdminPolicy");
+```
+
+<Callout type="info">
+  If your app hasn't registered authentication services, TickerQ adds default `AddAuthentication()` and `AddAuthorization()` automatically.
+</Callout>
+
+---
+
+## Custom auth
+
+Provide a function that receives the `Authorization` header value and returns `true`/`false`.
+
+```csharp
+dashboard.WithCustomAuth(authHeader =>
+{
+    return authHeader == "my-custom-token";
+});
+```
+
+---
+
+## Session timeout
+
+Set how long a session stays valid (default: 60 minutes). Applies to all auth modes.
+
+```csharp
+dashboard.WithSessionTimeout(120); // 2 hours
+```
+
+---
+
+## Summary
+
+| Method | Auth mode |
+|--------|-----------|
+| `WithNoAuth()` | Public — no protection |
+| `WithBasicAuth(user, pass)` | HTTP Basic |
+| `WithApiKey(key)` | Bearer token |
+| `WithHostAuthentication(policy?)` | ASP.NET Core auth system |
+| `WithCustomAuth(Func<string, bool>)` | Custom validator |
+| `WithSessionTimeout(minutes)` | Session duration (default: 60) |

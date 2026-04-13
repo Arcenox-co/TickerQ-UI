@@ -1,0 +1,10 @@
+{
+  "title": "TickerQ (Core)",
+  "root": true,
+  "pages": [
+    "index",
+    "what-is-tickerq",
+    "getting-started",
+    "guides"
+  ]
+}

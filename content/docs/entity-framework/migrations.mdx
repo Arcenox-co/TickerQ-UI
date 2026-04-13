@@ -1,0 +1,89 @@
+---
+title: Migrations
+description: Create and apply EF Core migrations for TickerQ tables.
+---
+
+## Dedicated TickerQDbContext
+
+If you used `UseTickerQDbContext<T>`, point the migration tools at your TickerQ context:
+
+### Package Manager Console
+
+```bash
+Add-Migration InitTickerQ -Context TickerQDbContext -OutputDir Migrations/TickerQ
+Update-Database -Context TickerQDbContext
+```
+
+### .NET CLI
+
+```bash
+dotnet ef migrations add InitTickerQ --context TickerQDbContext --output-dir Migrations/TickerQ
+dotnet ef database update --context TickerQDbContext
+```
+
+For a custom subclass, replace `TickerQDbContext` with your class name:
+
+```bash
+dotnet ef migrations add InitTickerQ --context MyTickerDbContext --output-dir Migrations/TickerQ
+```
+
+---
+
+## Application DbContext
+
+If you used `UseApplicationDbContext<T>`, migrations are part of your app's normal context:
+
+```bash
+dotnet ef migrations add AddTickerQTables --context AppDbContext
+dotnet ef database update --context AppDbContext
+```
+
+The TickerQ tables (`TimeTickers`, `CronTickers`, `CronTickerOccurrences`) will appear in the generated migration alongside your domain tables.
+
+---
+
+## Migrations assembly
+
+`TickerQDbContext` lives in the `TickerQ.EntityFrameworkCore` NuGet package — it has no migrations. You must tell EF Core which assembly in **your** project should hold the migration files:
+
+```csharp
+ef.UseTickerQDbContext<TickerQDbContext>(db =>
+    db.UseSqlServer(connectionString,
+        sql => sql.MigrationsAssembly("MyApp")));
+```
+
+<Callout type="warn">
+  Without `MigrationsAssembly`, EF Core looks for migrations in the assembly that contains the DbContext — which is the NuGet package. This will fail. Always set it to your application's assembly name.
+</Callout>
+
+---
+
+## Schema
+
+Tables are created in the configured schema (default: `ticker`). Change it before creating migrations:
+
+```csharp
+ef.SetSchema("background_jobs");
+```
+
+This affects table creation: `background_jobs.TimeTickers`, `background_jobs.CronTickers`, etc.
+
+---
+
+## Design-time factory
+
+If the migration tools can't resolve your DbContext (common in console apps or when the context needs runtime configuration), add a design-time factory:
+
+```csharp
+public class TickerQDbContextFactory : IDesignTimeDbContextFactory<TickerQDbContext>
+{
+    public TickerQDbContext CreateDbContext(string[] args)
+    {
+        var options = new DbContextOptionsBuilder<TickerQDbContext>()
+            .UseSqlServer("Server=.;Database=MyApp;Trusted_Connection=True;")
+            .Options;
+
+        return new TickerQDbContext(options);
+    }
+}
+```

@@ -1,0 +1,87 @@
+---
+title: Entities
+description: Property reference for all TickerQ entity types.
+---
+
+## BaseTickerEntity
+
+Base class for all ticker entities.
+
+| Property | Type | Setter | Default |
+| --- | --- | --- | --- |
+| `Id` | `Guid` | `set` | `Guid.NewGuid()` |
+| `Function` | `string` | `set` | |
+| `Description` | `string` | `set` | |
+| `InitIdentifier` | `string` | `internal` | |
+| `CreatedAt` | `DateTime` | `internal` | `DateTime.UtcNow` |
+| `UpdatedAt` | `DateTime` | `internal` | `DateTime.UtcNow` |
+
+---
+
+## TimeTickerEntity\<TTicker\>
+
+Inherits `BaseTickerEntity`.
+
+**Generic constraint:** `TTicker : TimeTickerEntity<TTicker>`
+
+| Property | Type | Setter | Default / Notes |
+| --- | --- | --- | --- |
+| `ExecutionTime` | `DateTime?` | `set` | |
+| `Status` | `TickerStatus` | `internal` | |
+| `Request` | `byte[]` | `set` | |
+| `Retries` | `int` | `set` | |
+| `RetryIntervals` | `int[]` | `set` | |
+| `RetryCount` | `int` | `internal` | |
+| `LockHolder` | `string` | `internal` | |
+| `LockedAt` | `DateTime?` | `internal` | |
+| `ExecutedAt` | `DateTime?` | `internal` | |
+| `ElapsedTime` | `long` | `internal` | |
+| `ExceptionMessage` | `string` | `internal` | |
+| `SkippedReason` | `string` | `internal` | |
+| `ParentId` | `Guid?` | `internal` | |
+| `Parent` | `TTicker` | `internal` | `[JsonIgnore]` |
+| `Children` | `ICollection<TTicker>` | `set` | `new List<TTicker>()` |
+| `RunCondition` | `RunCondition?` | `set` | |
+
+---
+
+## TimeTickerEntity
+
+Non-generic convenience type. Inherits `TimeTickerEntity<TimeTickerEntity>`.
+
+---
+
+## CronTickerEntity
+
+Inherits `BaseTickerEntity`.
+
+| Property | Type | Setter | Default |
+| --- | --- | --- | --- |
+| `Expression` | `string` | `set` | |
+| `Request` | `byte[]` | `set` | |
+| `Retries` | `int` | `set` | |
+| `RetryIntervals` | `int[]` | `set` | |
+| `IsEnabled` | `bool` | `set` | `true` |
+
+---
+
+## CronTickerOccurrenceEntity\<TCronTicker\>
+
+**Generic constraint:** `TCronTicker : CronTickerEntity`
+
+| Property | Type | Setter |
+| --- | --- | --- |
+| `Id` | `Guid` | `set` |
+| `Status` | `TickerStatus` | `set` |
+| `LockHolder` | `string` | `set` |
+| `ExecutionTime` | `DateTime` | `set` |
+| `CronTickerId` | `Guid` | `set` |
+| `LockedAt` | `DateTime?` | `set` |
+| `ExecutedAt` | `DateTime?` | `set` |
+| `CronTicker` | `TCronTicker` | `set` |
+| `ExceptionMessage` | `string` | `set` |
+| `SkippedReason` | `string` | `set` |
+| `ElapsedTime` | `long` | `set` |
+| `RetryCount` | `int` | `set` |
+| `CreatedAt` | `DateTime` | `set` |
+| `UpdatedAt` | `DateTime` | `set` |

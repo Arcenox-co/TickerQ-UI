@@ -1,0 +1,90 @@
+---
+title: Custom Entities
+description: Extend TimeTickerEntity and CronTickerEntity with your own properties.
+---
+
+Add custom properties to job entities — useful for multi-tenancy, tagging, or domain-specific metadata.
+
+## Define custom entities
+
+Inherit from the generic `TimeTickerEntity<T>`:
+
+```csharp
+public class MyTimeTicker : TimeTickerEntity<MyTimeTicker>
+{
+    public string TenantId { get; set; }
+    public string Category { get; set; }
+}
+```
+
+CronTicker can also be extended:
+
+```csharp
+public class MyCronTicker : CronTickerEntity
+{
+    public string TenantId { get; set; }
+}
+```
+
+## Register with generic AddTickerQ
+
+Use the generic overload so managers and persistence use your custom types:
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ<MyTimeTicker, MyCronTicker>(opt =>
+{
+    opt.AddOperationalStore(ef =>
+    {
+        ef.UseTickerQDbContext<MyTickerDbContext>(db =>
+            db.UseSqlServer(connectionString));
+    });
+});
+```
+
+Your custom DbContext:
+
+```csharp
+public class MyTickerDbContext : TickerQDbContext<MyTimeTicker, MyCronTicker>
+{
+    public MyTickerDbContext(DbContextOptions options) : base(options) { }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder); // applies TickerQ base configurations
+
+        // Configure your custom properties
+        modelBuilder.Entity<MyTimeTicker>(b =>
+        {
+            b.Property(x => x.TenantId).HasMaxLength(64);
+            b.HasIndex(x => x.TenantId);
+        });
+    }
+}
+```
+
+## Inject the typed manager
+
+The managers are now typed to your custom entity:
+
+```csharp
+public class OrderService(ITimeTickerManager<MyTimeTicker> timeTicker)
+{
+    public async Task Schedule(string tenantId)
+    {
+        await timeTicker.AddAsync(new MyTimeTicker
+        {
+            Function  = "process-order",
+            ExecutionTime = DateTime.UtcNow.AddMinutes(5),
+            TenantId  = tenantId,
+            Category  = "orders",
+        });
+    }
+}
+```
+
+## When to use
+
+- **Multi-tenancy** — add `TenantId` for tenant isolation
+- **Categorization** — add `Category` or `Tags` for filtering
+- **Audit** — add `CreatedBy`, `ModifiedBy`
+- **Priority routing** — add custom priority or queue fields

@@ -1,0 +1,112 @@
+---
+title: DbContext Setup
+description: Dedicated TickerQ context vs sharing your application's DbContext.
+---
+
+## Option 1: Dedicated TickerQDbContext
+
+Use the built-in `TickerQDbContext` (or a subclass) with its own database connection. Entity configurations are applied automatically in `OnModelCreating`.
+
+```csharp
+opt.AddOperationalStore(ef =>
+{
+    ef.UseTickerQDbContext<TickerQDbContext>(db =>
+        db.UseNpgsql(connectionString));
+});
+```
+
+`TickerQDbContext` is a non-generic shortcut for `TickerQDbContext<TimeTickerEntity, CronTickerEntity>`. If you use [custom entities](/docs/entity-framework/custom-entities), inherit from the generic version:
+
+```csharp
+public class MyTickerDbContext : TickerQDbContext<MyTimeTicker, MyCronTicker>
+{
+    public MyTickerDbContext(DbContextOptions options) : base(options) { }
+}
+```
+
+```csharp
+ef.UseTickerQDbContext<MyTickerDbContext>(db => db.UseNpgsql(connectionString));
+```
+
+### Custom schema
+
+Pass a second parameter to override the default `ticker` schema:
+
+```csharp
+ef.UseTickerQDbContext<TickerQDbContext>(
+    db => db.UseSqlServer(connectionString),
+    schema: "jobs");
+```
+
+---
+
+## Option 2: Application DbContext
+
+Share your app's existing `DbContext` so TickerQ tables live alongside your domain tables.
+
+```csharp
+opt.AddOperationalStore(ef =>
+{
+    ef.UseApplicationDbContext<AppDbContext>(ConfigurationType.UseModelCustomizer);
+});
+```
+
+### ConfigurationType
+
+| Value | What it does |
+|-------|-------------|
+| `UseModelCustomizer` | Automatically injects TickerQ entity configurations into your DbContext via EF Core's model customizer pipeline. **No changes to your DbContext needed.** |
+| `IgnoreModelCustomizer` | Does **not** modify your DbContext. You must manually apply configurations in `OnModelCreating`. |
+
+### UseModelCustomizer (recommended)
+
+Your DbContext stays untouched — TickerQ configures itself:
+
+```csharp
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    public DbSet<Product> Products { get; set; }
+    // No TickerQ configuration needed
+}
+```
+
+### IgnoreModelCustomizer
+
+If you need full control, apply the configurations yourself:
+
+```csharp
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // Manually apply TickerQ entity configurations
+        modelBuilder.ApplyConfiguration(new TimeTickerConfigurations<TimeTickerEntity>("ticker"));
+        modelBuilder.ApplyConfiguration(new CronTickerConfigurations<CronTickerEntity>("ticker"));
+        modelBuilder.ApplyConfiguration(new CronTickerOccurrenceConfigurations<CronTickerEntity>("ticker"));
+    }
+}
+```
+
+---
+
+## Pool size
+
+Default: `1024`. Adjust for high-throughput scenarios:
+
+```csharp
+ef.SetDbContextPoolSize(2048);
+```
+
+## Schema
+
+Default: `"ticker"`. Change it on either setup path:
+
+```csharp
+ef.SetSchema("background_jobs");
+```

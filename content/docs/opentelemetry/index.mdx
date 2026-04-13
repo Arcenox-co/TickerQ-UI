@@ -1,0 +1,97 @@
+---
+title: TickerQ.OpenTelemetry
+description: Distributed tracing and structured logging for TickerQ jobs.
+---
+
+TickerQ.Instrumentation.OpenTelemetry adds Activity-based distributed tracing and structured `ILogger` logging for every job execution.
+
+## Install
+
+```bash
+dotnet add package TickerQ.Instrumentation.OpenTelemetry
+```
+
+## Register
+
+Chain `.AddOpenTelemetryInstrumentation()` on `TickerOptionsBuilder`:
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddOpenTelemetryInstrumentation();
+});
+```
+
+## Wire up the OpenTelemetry SDK
+
+Add the `"TickerQ"` activity source to your tracing pipeline:
+
+```csharp title="Program.cs"
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource("TickerQ");  // activity source name
+        tracing.AddOtlpExporter();     // or Jaeger, Zipkin, etc.
+    });
+```
+
+<Callout type="info">
+  The activity source name is **`"TickerQ"`** (version `1.0.0`). This is what you pass to `AddSource()`.
+</Callout>
+
+---
+
+## What gets traced
+
+Each job execution creates a main activity span with child spans for lifecycle events:
+
+### Job execution span
+
+| Tag | Value |
+|-----|-------|
+| `tickerq.job.id` | Job GUID |
+| `tickerq.job.type` | `TimeTicker` or `CronTickerOccurrence` |
+| `tickerq.job.function` | Registered function name |
+| `tickerq.job.priority` | `Normal`, `High`, `Low`, or `LongRunning` |
+| `tickerq.job.machine` | Node identifier |
+| `tickerq.job.retries` | Max retry count |
+| `tickerq.job.parent_id` | Parent job ID (if chained) |
+| `tickerq.job.run_condition` | Run condition (if chained) |
+
+### Lifecycle event spans
+
+| Span name | When | Extra tags |
+|-----------|------|------------|
+| `tickerq.job.enqueued` | Job queued | `job.enqueued_from` (caller location) |
+| `tickerq.job.completed` | Successful | `job.execution_time_ms`, `job.success`, status = OK |
+| `tickerq.job.failed` | Exception | `job.retry_count`, `job.error_type`, `job.error_message`, status = ERROR |
+| `tickerq.job.cancelled` | Cancelled | `job.cancellation_reason`, status = ERROR |
+| `tickerq.job.skipped` | Skipped | `job.skip_reason` |
+| `tickerq.seeding.started` | Seeding begins | `seeding.type`, `seeding.environment` |
+| `tickerq.seeding.completed` | Seeding done | `seeding.type`, `seeding.environment` |
+
+---
+
+## Logging
+
+In addition to Activity tracing, every event is also logged via `ILogger` with structured properties. You get traces **and** logs from a single registration.
+
+---
+
+## Full example
+
+```csharp title="Program.cs"
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddOpenTelemetryInstrumentation();
+});
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+    {
+        tracing.AddSource("TickerQ");
+        tracing.AddOtlpExporter(o => o.Endpoint = new Uri("http://localhost:4317"));
+    });
+```
+
+Compatible with any OpenTelemetry-compatible backend: Jaeger, Zipkin, OTLP, Azure Monitor, Datadog, Grafana Tempo, etc.

@@ -1,0 +1,60 @@
+---
+title: Function Groups
+description: Organize related functions under a shared prefix with defaults.
+---
+
+<Callout type="info">
+  Available in version **\*.3.0** or later.
+</Callout>
+
+`MapTickerGroup` registers related functions under a shared name prefix and applies default settings to all of them.
+
+```csharp title="Program.cs"
+builder.Services.MapTickerGroup("Billing", group =>
+{
+    group.WithPriority(TickerTaskPriority.High);
+    group.WithMaxConcurrency(4);
+    group.WithLifetime(ServiceLifetime.Scoped);
+
+    group.MapTicker<ChargeJob>();       // → "Billing.ChargeJob"
+    group.MapTicker<RefundJob>();       // → "Billing.RefundJob"
+});
+```
+
+## Group defaults
+
+| Method | Description |
+|--------|-------------|
+| `.WithPriority(TickerTaskPriority)` | Default priority for all functions in the group |
+| `.WithMaxConcurrency(int)` | Default concurrency limit |
+| `.WithLifetime(ServiceLifetime)` | DI lifetime (`Scoped`, `Transient`, `Singleton`) |
+
+## Per-function overrides
+
+Individual functions can chain builder options to override group defaults:
+
+```csharp title="Program.cs"
+builder.Services.MapTickerGroup("Reports", group =>
+{
+    group.WithPriority(TickerTaskPriority.Normal);
+
+    group.MapTicker<DailyReportJob>()
+         .WithCron("0 9 * * *")
+         .WithPriority(TickerTaskPriority.High);    // overrides group default
+
+    group.MapTicker<WeeklyReportJob>()
+         .WithCron("0 9 * * 1");                     // inherits group priority
+});
+```
+
+## Inline vs returned group
+
+```csharp
+// Inline (returns IServiceCollection)
+builder.Services.MapTickerGroup("Billing", group => { ... });
+
+// Returned (for external configuration)
+var billing = builder.Services.MapTickerGroup("Billing");
+billing.MapTicker<ChargeJob>();
+billing.MapTicker<RefundJob>();
+```

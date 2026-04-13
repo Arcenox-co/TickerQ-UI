@@ -1,0 +1,50 @@
+---
+title: Context
+description: TickerFunctionContext and CronOccurrenceOperations.
+---
+
+## TickerFunctionContext
+
+Injected into every ticker function at execution time.
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `Id` | `Guid` | Unique identifier of the ticker instance. |
+| `Type` | `TickerType` | Whether this is a `TimeTicker` or `CronTickerOccurrence`. |
+| `RetryCount` | `int` | Current retry attempt number. |
+| `IsDue` | `bool` | Whether the ticker was already past its scheduled time when it began executing. |
+| `ScheduledFor` | `DateTime` | UTC intended fire time. |
+| `FunctionName` | `string` | Name of the ticker function being executed. |
+| `CronOccurrenceOperations` | `CronOccurrenceOperations` | Operations available for cron occurrences. |
+
+### Methods
+
+```csharp
+void RequestCancellation();
+```
+
+Requests cancellation of the current execution.
+
+---
+
+## TickerFunctionContext\<TRequest\>
+
+Extends `TickerFunctionContext` with a typed request payload.
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `Request` | `TRequest` | The deserialized request object. Readonly. |
+
+---
+
+## CronOccurrenceOperations
+
+### Methods
+
+```csharp
+void SkipIfAlreadyRunning();
+```
+
+Skips the current cron occurrence if another occurrence of the same cron job is already running. Sets the occurrence status to `Skipped`.

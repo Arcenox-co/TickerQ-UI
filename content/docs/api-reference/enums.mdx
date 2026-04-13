@@ -1,0 +1,75 @@
+---
+title: Enums
+description: All TickerQ enumeration types.
+---
+
+## TickerStatus
+
+| Value | Description |
+| --- | --- |
+| `Idle` | Initial state, not yet queued for execution. |
+| `Queued` | Placed in the execution queue, waiting to run. |
+| `InProgress` | Currently executing. |
+| `Done` | Completed successfully. |
+| `DueDone` | Completed successfully but was already past its scheduled time. |
+| `Failed` | Execution threw an exception. |
+| `Cancelled` | Execution was cancelled. |
+| `Skipped` | Execution was skipped (e.g. via `SkipIfAlreadyRunning` or `TerminateExecutionException`). |
+
+---
+
+## TickerType
+
+| Value | Description |
+| --- | --- |
+| `CronTickerOccurrence` | A single occurrence of a cron-based ticker. |
+| `TimeTicker` | A one-shot time-based ticker. |
+
+---
+
+## TickerTaskPriority
+
+| Value | Description |
+| --- | --- |
+| `LongRunning` | Runs on a dedicated thread using the default `TaskScheduler`. |
+| `High` | Runs on the `TickerTaskScheduler`, executed first. |
+| `Normal` | Runs on the `TickerTaskScheduler`, executed after high-priority tasks. |
+| `Low` | Runs on the `TickerTaskScheduler`, executed last. |
+
+---
+
+## RunCondition
+
+Determines when a child `TimeTickerEntity` executes relative to its parent.
+
+| Value | Triggers when parent status is |
+| --- | --- |
+| `OnSuccess` | `Done` or `DueDone` |
+| `OnFailure` | `Failed` |
+| `OnCancelled` | `Cancelled` |
+| `OnFailureOrCancelled` | `Failed` or `Cancelled` |
+| `OnAnyCompletedStatus` | Any terminal status except `Skipped` |
+| `InProgress` | Runs in parallel with the parent |
+
+---
+
+## TickerQStartMode
+
+| Value | Description |
+| --- | --- |
+| `Immediate` | Default. Starts processing as soon as `UseTickerQ` is called. |
+| `Manual` | Skips the first run. Processing begins when started via `ITickerQHostScheduler`. |
+
+---
+
+## AuthMode
+
+From the `TickerQ.Dashboard` package.
+
+| Value | Int | Description |
+| --- | --- | --- |
+| `None` | `0` | No authentication. |
+| `Basic` | `1` | Basic username/password authentication. |
+| `ApiKey` | `2` | API key authentication. |
+| `Host` | `3` | Host-based authentication. |
+| `Custom` | `4` | Custom authentication handler. |

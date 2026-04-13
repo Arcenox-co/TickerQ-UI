@@ -1,0 +1,14 @@
+{
+  "title": "API Reference",
+  "root": true,
+  "pages": [
+    "index",
+    "entities",
+    "managers",
+    "context",
+    "attributes",
+    "enums",
+    "exceptions",
+    "helpers"
+  ]
+}

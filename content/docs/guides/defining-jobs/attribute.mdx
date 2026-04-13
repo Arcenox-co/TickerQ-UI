@@ -1,0 +1,56 @@
+---
+title: "[TickerFunction] Attribute"
+description: Source-generated job registration — no reflection, AOT-safe.
+---
+
+The source generator discovers `[TickerFunction]` methods at compile time and registers them automatically.
+
+```csharp
+public class ReportJobs
+{
+    private readonly IReportService _reports;
+    public ReportJobs(IReportService reports) => _reports = reports;
+
+    [TickerFunction("daily-report")]
+    public async Task DailyReport(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        await _reports.GenerateAsync(cancellationToken);
+    }
+}
+```
+
+## Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `functionName` | `string` | required | Unique name — must match `Function` on scheduled entities |
+| `cronExpression` | `string` | `null` | Cron schedule — auto-seeds a `CronTickerEntity` on startup |
+| `taskPriority` | `TickerTaskPriority` | `Normal` | Execution priority (see [Priorities](/docs/guides/defining-jobs/priorities)) |
+| `maxConcurrency` | `int` | `0` (unlimited) | Max parallel instances of this function |
+
+```csharp
+[TickerFunction(
+    "daily-report",
+    cronExpression: "0 0 9 * * *",
+    taskPriority: TickerTaskPriority.High,
+    maxConcurrency: 2
+)]
+```
+
+## Typed payloads
+
+Use `TickerFunctionContext<TRequest>` to receive deserialized input:
+
+```csharp
+[TickerFunction("send-invoice")]
+public async Task SendInvoice(
+    TickerFunctionContext<InvoicePayload> context,
+    CancellationToken ct)
+{
+    var invoice = context.Request; // strongly typed
+}
+```
+
+Payloads are serialized with `TickerHelper.CreateTickerRequest<T>()` when scheduling. See [Configuration — Serialization](/docs/guides/configuration#serialization).
