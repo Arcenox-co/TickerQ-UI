@@ -1,0 +1,74 @@
+---
+title: "{net}.3.0"
+description: Source generator overhaul, MapTicker API, ITickerQueryable, Dashboard AOT compatibility, Redis provider refactor, bug fixes.
+---
+
+**Release Date:** April 13, 2026
+**Versions:** `10.3.0` / `9.3.0` / `8.3.0`
+
+## Features
+
+### Source Generator Overhaul
+- Replaced `StringBuilder` code generation with **const string templates** — cleaner, more maintainable
+- Extracted analyzers into dedicated classes: `MethodAnalyzer`, `ConstructorAnalyzer`, `InterfaceMethodAnalyzer`
+- Generated `TickerFunctionRef` / `TickerFunctionRef<T>` structs for **type-safe function references**
+- Uses `global::` prefix for all generated type references (namespace-safe)
+- Handles C# keyword aliases (`string` → `System.String`, `int` → `System.Int32`, `byte[]` → `System.Byte[]`)
+
+### New MapTicker API
+- **`MapTicker<T>()`** — interface-based function registration with DI (no reflection, AOT-safe)
+- **`MapTicker("name", lambda)`** — lambda-based function registration
+- **`MapTickerGroup()`** — group functions with shared config (max concurrency, lifetime)
+  - Inline callback style: `services.MapTickerGroup("Orders", group => { ... })`
+  - Variable style: `var group = services.MapTickerGroup("Orders"); group.MapTicker<ProcessOrder>();`
+- Group prefixes function names: `"GroupName.ClassName"`
+
+### ITickerQueryable Abstraction
+- New **`ITickerQueryable<T>`** interface — provider-agnostic fluent query builder
+- Supports: `Where()`, `OrderBy()`, `OrderByDescending()`, `Skip()`, `Take()`, `AsNoTracking()`, `WithRelated()`
+- Terminal methods: `ToArrayAsync()`, `FirstOrDefaultAsync()`, `CountAsync()`, `ToPaginatedAsync()`
+- **EF Core implementation** (`EfTickerQueryable`) — translates to LINQ-to-SQL
+- **In-memory implementation** (`InMemoryTickerQueryable`) — for Redis and other providers
+- New persistence provider methods: `TimeTickersQuery()`, `CronTickersQuery()`, `CronTickerOccurrencesQuery()`
+
+### Dashboard AOT Compatibility
+- Rewrote **all endpoint handlers** to accept only `HttpContext` (NativeAOT compatible)
+- Replaced `Results.Json` with `WriteJson` helper using `JsonTypeInfo`
+- Rewrote `JsonExampleGenerator` to use `JsonTypeInfo.Properties` (zero reflection)
+- Fixed `StringToByteArrayConverter` to use `JsonTypeInfo` overloads
+- Removed `DefaultJsonTypeInfoResolver` from `DashboardJsonOptions`
+- Added `IsAotCompatible` to Dashboard csproj
+- **Zero AOT warnings** from Dashboard code
+
+### AOT-Safe Request Serialization
+- `WithJsonContext()` API for user-provided AOT `JsonSerializerContext`
+- SignalR and exception serialization are now AOT-safe
+
+### Redis Provider Refactor
+- Extracted `BaseRedisPersistenceProvider` with core scheduler logic (mirrors EF Core pattern)
+- Extracted helpers: `RedisKeyBuilder`, `RedisIndexManager`, `RedisSerializer`
+- Moved Lua scripts to **embedded `.lua` files** (Acquire, Release, RecoverDeadNode)
+- AOT: source-gen `JsonSerializerContext`, `JsonTypeInfo` overloads throughout
+- Added `TickerQRedisOptionBuilder.JsonSerializerContext` for user-provided AOT contexts
+- Added predicate filtering inside deserialization loop (reduced memory allocation)
+
+## Bug Fixes
+
+- **Fix startup cron occurrence duplicate scheduling** ([#776](https://github.com/Arcenox-co/TickerQ/issues/776)) — stale past-due occurrences from a previous app lifecycle are now optionally skipped on startup via `SkipStaleCronOccurrencesOnStartup()` (opt-in, configurable threshold)
+- **Fix `TickerFunctionProvider.Build()` with concurrent test hosts** ([#784](https://github.com/Arcenox-co/TickerQ/pull/784)) — added locking to function and request type registrations to prevent lost registrations during concurrent host startup
+- **Fix Dashboard host authentication** ([#786](https://github.com/Arcenox-co/TickerQ/pull/786)) — simplified to click-to-authenticate flow, removed direct access key input
+
+## Other
+
+- Added cron validator with normalizer
+- Updated logo from PNG to SVG
+- Comprehensive unit tests for Redis persistence (32 persistence + 14 manager integration + 5 on-demand)
+
+## Contributors
+
+Thanks to all contributors for this release!
+
+- [@HulinCedric](https://github.com/HulinCedric) — Fix TickerFunctionProvider.Build() with concurrent test hosts ([#784](https://github.com/Arcenox-co/TickerQ/pull/784))
+- [@vlevshits](https://github.com/vlevshits) — Simplify host authentication flow ([#786](https://github.com/Arcenox-co/TickerQ/pull/786))
+
+**Full Changelog**: [v10.2.5 → v10.3.0](https://github.com/Arcenox-co/TickerQ/compare/v10.2.5...v10.3.0)
