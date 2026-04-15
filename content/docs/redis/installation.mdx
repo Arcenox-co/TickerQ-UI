@@ -23,7 +23,7 @@ builder.Services.AddTickerQ(opt =>
 });
 ```
 
-You must provide exactly one of `Configuration`, `ConfigurationOptions`, or `ConnectionMultiplexer`. TickerQ throws `InvalidOperationException` at startup if none is set.
+You must provide at least one of `Configuration`, `ConfigurationOptions`, or `ConnectionMultiplexer`. TickerQ throws `InvalidOperationException` at startup if none is set. If you provide multiple settings, `ConnectionMultiplexer` takes precedence over `Configuration` and `ConfigurationOptions`.
 
 ### Passing a pre-built multiplexer
 
