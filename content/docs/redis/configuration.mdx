@@ -11,6 +11,7 @@ description: Redis connection options and multi-node heartbeat settings.
 |----------|---------|-------------|
 | `Configuration` | — | Redis connection string (e.g. `"localhost:6379"`) |
 | `ConfigurationOptions` | — | StackExchange.Redis `ConfigurationOptions` object |
+| `ConnectionMultiplexer` | — | Pre-built `IConnectionMultiplexer`; takes priority over all other connection options |
 | `InstanceName` | `"tickerq:"` | Key prefix for `IDistributedCache` entries |
 | `NodeHeartbeatInterval` | 1 minute | How often this node sends a heartbeat |
 
@@ -39,6 +40,60 @@ opt.AddStackExchangeRedis(redis =>
         ConnectTimeout = 5000,
     };
 });
+```
+
+## Passing an existing multiplexer
+
+If you already have an `IConnectionMultiplexer` instance, assign it directly so TickerQ reuses the same connection instead of opening a new one:
+
+```csharp
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect("localhost:6379"));
+
+builder.Services.AddTickerQ((sp, opt) =>
+{
+    opt.AddStackExchangeRedis(redis =>
+    {
+        redis.ConnectionMultiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
+    });
+});
+```
+
+## Using a factory
+
+If your multiplexer is created asynchronously (e.g. via an async factory), use the `ConnectionMultiplexerFactory` property inherited from `RedisCacheOptions`. TickerQ invokes the factory once when the singleton is first resolved and caches the result:
+
+```csharp
+builder.Services.AddTickerQ((sp, opt) =>
+{
+    opt.AddStackExchangeRedis(redis =>
+    {
+        redis.ConnectionMultiplexerFactory = async () => await ConnectionMultiplexer.ConnectAsync("localhost:6379");
+    });
+});
+```
+
+Connection precedence (first match wins): `ConnectionMultiplexer` → `ConnectionMultiplexerFactory` → `ConfigurationOptions` → `Configuration`.
+
+## DI isolation
+
+TickerQ registers its own `IConnectionMultiplexer` and `IDatabase` under the **keyed DI key `"tickerq"`**. This means:
+
+- The host application's unkeyed `IConnectionMultiplexer` registration is **never modified or replaced**.
+- TickerQ always resolves its own connection through the `"tickerq"` key regardless of what else is in the DI container.
+- Sharing is **explicit opt-in**: pass your multiplexer via `redis.ConnectionMultiplexer` and TickerQ will register that instance under its own key.
+
+```csharp
+// Host app — unkeyed slot, owned by the host
+services.AddSingleton<IConnectionMultiplexer>(myMultiplexer);
+
+// TickerQ — keyed slot "tickerq", completely independent
+services.AddTickerQ(opt =>
+    opt.AddStackExchangeRedis(redis => redis.Configuration = "localhost:6379"));
+
+// Both coexist without conflict
+var hostMultiplexer  = sp.GetRequiredService<IConnectionMultiplexer>();            // myMultiplexer
+var tickerMultiplexer = sp.GetRequiredKeyedService<IConnectionMultiplexer>("tickerq"); // TickerQ's own
 ```
 
 ## Heartbeat interval
