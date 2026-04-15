@@ -47,13 +47,14 @@ opt.AddStackExchangeRedis(redis =>
 If you already have an `IConnectionMultiplexer` instance, assign it directly so TickerQ reuses the same connection instead of opening a new one:
 
 ```csharp
-var multiplexer = ConnectionMultiplexer.Connect("localhost:6379");
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect("localhost:6379"));
 
-builder.Services.AddTickerQ(opt =>
+builder.Services.AddTickerQ((sp, opt) =>
 {
     opt.AddStackExchangeRedis(redis =>
     {
-        redis.ConnectionMultiplexer = multiplexer;
+        redis.ConnectionMultiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
     });
 });
 ```
