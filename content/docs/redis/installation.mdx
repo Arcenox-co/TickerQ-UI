@@ -27,16 +27,17 @@ You must provide exactly one of `Configuration`, `ConfigurationOptions`, or `Con
 
 ### Passing a pre-built multiplexer
 
-If you already have an `IConnectionMultiplexer` instance, pass it directly so TickerQ shares the same connection:
+If you already have an `IConnectionMultiplexer` instance, register it as a singleton so the host disposes it and pass that shared instance to TickerQ:
 
 ```csharp title="Program.cs"
-var multiplexer = ConnectionMultiplexer.Connect("localhost:6379");
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect("localhost:6379"));
 
-builder.Services.AddTickerQ(opt =>
+builder.Services.AddTickerQ((sp, opt) =>
 {
     opt.AddStackExchangeRedis(redis =>
     {
-        redis.ConnectionMultiplexer = multiplexer;
+        redis.ConnectionMultiplexer = sp.GetRequiredService<IConnectionMultiplexer>();
     });
 });
 ```
