@@ -23,4 +23,22 @@ builder.Services.AddTickerQ(opt =>
 });
 ```
 
-You must provide either `Configuration` (connection string) or `ConfigurationOptions` (StackExchange.Redis object). TickerQ throws `InvalidOperationException` at startup if neither is set.
+You must provide exactly one of `Configuration`, `ConfigurationOptions`, or `ConnectionMultiplexer`. TickerQ throws `InvalidOperationException` at startup if none is set.
+
+### Passing a pre-built multiplexer
+
+If you already have an `IConnectionMultiplexer` instance, pass it directly so TickerQ shares the same connection:
+
+```csharp title="Program.cs"
+var multiplexer = ConnectionMultiplexer.Connect("localhost:6379");
+
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddStackExchangeRedis(redis =>
+    {
+        redis.ConnectionMultiplexer = multiplexer;
+    });
+});
+```
+
+> **DI isolation** — TickerQ registers its own `IConnectionMultiplexer` and `IDatabase` under the keyed DI key `"tickerq"`. It never touches the host application's unkeyed `IConnectionMultiplexer` registration.

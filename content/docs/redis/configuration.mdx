@@ -11,6 +11,7 @@ description: Redis connection options and multi-node heartbeat settings.
 |----------|---------|-------------|
 | `Configuration` | — | Redis connection string (e.g. `"localhost:6379"`) |
 | `ConfigurationOptions` | — | StackExchange.Redis `ConfigurationOptions` object |
+| `ConnectionMultiplexer` | — | Pre-built `IConnectionMultiplexer`; takes priority over `Configuration`/`ConfigurationOptions` |
 | `InstanceName` | `"tickerq:"` | Key prefix for `IDistributedCache` entries |
 | `NodeHeartbeatInterval` | 1 minute | How often this node sends a heartbeat |
 
@@ -39,6 +40,43 @@ opt.AddStackExchangeRedis(redis =>
         ConnectTimeout = 5000,
     };
 });
+```
+
+## Passing an existing multiplexer
+
+If you already have an `IConnectionMultiplexer` instance, assign it directly so TickerQ reuses the same connection instead of opening a new one:
+
+```csharp
+var multiplexer = ConnectionMultiplexer.Connect("localhost:6379");
+
+builder.Services.AddTickerQ(opt =>
+{
+    opt.AddStackExchangeRedis(redis =>
+    {
+        redis.ConnectionMultiplexer = multiplexer;
+    });
+});
+```
+
+## DI isolation
+
+TickerQ registers its own `IConnectionMultiplexer` and `IDatabase` under the **keyed DI key `"tickerq"`**. This means:
+
+- The host application's unkeyed `IConnectionMultiplexer` registration is **never modified or replaced**.
+- TickerQ always resolves its own connection through the `"tickerq"` key regardless of what else is in the DI container.
+- Sharing is **explicit opt-in**: pass your multiplexer via `redis.ConnectionMultiplexer` and TickerQ will register that instance under its own key.
+
+```csharp
+// Host app — unkeyed slot, owned by the host
+services.AddSingleton<IConnectionMultiplexer>(myMultiplexer);
+
+// TickerQ — keyed slot "tickerq", completely independent
+services.AddTickerQ(opt =>
+    opt.AddStackExchangeRedis(redis => redis.Configuration = "localhost:6379"));
+
+// Both coexist without conflict
+var hostMultiplexer  = sp.GetRequiredService<IConnectionMultiplexer>();            // myMultiplexer
+var tickerMultiplexer = sp.GetRequiredKeyedService<IConnectionMultiplexer>("tickerq"); // TickerQ's own
 ```
 
 ## Heartbeat interval
