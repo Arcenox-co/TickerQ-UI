@@ -11,7 +11,7 @@ description: Redis connection options and multi-node heartbeat settings.
 |----------|---------|-------------|
 | `Configuration` | — | Redis connection string (e.g. `"localhost:6379"`) |
 | `ConfigurationOptions` | — | StackExchange.Redis `ConfigurationOptions` object |
-| `ConnectionMultiplexer` | — | Pre-built `IConnectionMultiplexer`; takes priority over `Configuration`/`ConfigurationOptions` |
+| `ConnectionMultiplexer` | — | Pre-built `IConnectionMultiplexer`; takes priority over all other connection options |
 | `InstanceName` | `"tickerq:"` | Key prefix for `IDistributedCache` entries |
 | `NodeHeartbeatInterval` | 1 minute | How often this node sends a heartbeat |
 
