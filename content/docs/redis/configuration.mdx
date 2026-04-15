@@ -59,6 +59,22 @@ builder.Services.AddTickerQ((sp, opt) =>
 });
 ```
 
+## Using a factory
+
+If your multiplexer is created asynchronously (e.g. via an async factory), use the `ConnectionMultiplexerFactory` property inherited from `RedisCacheOptions`. TickerQ invokes the factory once when the singleton is first resolved and caches the result:
+
+```csharp
+builder.Services.AddTickerQ((sp, opt) =>
+{
+    opt.AddStackExchangeRedis(redis =>
+    {
+        redis.ConnectionMultiplexerFactory = async () => await ConnectionMultiplexer.ConnectAsync("localhost:6379");
+    });
+});
+```
+
+Connection precedence (first match wins): `ConnectionMultiplexer` → `ConnectionMultiplexerFactory` → `ConfigurationOptions` → `Configuration`.
+
 ## DI isolation
 
 TickerQ registers its own `IConnectionMultiplexer` and `IDatabase` under the **keyed DI key `"tickerq"`**. This means:
