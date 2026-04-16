@@ -18,8 +18,9 @@
 
         - name: Build and push Docker image
           run: |
-            docker build -t ghcr.io/${{ github.repository_owner }}/v8_tickerq_ui:latest .
-            docker push ghcr.io/${{ github.repository_owner }}/v8_tickerq_ui:latest
+            OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+            docker build -t ghcr.io/$OWNER/v8_tickerq_ui:latest .
+            docker push ghcr.io/$OWNER/v8_tickerq_ui:latest
 
         - name: Trigger deploy
           run: curl -X POST -H "X-Deploy-Token:${{ secrets.DEPLOY_TOKEN }}" -H "Content-Type:application/json" -d '{"app":"v8_tickerq_ui"}'http://149.102.142.170:9000/hooks/deploy
