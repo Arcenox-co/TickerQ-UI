@@ -18,13 +18,13 @@
           uses: actions/checkout@v4
 
         - name: Login to GHCR
-          run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u Arcenox --password-stdin
 
         - name: Build and push Docker image
           run: |
             OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-            docker build -t ghcr.io/$OWNER/v8_tickerq_ui:latest .
-            docker push ghcr.io/$OWNER/v8_tickerq_ui:latest
+            docker build -t ghcr.io/$OWNER/ura_solutions_ui:latest .
+            docker push ghcr.io/$OWNER/ura_solutions_ui:latest
 
         - name: Trigger deploy
           run: |
