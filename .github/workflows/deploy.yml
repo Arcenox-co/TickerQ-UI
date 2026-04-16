@@ -27,4 +27,4 @@
             docker push ghcr.io/$OWNER/v8_tickerq_ui:latest
 
         - name: Trigger deploy
-          run: curl -X POST -H "X-Deploy-Token:${{ secrets.DEPLOY_TOKEN }}" -H "Content-Type:application/json" -d '{"app":"v8_tickerq_ui"}'"http://149.102.142.170:9000/hooks/deploy"
+          run: curl -X POST -H "X-Deploy-Token:${{ secrets.DEPLOY_TOKEN }}" -H "Content-Type:application/json" -d '{"app":"v8_tickerq_ui"}'"http://deploy.tickerq.net:9000/hooks/deploy"
