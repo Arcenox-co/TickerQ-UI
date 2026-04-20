@@ -1,23 +1,28 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowRight } from "iconoir-react";
 import { LiquidGlassLink } from "@/components/liquid-glass-button";
-import { TextAnimate } from "@/registry/magicui/text-animate";
 import { AnimatedGradientText } from "@/registry/magicui/animated-gradient-text";
 import { HeroLibraryStats } from "@/components/hero-library-stats";
-import { HeroTickerqTerminal } from "@/components/hero-tickerq-terminal";
 import { CopyInstallCommandButton } from "@/components/copy-install-command-button";
+
+// Defer the heavy terminal animation chunk below-the-fold so it doesn't block LCP
+const HeroTickerqTerminal = dynamic(
+  () => import("@/components/hero-tickerq-terminal").then((m) => m.HeroTickerqTerminal),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="mx-auto w-full max-w-3xl translate-y-4 md:translate-y-6">
+        <div className="h-[min(420px,55vh)] w-full rounded-2xl border border-fd-border bg-fd-card shadow-2xl ring-1 ring-black/[0.06] dark:ring-white/10" />
+      </div>
+    ),
+  },
+);
 
 const heroPrimaryCtaClassName =
   "inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-deep-navy to-space-indigo px-8 py-3.5 text-sm font-semibold text-bright-snow shadow-[0_10px_40px_-8px_hsl(225_66%_21%/0.45)] transition-[box-shadow,transform] hover:shadow-[0_14px_48px_-8px_hsl(226_66%_17%/0.55)] hover:-translate-y-0.5 active:translate-y-0";
-
-const ta = {
-  animation: "slideUp" as const,
-  by: "word" as const,
-  startOnView: true,
-  once: true,
-};
 
 export function HomeHeroSection() {
   return (
@@ -31,14 +36,9 @@ export function HomeHeroSection() {
           <div className="p-6 sm:p-8 md:p-10 md:pb-5 ">
             <div className="text-center mt-10">
               <HeroLibraryStats />
+              {/* Static H1 so LCP lands here instead of the deferred terminal animation */}
               <h1 className="text-4xl font-bold tracking-tight text-deep-navy dark:text-ghost-white sm:text-5xl md:text-6xl md:leading-[1.08]">
-                <TextAnimate
-                  {...ta}
-                  as="span"
-                  className="inline align-baseline"
-                >
-                  Background jobs for
-                </TextAnimate>{" "}
+                <span className="inline align-baseline">Background jobs for</span>{" "}
                 <AnimatedGradientText
                   speed={1.1}
                   colorFrom="hsl(217 91% 48%)"
@@ -49,33 +49,25 @@ export function HomeHeroSection() {
                 </AnimatedGradientText>
               </h1>
 
-              <TextAnimate
-                {...ta}
-                as="p"
-                className="mx-auto mt-6 max-w-3xl text-pretty text-base leading-relaxed text-blue-slate dark:text-lavender-grey md:text-lg"
-              >
+              <p className="mx-auto mt-6 max-w-3xl text-pretty text-base leading-relaxed text-blue-slate dark:text-lavender-grey md:text-lg">
                 Source-generated. Native AOT ready. Zero reflection. Persist
                 with EF Core or Redis and monitor everything from a real-time
                 dashboard.
-              </TextAnimate>
+              </p>
 
               <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
                 <Link
                   href="/docs/getting-started/quick-start"
                   className={`${heroPrimaryCtaClassName} inline-flex items-center gap-2`}
                 >
-                  <TextAnimate {...ta} as="span" className="inline">
-                    Get Started
-                  </TextAnimate>
+                  <span>Get Started</span>
                   <ArrowRight className="size-4 opacity-90" />
                 </Link>
                 <LiquidGlassLink
                   href="/docs/what-is-tickerq"
                   className="rounded-full px-8 py-3.5"
                 >
-                  <TextAnimate {...ta} as="span" className="inline">
-                    Why TickerQ?
-                  </TextAnimate>
+                  <span>Why TickerQ?</span>
                 </LiquidGlassLink>
               </div>
 
@@ -83,13 +75,7 @@ export function HomeHeroSection() {
                 <span className="text-deep-navy select-none dark:text-platinum">
                   $
                 </span>
-                <TextAnimate
-                  {...ta}
-                  as="span"
-                  className="inline font-mono text-sm"
-                >
-                  dotnet add package TickerQ
-                </TextAnimate>
+                <span className="font-mono text-sm">dotnet add package TickerQ</span>
                 <CopyInstallCommandButton />
               </div>
             </div>
