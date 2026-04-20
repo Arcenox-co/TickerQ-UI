@@ -6,6 +6,41 @@ const withMDX = createMDX();
 const config = {
   reactStrictMode: true,
   output: 'standalone',
+  compress: true,
+  poweredByHeader: false,
+  productionBrowserSourceMaps: false,
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'iconoir-react',
+      'motion',
+      'rough-notation',
+    ],
+  },
+  async headers() {
+    return [
+      {
+        // Long-cache immutable static assets (Next.js fingerprints these)
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Cache images long-term
+        source: '/:path*.(png|jpg|jpeg|svg|webp|avif|ico|woff|woff2)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default withMDX(config);
