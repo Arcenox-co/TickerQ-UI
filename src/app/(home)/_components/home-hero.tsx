@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { ArrowRight } from "iconoir-react";
 import { LiquidGlassLink } from "@/components/liquid-glass-button";
 import { AnimatedGradientText } from "@/registry/magicui/animated-gradient-text";
 import { HeroLibraryStats } from "@/components/hero-library-stats";
@@ -48,7 +45,18 @@ export function HomeHeroSection() {
                   className={`${heroPrimaryCtaClassName} inline-flex items-center gap-2`}
                 >
                   <span>Get Started</span>
-                  <ArrowRight className="size-4 opacity-90" />
+                  <svg
+                    className="size-4 opacity-90"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden
+                  >
+                    <path d="M5 12h14M13 5l7 7-7 7" />
+                  </svg>
                 </Link>
                 <LiquidGlassLink
                   href="/docs/what-is-tickerq"
