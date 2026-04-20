@@ -15,7 +15,10 @@ const config = {
       'iconoir-react',
       'motion',
       'rough-notation',
+      'framer-motion',
     ],
+    // Inline critical CSS into the HTML to eliminate render-blocking CSS requests
+    inlineCss: true,
   },
   async headers() {
     return [

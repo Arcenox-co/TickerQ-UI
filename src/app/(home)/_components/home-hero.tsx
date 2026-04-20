@@ -1,25 +1,12 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowRight } from "iconoir-react";
 import { LiquidGlassLink } from "@/components/liquid-glass-button";
 import { AnimatedGradientText } from "@/registry/magicui/animated-gradient-text";
 import { HeroLibraryStats } from "@/components/hero-library-stats";
 import { CopyInstallCommandButton } from "@/components/copy-install-command-button";
-
-// Defer the heavy terminal animation chunk below-the-fold so it doesn't block LCP
-const HeroTickerqTerminal = dynamic(
-  () => import("@/components/hero-tickerq-terminal").then((m) => m.HeroTickerqTerminal),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="mx-auto w-full max-w-3xl translate-y-4 md:translate-y-6">
-        <div className="h-[min(420px,55vh)] w-full rounded-2xl border border-fd-border bg-fd-card shadow-2xl ring-1 ring-black/[0.06] dark:ring-white/10" />
-      </div>
-    ),
-  },
-);
+import { HeroTerminalLazy } from "@/components/hero-terminal-lazy";
 
 const heroPrimaryCtaClassName =
   "inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-deep-navy to-space-indigo px-8 py-3.5 text-sm font-semibold text-bright-snow shadow-[0_10px_40px_-8px_hsl(225_66%_21%/0.45)] transition-[box-shadow,transform] hover:shadow-[0_14px_48px_-8px_hsl(226_66%_17%/0.55)] hover:-translate-y-0.5 active:translate-y-0";
@@ -82,7 +69,7 @@ export function HomeHeroSection() {
           </div>
 
           <div className="relative px-0 pb-2 sm:px-2 md:px-6">
-            <HeroTickerqTerminal />
+            <HeroTerminalLazy />
           </div>
         </div>
       </div>
