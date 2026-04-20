@@ -27,27 +27,27 @@ export function HeroTickerqTerminal({ className }: { className?: string }) {
           {"> dotnet add package TickerQ"}
         </TypingAnimation>
 
-        <AnimatedSpan className="text-emerald-600 dark:text-emerald-400">
+        <AnimatedSpan className="text-emerald-700 dark:text-emerald-300">
           ✔ Restoring packages…
         </AnimatedSpan>
 
-        <AnimatedSpan className="text-emerald-600 dark:text-emerald-400">
+        <AnimatedSpan className="text-emerald-700 dark:text-emerald-300">
           ✔ Package TickerQ added to the project.
         </AnimatedSpan>
 
-        <AnimatedSpan className="text-emerald-600 dark:text-emerald-400">
+        <AnimatedSpan className="text-emerald-700 dark:text-emerald-300">
           ✔ Detected SDK-style project (net8.0+).
         </AnimatedSpan>
 
-        <AnimatedSpan className="text-emerald-600 dark:text-emerald-400">
+        <AnimatedSpan className="text-emerald-700 dark:text-emerald-300">
           ✔ Source generator: discovered ticker handlers.
         </AnimatedSpan>
 
-        <AnimatedSpan className="text-emerald-600 dark:text-emerald-400">
+        <AnimatedSpan className="text-emerald-700 dark:text-emerald-300">
           ✔ DI: AddTickerQ() · UseTickerQ() pipeline ready.
         </AnimatedSpan>
 
-        <AnimatedSpan className="text-sky-600 dark:text-sky-400">
+        <AnimatedSpan className="text-sky-700 dark:text-sky-300">
           <span>ℹ Tip:</span>
           <span className="pl-2">
             decorate with [TickerFunction(&quot;name&quot;)] or
@@ -55,11 +55,11 @@ export function HeroTickerqTerminal({ className }: { className?: string }) {
           </span>
         </AnimatedSpan>
 
-        <TypingAnimation className="text-fd-muted-foreground" as="span">
+        <TypingAnimation className="text-fd-foreground/80" as="span">
           Success! Schedule jobs with ITimeTickerManager / ICronTickerManager.
         </TypingAnimation>
 
-        <TypingAnimation className="text-fd-muted-foreground" as="span">
+        <TypingAnimation className="text-fd-foreground/80" as="span">
           See docs for EF Core, Redis, and the dashboard.
         </TypingAnimation>
       </Terminal>
