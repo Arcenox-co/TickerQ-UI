@@ -1,5 +1,3 @@
-"use client";
-
 import type { ComponentType, CSSProperties, SVGProps } from "react";
 import {
   Activity,

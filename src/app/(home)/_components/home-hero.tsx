@@ -12,22 +12,20 @@ export function HomeHeroSection() {
   return (
     <section className="relative overflow-x-hidden">
       <div className="relative min-h-screen w-full overflow-hidden border-b border-black/[0.07] px-4 shadow-[0_25px_80px_-20px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-white/[0.08] dark:shadow-[0_25px_80px_-24px_rgba(0,0,0,0.55)]">
-        {/* Hero background as real <img> for early LCP discovery — both themes preloaded; dark hidden by default, swapped via .dark class */}
-        <img
-          src="/hero-light.png"
-          alt=""
-          fetchPriority="high"
-          decoding="async"
-          aria-hidden
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none dark:hidden"
-        />
-        <img
-          src="/hero-dark.png"
-          alt=""
-          decoding="async"
-          aria-hidden
-          className="pointer-events-none absolute inset-0 hidden h-full w-full object-cover object-center select-none dark:block"
-        />
+        {/* Hero background as real <img> for early LCP discovery. <picture> with media queries means only the matching theme downloads. */}
+        <picture>
+          <source srcSet="/hero-dark.jpg" media="(prefers-color-scheme: dark)" />
+          <img
+            src="/hero-light.jpg"
+            alt=""
+            width={1024}
+            height={570}
+            fetchPriority="high"
+            decoding="async"
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none"
+          />
+        </picture>
         <div
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/80 via-white/50 to-white/65 dark:from-neutral-950/78 dark:via-neutral-950/52 dark:to-neutral-950/68"
           aria-hidden

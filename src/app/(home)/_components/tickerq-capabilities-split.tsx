@@ -1,5 +1,3 @@
-"use client";
-
 import type { SVGProps } from "react";
 import { Check, Package } from "iconoir-react";
 import { BlurFade } from "@/components/ui/blur-fade";

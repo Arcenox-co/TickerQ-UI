@@ -1,5 +1,3 @@
-"use client";
-
 import { BlurFade } from "@/components/ui/blur-fade";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { Highlighter } from "@/components/ui/highlighter";

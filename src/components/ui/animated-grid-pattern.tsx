@@ -8,7 +8,7 @@ import {
   useState,
   type ComponentPropsWithoutRef,
 } from "react"
-import { motion } from "motion/react"
+import { motion, useInView } from "motion/react"
 
 import { cn } from "@/lib/utils"
 
@@ -47,6 +47,7 @@ export function AnimatedGridPattern({
   const containerRef = useRef<SVGSVGElement | null>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
   const [squares, setSquares] = useState<Array<Square>>([])
+  const inView = useInView(containerRef, { margin: "200px" })
 
   const getPos = useCallback((): [number, number] => {
     return [
@@ -153,15 +154,15 @@ export function AnimatedGridPattern({
         {squares.map(({ pos: [squareX, squareY], id, iteration }, index) => (
           <motion.rect
             initial={{ opacity: 0 }}
-            animate={{ opacity: maxOpacity }}
+            animate={inView ? { opacity: maxOpacity } : { opacity: 0 }}
             transition={{
               duration,
-              repeat: 1,
+              repeat: inView ? 1 : 0,
               delay: index * 0.1,
               repeatType: "reverse",
               repeatDelay,
             }}
-            onAnimationComplete={() => updateSquarePosition(id)}
+            onAnimationComplete={() => inView && updateSquarePosition(id)}
             key={`${id}-${iteration}`}
             width={width - 1}
             height={height - 1}
