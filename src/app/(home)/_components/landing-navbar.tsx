@@ -62,6 +62,29 @@ export function LandingNavbar(props: ComponentProps<"header">) {
         </nav>
 
         <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
+          {/* Hub launch CTA — always visible across docs + landing. Filled
+              pill so it reads as the primary action vs the muted text links
+              and ghost-icon buttons on either side. */}
+          <a
+            href="https://hub.tickerq.net"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-deep-navy to-space-indigo px-4 py-1.5 text-[12.5px] font-semibold text-bright-snow shadow-[0_6px_18px_-6px_hsl(225_66%_21%/0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_22px_-6px_hsl(226_66%_17%/0.55)]"
+          >
+            Open Hub
+            <svg
+              className="size-3"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M7 17L17 7M9 7h8v8" />
+            </svg>
+          </a>
           <FullSearchTrigger
             hideIfDisabled
             className="hidden min-w-[240px] sm:inline-flex md:min-w-[240px]"

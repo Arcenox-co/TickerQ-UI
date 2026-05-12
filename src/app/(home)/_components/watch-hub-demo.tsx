@@ -122,12 +122,35 @@ export function WatchHubDemo({
             />
             {/* Beta-launch promo: surface the early-adopter discount inside the
                 video shell so users see it the moment the modal opens — not
-                buried in a separate marketing banner. */}
-            <div className="border-t border-white/10 bg-gradient-to-r from-deep-navy/95 via-space-indigo/95 to-deep-navy/95 px-4 py-3 text-center text-[12.5px] font-semibold text-white">
-              <span className="mr-1.5 inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wider text-white/90">
-                Beta
+                buried in a separate marketing banner. CTA on the right converts
+                directly from the modal. */}
+            <div className="flex flex-wrap items-center justify-center gap-3 border-t border-white/10 bg-gradient-to-r from-deep-navy/95 via-space-indigo/95 to-deep-navy/95 px-4 py-3 text-center text-[12.5px] font-semibold text-white">
+              <span>
+                <span className="mr-1.5 inline-flex items-center rounded-full bg-white/15 px-2 py-0.5 text-[10px] uppercase tracking-wider text-white/90">
+                  Beta
+                </span>
+                Join the Hub Beta today and get <span className="text-amber-300">30% off your first year</span>.
               </span>
-              Join the Hub Beta today and get <span className="text-amber-300">30% off your first year</span>.
+              <a
+                href="https://hub.tickerq.net"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-[11.5px] font-semibold text-deep-navy shadow transition hover:bg-white/90"
+              >
+                Go to Hub
+                <svg
+                  className="size-3 transition-transform group-hover:translate-x-0.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M5 12h14M13 5l7 7-7 7" />
+                </svg>
+              </a>
             </div>
             <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-neutral-950 px-4 py-3 text-[12px] text-white/80">
               <span>TickerQ Hub — 2 minute walkthrough</span>
