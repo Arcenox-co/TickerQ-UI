@@ -4,6 +4,7 @@ import { AnimatedGradientText } from "@/registry/magicui/animated-gradient-text"
 import { HeroLibraryStats } from "@/components/hero-library-stats";
 import { CopyInstallCommandButton } from "@/components/copy-install-command-button";
 import { HeroTerminalLazy } from "@/components/hero-terminal-lazy";
+import { WatchHubDemo } from "./watch-hub-demo";
 
 const heroPrimaryCtaClassName =
   "inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-deep-navy to-space-indigo px-8 py-3.5 text-sm font-semibold text-bright-snow shadow-[0_10px_40px_-8px_hsl(225_66%_21%/0.45)] transition-[box-shadow,transform] hover:shadow-[0_14px_48px_-8px_hsl(226_66%_17%/0.55)] hover:-translate-y-0.5 active:translate-y-0";
@@ -78,6 +79,7 @@ export function HomeHeroSection() {
                 >
                   <span>Why TickerQ?</span>
                 </LiquidGlassLink>
+                <WatchHubDemo />
               </div>
 
               <div className="mx-auto mt-8 inline-flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-platinum bg-ghost-white-2/95 px-3 py-2 font-mono text-sm text-deep-navy shadow-inner backdrop-blur-sm dark:border-space-indigo dark:bg-deep-navy/50 dark:text-ghost-white sm:gap-3 sm:px-5 sm:py-3">
