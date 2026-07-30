@@ -455,6 +455,7 @@ export function CommercialModelSurvey() {
       }
 
       setFinished(true);
+      focusPanel();
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : 'Unable to submit feedback',
