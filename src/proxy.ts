@@ -12,18 +12,13 @@ const { rewrite: rewriteSuffix } = rewritePath(
 );
 
 export default function proxy(request: NextRequest) {
-  const result = rewriteSuffix(request.nextUrl.pathname);
-  if (result) {
-    return NextResponse.rewrite(new URL(result, request.nextUrl));
-  }
-
-  if (isMarkdownPreferred(request)) {
-    const result = rewriteDocs(request.nextUrl.pathname);
-
-    if (result) {
-      return NextResponse.rewrite(new URL(result, request.nextUrl));
-    }
-  }
-
-  return NextResponse.next();
+  const result = rewriteSuffix(request.nextUrl.pathname)
+    || (isMarkdownPreferred(request) ? rewriteDocs(request.nextUrl.pathname) : undefined);
+  const response = result
+    ? NextResponse.rewrite(new URL(result, request.nextUrl))
+    : NextResponse.next();
+  response.headers.append('Vary', 'Accept');
+  return response;
 }
+
+export const config = { matcher: ['/docs/:path*'] };

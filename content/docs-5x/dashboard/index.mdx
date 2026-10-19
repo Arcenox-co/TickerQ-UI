@@ -1,0 +1,74 @@
+---
+title: "Dashboard"
+description: "Inspect executions, operate schedules, and follow chain progress from your application."
+---
+
+Add `TickerQ.Dashboard` alongside core and register it inside `AddTickerQ`. The default dashboard is served at `/tickerq/dashboard` after `app.UseTickerQ()`.
+
+<DashboardScreenshot name="overview" alt="TickerQ demo overview with scheduler controls, execution charts, and recent jobs" caption="The dashboard runs inside your application. This screenshot shows the local 5.x chains demo." />
+
+[Take the visual dashboard tour](/docs/5.x/dashboard/tour) for screenshots of each view, including chains, execution logs, diagnostics, and integrations.
+
+## Use your host authentication
+
+```csharp
+using TickerQ.Dashboard.DependencyInjection;
+
+// Inside your existing AddTickerQ configuration:
+options.AddDashboard(dashboard =>
+{
+    dashboard.SetTitle("Orders");
+    dashboard.WithHostAuthentication("SchedulerOperators");
+});
+```
+
+Reuse your application's database users, cookies, JWTs, or OIDC sign-in. Configure the host's authentication scheme and `SchedulerOperators` authorization policy before `AddTickerQ`, then run authentication/authorization middleware before `UseTickerQ`. The [existing-users guide](/docs/5.x/dashboard/existing-users) includes a full role-based example; [roles and permissions](/docs/5.x/dashboard/authorization) also covers permission claims and scopes.
+
+For a loopback-only local demo, explicitly opt into `dashboard.AllowAnonymousDashboard()`. Anyone who can reach an anonymous dashboard can operate its jobs. The production choices and signing-key requirements are covered in [authentication and deployment](/docs/5.x/dashboard/authentication).
+
+## Find what you need
+
+| View | Use it for |
+| --- | --- |
+| Overview | Recent and upcoming work, with links to job details |
+| Time tickers | One-time jobs and their chains |
+| Cron tickers | Recurring definitions, human-readable expressions, and occurrences |
+| Executions and chain view | Per-run status, ownership, results, and logs |
+| Diagnostics | Runtime warnings, health, and recovery information |
+| Integrations | Connections, alert rules, monitoring, and delivery feedback |
+| License | Certificate and entitlement status |
+| About | Registered functions, scheduler settings, retention, and execution-log configuration |
+
+Actions such as cancellation, deletion, cron enable/disable, and scheduler start/stop require confirmation. Start/stop controls apply to the responding scheduler host; they are not a cluster-wide pause switch.
+
+The chain badge summarizes the root and all descendants. It shows **Running** while any step is in progress and **Waiting** when unfinished steps remain but none is running. A completed root alone does not make the chain **Done**. Click a step for its individual status and logs. Recurring-chain jobs are viewed through their cron occurrence rather than duplicated in the ordinary time-ticker list.
+
+## Choose a guide
+
+| Task | Guide |
+| --- | --- |
+| Connect existing database users or SSO | [Use existing users](/docs/5.x/dashboard/existing-users) |
+| Separate viewer, operator, and administrator access | [Roles and permissions](/docs/5.x/dashboard/authorization) |
+| Choose credentials, sessions, proxy, and origin settings | [Authentication and deployment](/docs/5.x/dashboard/authentication) |
+| Learn the views and controls | [Dashboard tour](/docs/5.x/dashboard/tour) |
+| Ask questions and review proposed actions | [AI assistant](/docs/5.x/dashboard/ai-assistant) |
+
+## Optional capabilities
+
+Enable [database execution logs](/docs/5.x/guides/execution-logs) for retained tails and [Integrations](/docs/5.x/integrations) for Slack, Teams, and webhook configuration. The optional [AI assistant](/docs/5.x/dashboard/ai-assistant) can inspect runtime data and draft actions for confirmation.
+
+
+## Path, appearance, and read-only access
+
+Configure these inside the same `AddDashboard` callback:
+
+```csharp
+dashboard.SetBasePath("/operations/jobs");
+dashboard.SetTitle("Orders — background jobs");
+dashboard.SetTimeZone(TimeZoneInfo.Utc);
+dashboard.SetReadOnly(context => !context.User.IsInRole("SchedulerAdmin"));
+```
+
+`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
+
+Set integration `DashboardUrl` to the externally reachable dashboard URL if alert messages should link back here. The URL is for message links; it does not enable dashboard hosting or authentication.

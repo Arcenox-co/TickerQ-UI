@@ -1,0 +1,120 @@
+---
+title: "Use existing users"
+description: "Connect the dashboard to your application's database users, sign-in flow, and roles."
+---
+
+Use `WithHostAuthentication` when your application already has users. Your application signs them in; TickerQ uses the resulting `HttpContext.User`. Accounts, passwords, roles, MFA, and account recovery stay in your existing identity system.
+
+This works with ASP.NET Core Identity backed by a database, an existing cookie login, or a host configured for JWT/OIDC. The identity database does not need to be the TickerQ operational database. No TickerQ user table or copied passwords are required.
+
+## Connect your existing sign-in flow
+
+The flow is: **your login → your user store → authenticated user and claims → dashboard access policy**.
+
+Keep your existing `AddIdentity` / `AddIdentityCore` and `AddAuthentication` configuration. Register it **before** `AddTickerQ`. Add a dashboard policy and map the roles your application already uses:
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Dashboard.DependencyInjection;
+
+// Your existing host authentication and user-store registration comes first.
+builder.Services.AddAuthorization(authorization =>
+{
+    authorization.AddPolicy("SchedulerOperators", policy => policy
+        .RequireAuthenticatedUser()
+        .RequireRole("SchedulerViewer", "SchedulerOperator", "SchedulerAdmin"));
+});
+
+builder.Services.AddTickerQ(options =>
+{
+    // Keep your existing license, namespace, scheduler, and storage options.
+    options.AddDashboard(dashboard =>
+    {
+        dashboard.WithHostAuthentication("SchedulerOperators", "/account/login");
+        dashboard.SetReadOnly(context =>
+            !context.User.IsInRole("SchedulerOperator") &&
+            !context.User.IsInRole("SchedulerAdmin"));
+        dashboard.AllowIntegrationManagement(context =>
+            context.User.IsInRole("SchedulerAdmin"));
+    });
+});
+```
+
+The role names are examples, not roles created by TickerQ. Assign them through your application's normal user administration. In this policy, **any one** of the three roles grants entry; an authenticated user with none of them is denied.
+
+| Application role | Browse jobs and logs | Operate jobs and scheduler | Manage integrations |
+| --- | --- | --- | --- |
+| `SchedulerViewer` | Yes | No | No |
+| `SchedulerOperator` | Yes | Yes | No |
+| `SchedulerAdmin` | Yes | Yes | Yes |
+
+Writes also require a license that allows execution. Integration management requires the optional Integrations package. Use the [permissions guide](/docs/5.x/dashboard/authorization) if your application uses claims or OAuth scopes instead of roles.
+
+Run the host middleware before mounting TickerQ:
+
+```csharp
+var app = builder.Build();
+
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseTickerQ();
+
+// Keep your existing login, logout, and application endpoints.
+app.Run();
+```
+
+Replace `/account/login` with your actual login page. The dashboard adds a `returnUrl` for unauthenticated browser navigations; your login handler should accept only local return URLs. API requests do not use this dashboard navigation redirect, although your host's authentication handler determines its own challenge response.
+
+## Database users and roles
+
+With ASP.NET Core Identity, keep using your existing `UserManager`, `SignInManager`, role store, and login pages. The host must put the user's roles into the authenticated principal. TickerQ evaluates `IsInRole`; it does not query your user tables or load roles independently.
+
+For a custom user table, keep password validation and account checks in your application. After validation, issue the application's cookie or token with the required identity and permissions, then use the same dashboard configuration above. A TickerQ database provider stores scheduling data; selecting EF Core, MongoDB, or Redis does not configure user authentication.
+
+If you enable [assistant conversation history](/docs/5.x/dashboard/ai-assistant#conversation-history), give each authenticated user a stable, unique identity name. The current dashboard history resolver prefers its authenticated username; a missing host name becomes the shared `host-user` identity. A subject claim alone does not override that fallback.
+
+For a concrete reference, the [database-backed host authentication sample](https://github.com/Arcenox-co/TickerQ/blob/000145760f7b59aba6814b83501fcc41a3731618/samples/DashboardHostJwtApp/Program.cs) uses ASP.NET Core Identity with SQLite, loads roles from the database, and gives its viewer read-only dashboard access. Its seeded credentials, signing key, token bridge, and schema creation are local demonstration settings; reuse your production identity configuration.
+
+## Browser sessions and live updates
+
+For a same-origin web application, an existing authenticated cookie is the simplest browser path: page navigation, runtime configuration, API requests, and SignalR can use the same host identity. An OIDC web application normally signs users into such a local session after its identity-provider redirect.
+
+A Bearer token accepted by your API alone is not enough to authenticate a normal browser page navigation or the runtime configuration script. Host mode does not automatically import an arbitrary token from your application's JavaScript storage. Configure a host browser session or a deliberately implemented token bridge that authenticates those requests too.
+
+If your host uses JWTs for SignalR, handle its token transport in the host's JWT events. Restrict query-string token acceptance to the actual dashboard hub path, `/tickerq/dashboard/tickerq-notification-hub` by default, and keep tokens out of request logs. Follow Microsoft's [SignalR authentication guidance](https://learn.microsoft.com/en-us/aspnet/core/signalr/authn-and-authz?view=aspnetcore-10.0). TickerQ checks the configured authentication scheme when a hub connection opens.
+
+## Custom database checks
+
+Two additional hooks exist when host authentication does not fit:
+
+| API | Intended use |
+| --- | --- |
+| `WithBasicAuth(Func<string, string, Task<bool>>)` | Validate decoded Basic credentials asynchronously against your own credential service |
+| `WithCustomAuth(Func<HttpContext, Task<bool>>)` | Validate a request using headers, cookies, and request-scoped application services |
+
+For a custom request validator, resolve database services from the current request scope:
+
+```csharp
+// Inside AddDashboard. This is an alternative to WithHostAuthentication.
+dashboard.WithCustomAuth(async context =>
+{
+    var validator = context.RequestServices
+        .GetRequiredService<IDashboardAccessValidator>();
+    return await validator.ValidateAsync(context, context.RequestAborted);
+});
+```
+
+`IDashboardAccessValidator` is an application-owned contract, not a TickerQ type:
+
+```csharp
+public interface IDashboardAccessValidator
+{
+    Task<bool> ValidateAsync(HttpContext context, CancellationToken cancellationToken);
+}
+```
+
+Register its implementation as scoped and implement real credential validation and account restrictions. Do not retain a scoped `DbContext` or `UserManager` in dashboard configuration, or build a second root service provider to resolve one.
+
+Basic and custom validators return an authentication decision; they do not automatically construct a role-bearing `HttpContext.User`. The Basic username is available as `context.Items["auth.username"]` on authenticated API requests. It is not available on the earlier runtime-configuration script request. Use host authentication for consistent role/claim-based controls throughout the browser and API.
+
+The dashboard's own `AddJwtBearer` and `AddCookieLogin` use a configured `InMemoryUserStore`. Their public options do not accept an arbitrary database `IUserStore`; registering one in DI does not replace that store. See [authentication modes](/docs/5.x/dashboard/authentication) for those alternatives.

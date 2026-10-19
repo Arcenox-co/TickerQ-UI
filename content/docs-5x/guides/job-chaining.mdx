@@ -1,0 +1,78 @@
+---
+title: "One-time job chains"
+description: "Run dependent work and inspect each step independently."
+---
+
+Build a root time ticker with child jobs. A child's `RunCondition` determines whether it follows a successful, failed, or cancelled parent, or starts alongside the parent.
+
+```csharp
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Enums;
+
+var result = await timeTickerManager.AddAsync(new TimeTickerEntity
+{
+    Function = "PrepareReport",
+    ExecutionTime = DateTime.UtcNow,
+    DeleteBehavior = ChainDeleteBehavior.Restrict,
+    Children =
+    [
+        new TimeTickerEntity
+        {
+            Function = "GeneratePdf",
+            RunCondition = RunCondition.OnSuccess,
+            Children =
+            [
+                new TimeTickerEntity
+                {
+                    Function = "SendReport",
+                    RunCondition = RunCondition.OnSuccess
+                }
+            ]
+        }
+    ]
+}, cancellationToken);
+
+if (!result.IsSucceeded)
+    throw result.Exception;
+```
+
+Register all three functions before adding this chain. Leave a dependent child's `ExecutionTime` unset when it should run as part of its parent's continuation. A child with its own scheduled execution time is handled separately by the scheduler.
+
+## Run conditions
+
+Set a `RunCondition` explicitly on each child. A null `TimeTickerEntity.RunCondition` is mapped to `OnAnyCompletedStatus`, so it can run after a failed or cancelled parent as well as a successful one. `CronChainNode` instead defaults to `OnSuccess`. Choose `OnSuccess` explicitly when the next step requires successful output.
+
+
+| Condition | Runs when the parent… |
+| --- | --- |
+| `OnSuccess` | Reaches Done or DueDone |
+| `OnFailure` | Fails |
+| `OnCancelled` | Is cancelled |
+| `OnFailureOrCancelled` | Fails or is cancelled |
+| `OnAnyCompletedStatus` | Reaches a terminal status other than Skipped |
+| `InProgress` | Starts running; the child can run in parallel |
+
+Children with matching conditions are siblings and may run together. Put one job inside the previous job's `Children` collection when order matters. A skipped conditional branch also skips its descendants; it does not run their failure or cleanup handlers. An `InProgress` child starts alongside its parent, and deferred branches wait for that concurrent part of the tree to finish.
+
+## Shape and size
+
+| Creation path | Boundary |
+| --- | --- |
+| Nested `TimeTickerEntity.Children` | Supports deeper trees; the manager rejects cycles |
+| `FluentChainTickerBuilder<T>` | Named methods provide five children and five grandchildren per child |
+| Recurring `CronChainTemplate` | At most 500 jobs including the root and 20 child levels |
+| Dashboard chain view | At most 500 jobs and 20 child levels; larger graphs are reported as unavailable |
+
+Use a separate entity instance for each step. Keep trees within the dashboard limits if operators need to inspect the complete graph there. Retention has a separate configurable `MaxNodesPerChain` limit.
+
+## Pass output to the next step
+
+A successful parent can publish a typed result. Its direct child reads it through `HasParentResult` and `GetParentResult(...)`; it is separate from the child's request payload. See [requests and results](/docs/5.x/guides/requests-results) for a complete example.
+
+## Operating a chain
+
+The branch icon opens the graph and each step's details and logs. The aggregate status shows progress across all descendants: a finished parent with active children is still **Running**, and pending work can show **Waiting**.
+
+`Restrict` protects unfinished descendants from deletion and automatically stops restricting once descendants are terminal, subject to normal ownership and retention checks. Read [chain deletion](/docs/5.x/guides/chain-deletion) before changing this policy.
+
+Use [recurring chains](/docs/5.x/guides/recurring-chains) when the whole sequence should be created anew on each cron occurrence. To stage a new complete chain with a business transaction, use [StageAsync](/docs/5.x/entity-framework/transactional-scheduling).

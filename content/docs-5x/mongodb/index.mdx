@@ -1,0 +1,62 @@
+---
+title: "MongoDB"
+description: "Use MongoDB as the authoritative operational store."
+---
+
+Install `TickerQ.MongoDB` at the same full version as core. Use a replica set or mongos deployment: scheduler activation and atomic graph operations require multi-document transactions. A standalone development server is not sufficient for scheduler mode.
+
+## Register the operational store
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.MongoDB.DependencyInjection;
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("tickerq.tqlicense");
+    options.UseApplicationNamespace("orders-production");
+    options.UseReconciliationEpoch(1);
+    options.AddOperationalStore(store => store.UseTickerQMongoClient(
+        connectionString: builder.Configuration.GetConnectionString("TickerQMongo")!,
+        databaseName: "orders"));
+});
+```
+
+MongoDB is an alternative to the EF Core operational store. Select one authoritative provider for a TickerQ registration.
+
+## Reuse an existing client
+
+If your application already registers `IMongoClient`, select it explicitly and choose the database:
+
+```csharp
+options.AddOperationalStore(store => store
+    .UseExistingMongoClient(databaseName: "orders")
+    .SetCollectionPrefix("ticker_"));
+```
+
+This replaces the `UseTickerQMongoClient(...)` registration above. Sharing the client does not enlist manager operations in a business operation's `IClientSessionHandle`.
+
+## Collections and startup
+
+Indexes are established idempotently on startup. The application identity needs collection read/write and index-management privileges. Default collection names use the `ticker_` prefix:
+
+| Collection | Stored data |
+| --- | --- |
+| `ticker_TimeTickers` | One-time jobs and materialized chain jobs |
+| `ticker_CronTickers` | Recurring schedule definitions |
+| `ticker_CronTickerOccurrences` | Individual scheduled/manual runs |
+| `ticker_TickerResults` | Persisted job results |
+| `ticker_NodeFinalizationOutbox` | Durable remote execution finalization records |
+| `ticker_StoreMetadata` | Namespace activation and reconciliation metadata |
+
+Integration configuration uses `ticker_TimeTickers_IntegrationSettings`, and persisted execution logs use `ticker_TimeTickers_ExecutionLogs`. `SetCollectionPrefix(...)` changes the base prefix; it does not migrate existing collections. Keep the database, prefix, namespace, and deployment epoch consistent across replicas serving the same application.
+
+## Transactions and custom entities
+
+`StageAsync` is an EF application-context operation and is not supported by this provider. Use manager `AddAsync` for independent scheduling; do not assume it participates in an unrelated business transaction.
+
+Custom ticker types are supported through `AddTickerQ<MyTimeTicker, MyCronTicker>(...)`; use managers with those same types and preserve the base entity fields. TickerQ registers its BSON class maps during provider setup. The mappings and startup indexes are provider-owned, unlike EF migrations, but existing data still needs a reviewed rollout.
+
+## Upgrade and operation
+
+Before adopting existing data, read the [MongoDB storage upgrade requirements](/docs/5.x/guides/storage-upgrade#mongodb), including the first rollout's requirement to drain older writers. For captured job logs, see [execution log storage](/docs/5.x/guides/execution-logs).

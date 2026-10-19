@@ -1,0 +1,94 @@
+---
+title: "Quick start"
+description: "Run a one-time job and a recurring function in a small ASP.NET Core application."
+---
+
+This example uses in-memory storage so you can try scheduling without a database. It is a local demonstration; use a persistent provider before relying on jobs surviving a restart.
+
+## Create the application
+
+```sh
+dotnet new web -n TickerQDemo --framework net10.0
+cd TickerQDemo
+```
+
+Install the matching `TickerQ` package using the [version guidance](/docs/5.x/getting-started/installation). Download your certificate from the [licensing portal](https://license.tickerq.net), save it as `tickerq.tqlicense` in the application content root, and exclude it from source control.
+
+## Register and schedule work
+
+Replace `Program.cs` with:
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("tickerq.tqlicense");
+    options.UseApplicationNamespace("tickerq-demo");
+    options.UseReconciliationEpoch(1);
+});
+
+var app = builder.Build();
+app.UseTickerQ();
+
+// Local demo endpoint. Protect scheduling endpoints in your real application.
+app.MapPost("/jobs/hello", async (
+    ITimeTickerManager<TimeTickerEntity> manager,
+    CancellationToken cancellationToken) =>
+{
+    var result = await manager.AddAsync(new TimeTickerEntity
+    {
+        Function = "Hello",
+        ExecutionTime = DateTime.UtcNow.AddSeconds(5)
+    }, cancellationToken);
+
+    if (!result.IsSucceeded)
+        return Results.Problem("Could not schedule the job.");
+
+    return Results.Accepted(value: new { result.Result.Id });
+});
+
+app.Run();
+
+public class DemoJobs(ILogger<DemoJobs> logger)
+{
+    [TickerFunction("Hello")]
+    public Task HelloAsync(TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Hello from job {JobId}", context.Id);
+        return Task.CompletedTask;
+    }
+
+    [TickerFunction("EveryMinute", "* * * * *")]
+    public Task EveryMinuteAsync(TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Minute job scheduled for {ScheduledFor}", context.ScheduledFor);
+        return Task.CompletedTask;
+    }
+}
+```
+
+Run locally and schedule a job:
+
+```sh
+dotnet run --urls http://127.0.0.1:5100
+```
+
+From another terminal:
+
+```sh
+curl -X POST http://127.0.0.1:5100/jobs/hello
+```
+
+The endpoint returns after scheduling. The `Hello` function runs approximately five seconds later; `EveryMinute` runs at the next minute boundary. A missing or invalid certificate blocks execution—check the host logs if the application starts but jobs do not run.
+
+## Next steps
+
+Add the [dashboard](/docs/5.x/dashboard) to inspect jobs, choose [EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), or [Redis](/docs/5.x/redis) for storage, and review [retries and cancellation](/docs/5.x/guides/job-lifecycle).

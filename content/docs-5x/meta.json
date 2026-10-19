@@ -1,0 +1,14 @@
+{
+  "title": "TickerQ 5.x",
+  "pages": [
+    "index",
+    "what-is-tickerq",
+    "changelog",
+    "getting-started",
+    "(jobs)",
+    "(storage)",
+    "dashboard",
+    "(operations)",
+    "integrations"
+  ]
+}

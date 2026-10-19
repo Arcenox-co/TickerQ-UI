@@ -1,0 +1,71 @@
+---
+title: "Redis"
+description: "Distinguish operational storage from Redis support layered over another provider."
+---
+
+Install `TickerQ.Caching.StackExchangeRedis` at the same full version as core. Register it inside the existing `AddTickerQ` configuration:
+
+```csharp
+using TickerQ.Caching.StackExchangeRedis.DependencyInjection;
+
+options.AddStackExchangeRedis(redis =>
+{
+    redis.Configuration = builder.Configuration.GetConnectionString("TickerQRedis");
+    redis.InstanceName = "orders:tickerq:";
+});
+```
+
+Keep your license, namespace, and reconciliation epoch configuration. Use a stable prefix shared by the intended replicas; keep credentials in your application's configuration/secret store.
+
+## Choose the role
+
+| Configuration | Authoritative job data |
+| --- | --- |
+| Redis without another operational provider | Redis operational persistence |
+| EF operational store plus Redis | The EF database remains the operational source of truth; Redis supports caching and coordination |
+
+Do not assume Redis is merely a disposable cache when it is your operational store. Configure persistence, backups, capacity, and an eviction policy appropriate for durable job data. Do not flush its keys as a routine cache reset.
+
+## Combine Redis with EF Core
+
+Register both packages in one TickerQ configuration. EF remains the authoritative job store in either registration order:
+
+```csharp
+using TickerQ.Caching.StackExchangeRedis.DependencyInjection;
+using TickerQ.EntityFrameworkCore.Customizer;
+using TickerQ.EntityFrameworkCore.DependencyInjection;
+
+options.AddStackExchangeRedis(redis =>
+{
+    redis.Configuration = builder.Configuration.GetConnectionString("TickerQRedis");
+    redis.InstanceName = "orders:tickerq:";
+});
+options.AddOperationalStore(store => store
+    .UseApplicationDbContext<AppDbContext>(ConfigurationType.UseModelCustomizer));
+```
+
+The EF provider caches enabled cron definitions in Redis and invalidates that cache after committed definition changes, including startup reconciliation and staged cron inserts. Entries expire after ten minutes as a fallback; reads bypass invalid or stale cache envelopes. Cache read/write failures fall back to EF data, and failed invalidations are retried. This does not make every Redis-dependent coordination operation available during an outage.
+
+If execution-log persistence is enabled, the **last provider registration selects the log archive store**. In the example above, archives stay in EF. Register Redis after EF to put archives in Redis instead. This order affects archive storage, not the ownership of job rows. See [execution log storage](/docs/5.x/guides/execution-logs).
+
+Use managers or the dashboard to change schedules so the cache can be invalidated. Direct database edits do not notify the cache or scheduler.
+
+## Connection and identity settings
+
+| Setting | Use |
+| --- | --- |
+| `Configuration` or `ConfigurationOptions` | Configures the Redis connection |
+| `ConnectionMultiplexer` | Supplies an already-created StackExchange.Redis connection |
+| `InstanceName` | Prefixes TickerQ keys; defaults to `tickerq:` |
+| `NodeHeartbeatInterval` | Redis node renewal/recovery interval; defaults to one minute and must be positive |
+| `JsonSerializerContext` | Supplies generated JSON metadata for custom ticker types and trimming-aware serialization |
+
+`InstanceName` isolates Redis keys. [Application namespace](/docs/5.x/guides/configuration) isolates the runtime's data and ownership within the configured store. Keep both stable across the replicas of one application. Changing either is not a migration of existing work.
+
+## Deployment boundaries
+
+Scheduler processes require standalone Redis, including normal primary/replica topologies. Redis Cluster scheduler activation and multi-key scheduler mutations are unsupported and fail closed. Limited queue-only Cluster producers have different constraints; see the [Redis storage reference](/docs/5.x/guides/storage-upgrade#redis).
+
+`StageAsync` does not enlist Redis work in an EF transaction. When EF is the operational provider, EF staging follows the application context and its commit notifications.
+
+When Redis is the operational store, recurring chains, settings, results, and log archives consume its capacity. Configure retention and monitor capacity. Redis monitoring scans stored aggregates with bounded retained metadata, so query cost still grows with retained history; it is not an indexed relational history query.

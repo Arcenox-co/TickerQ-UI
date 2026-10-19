@@ -1,0 +1,25 @@
+{
+  "title": "Guides",
+  "pages": [
+    "---Build jobs---",
+    "defining-jobs",
+    "function-registration",
+    "requests-results",
+    "scheduling",
+    "managers",
+    "job-lifecycle",
+    "---Build workflows---",
+    "job-chaining",
+    "recurring-chains",
+    "cron-overlap",
+    "chain-deletion",
+    "---Operate TickerQ---",
+    "configuration",
+    "scheduler",
+    "execution-logs",
+    "retention",
+    "reliability",
+    "troubleshooting",
+    "storage-upgrade"
+  ]
+}

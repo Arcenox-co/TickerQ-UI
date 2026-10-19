@@ -11,7 +11,7 @@ import { buttonVariants } from "fumadocs-ui/components/ui/button";
 import { FumadocsThemeSwitch } from "@/components/fumadocs-theme-switch";
 import { cn } from "@/lib/cn";
 import { linkItems } from "@/lib/layout.shared";
-import { appName, docsRoute } from "@/lib/shared";
+import { appName } from "@/lib/shared";
 import type { LinkItemType } from "fumadocs-ui/layouts/shared";
 
 const navLinkClass =
@@ -31,7 +31,7 @@ export function LandingNavbar(props: ComponentProps<"header">) {
       id="nd-nav"
       {...props}
       className={cn(
-        "sticky border-b border-platinum/80 dark:border-neutral-800 top-0 z-40 bg-background backdrop-blur-md dark:bg-neutral-950",
+        "sticky border-b border-platinum/80 dark:border-neutral-800 top-0 z-40 bg-fd-background dark:bg-neutral-950",
         props.className,
       )}
     >
@@ -56,22 +56,22 @@ export function LandingNavbar(props: ComponentProps<"header">) {
             <span className="font-semibold tracking-tight">{appName}</span>
           </Link>
 
-          <Link href="/docs/releases" className={cn(navLinkClass, "shrink-0")}>
-            Releases
+          <Link href="/docs/5.x" className={cn(navLinkClass, "shrink-0")}>
+            5.x docs
+          </Link>
+          <Link href="/docs/5.x/changelog" className={cn(navLinkClass, "shrink-0")}>
+            Changelog
           </Link>
         </nav>
 
         <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2">
-          {/* Hub launch CTA — always visible across docs + landing. Filled
-              pill so it reads as the primary action vs the muted text links
-              and ghost-icon buttons on either side. */}
           <a
-            href="https://hub.tickerq.net"
+            href="https://license.tickerq.net/register"
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-deep-navy to-space-indigo px-4 py-1.5 text-[12.5px] font-semibold text-bright-snow shadow-[0_6px_18px_-6px_hsl(225_66%_21%/0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_22px_-6px_hsl(226_66%_17%/0.55)]"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-teal-800 dark:bg-teal-400 dark:text-neutral-950 dark:hover:bg-teal-300"
           >
-            Open Hub
+            Get license
             <svg
               className="size-3"
               viewBox="0 0 24 24"
@@ -87,13 +87,13 @@ export function LandingNavbar(props: ComponentProps<"header">) {
           </a>
           <FullSearchTrigger
             hideIfDisabled
-            className="hidden min-w-[240px] sm:inline-flex md:min-w-[240px]"
+            className="hidden min-w-[180px] lg:inline-flex"
           />
           <SearchTrigger
             hideIfDisabled
             className={cn(
               buttonVariants({ size: "icon-sm", color: "ghost" }),
-              "sm:hidden",
+              "lg:hidden",
             )}
           />
           <FumadocsThemeSwitch
@@ -108,7 +108,8 @@ export function LandingNavbar(props: ComponentProps<"header">) {
               rel="noopener noreferrer"
               aria-label={item.label}
               className={cn(
-                "inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-platinum/80 bg-fd-background text-fd-muted-foreground transition-colors hover:bg-fd-accent/80 hover:text-fd-accent-foreground dark:border-white/15 [&_svg]:size-4",
+                item.label === "NuGet" ? "hidden sm:inline-flex" : "inline-flex",
+                "size-9 shrink-0 items-center justify-center rounded-full border border-platinum/80 bg-fd-background text-fd-muted-foreground transition-colors hover:bg-fd-accent/80 hover:text-fd-accent-foreground dark:border-white/15 [&_svg]:size-4",
               )}
             >
               {item.icon}

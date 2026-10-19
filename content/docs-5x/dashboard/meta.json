@@ -1,0 +1,15 @@
+{
+  "title": "Dashboard",
+  "icon": "PanelsTopLeft",
+  "pages": [
+    "---Explore---",
+    "index",
+    "tour",
+    "---Access and security---",
+    "authentication",
+    "existing-users",
+    "authorization",
+    "---Assistant---",
+    "ai-assistant"
+  ]
+}

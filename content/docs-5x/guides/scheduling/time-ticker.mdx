@@ -1,0 +1,48 @@
+---
+title: "Time tickers"
+description: "Schedule one-time work, inspect the result, and manage pending executions."
+---
+
+Inject `ITimeTickerManager<TimeTickerEntity>` from `TickerQ.Utilities.Interfaces.Managers`. The entity types are in `TickerQ.Utilities.Entities`.
+
+```csharp
+var result = await manager.AddAsync(new TimeTickerEntity
+{
+    Function = "Invoices.Generate",
+    ExecutionTime = DateTime.UtcNow.AddMinutes(10),
+    Retries = 2,
+    RetryIntervals = [10, 30]
+}, cancellationToken);
+
+if (!result.IsSucceeded)
+    throw result.Exception;
+
+var jobId = result.Result.Id;
+```
+
+Use UTC for `ExecutionTime`. Omitting it on a new root requests execution as soon as it can be admitted; it does not leave the job unscheduled. The function must already be registered. A successful add means the provider accepted the job; it does not mean the function has run.
+
+## Choose the right operation
+
+| Operation | Purpose |
+| --- | --- |
+| `AddAsync` | Persist a new job independently |
+| `AddOnceAsync` | Create once for a stable initialization identifier |
+| `StageAsync` | Stage a new job or complete chain with your EF business changes |
+| `UpdateAsync` | Update an eligible existing job |
+| `RunNowAsync` | Request a run of an eligible root job |
+| `CancelAsync` | Cancel pending Idle/Queued work and its pending descendants |
+| `RequestCancellationAsync` | Signal an execution running on this host |
+| `DeleteAsync` | Permanently remove an eligible job/chain |
+
+Inspect `IsSucceeded`, `Exception`, and `AffectedRows` where available. An accepted request or zero affected rows must not be treated as proof that a running function stopped. Cancellation is explained in [job lifecycle](/docs/5.x/guides/job-lifecycle).
+
+The [manager reference](/docs/5.x/guides/managers) also covers batches, atomic chain replacement, startup seeding, and typed creation.
+
+For atomic scheduling with business data, use [EF transactional scheduling](/docs/5.x/entity-framework/transactional-scheduling). Moving `AddAsync` after a business commit leaves a gap where the business change succeeds but scheduling fails.
+
+## Continue with
+
+- [Requests and results](/docs/5.x/guides/requests-results) for typed input and output.
+- [One-time chains](/docs/5.x/guides/job-chaining) for dependent steps.
+- [History and retention](/docs/5.x/guides/retention) for automatic cleanup.

@@ -1,0 +1,151 @@
+---
+title: "AI assistant"
+description: "Use Chat AI to investigate jobs, inspect logs, and review proposed changes in the dashboard."
+---
+
+Use the assistant to investigate scheduler data and prepare changes for review. It uses the same dashboard authentication and authorization as other views. It is an optional feature of `TickerQ.Dashboard`; there is no separate AI package.
+
+<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a pending Create time ticker card showing Confirm and Dismiss" caption="A real conversation from the local demo. The assistant has proposed a one-time job; it has not been created. Review the card, then Confirm or Dismiss." />
+
+## Use Chat AI
+
+1. Open **AI → Chat AI** in the dashboard sidebar.
+2. Select a suggested question to send it immediately, or type your own request. Press **Enter** to send and **Shift+Enter** for a new line.
+3. Read the answer as it streams, then ask a follow-up in the same conversation. Include the function name or execution ID when you want to inspect a particular job.
+4. If the assistant proposes a change, review the action card before applying it. Asking a question does not apply a proposed change.
+
+The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. The model label below **Chat AI** comes from the host configuration; provider selection and credentials are configured on the server.
+
+Already using the interface? See [supported requests](#inspect-data-and-propose-changes), [action cards](#confirm-operational-changes), and [conversation history](#conversation-history). Setting it up for the first time? [Configure a chat client](#configure-a-chat-client).
+
+## Inspect data and propose changes
+
+The assistant can inspect registered functions and their request contracts, executions,
+cron definitions, chain steps, retained execution logs, and node-local runtime health.
+With integration-management permission and `TickerQ.Integrations` configured, it can
+also inspect destinations, rules, monitoring state and recent delivery outcomes.
+Webhook URLs, headers, message templates and delivery response bodies are excluded
+from integration tool results.
+
+The assistant drafts confirmation cards for:
+
+- One-time jobs, cron schedules, and one-time or recurring chains.
+- Cron schedule updates, including enabling/disabling a schedule.
+- Execution retries, cancellation, and deletion.
+- New alert rules and deadline, long-running or consecutive-failure monitors, using
+  existing integration destinations and optional recovery notifications.
+
+| Goal | Example request |
+| --- | --- |
+| Investigate a failure | “Read the logs for the most recent failed execution.” |
+| Find available handlers | “Which registered functions can I schedule?” |
+| Draft a recurring workflow | “Run Prepare then Publish every weekday at 08:00.” |
+| Monitor repeated failures | “Alert Operations if GenerateInvoices fails three times.” |
+| Set a completion deadline | “Monitor GenerateInvoices: finish by 08:00 Europe/Belgrade, with ten minutes of grace and a recovery message.” |
+
+Replace the example function and destination names with ones configured in your application. The assistant works with registered handlers and existing integration destinations.
+
+## Confirm operational changes
+
+Action cards show the relevant function or chain steps, schedule and time zone, request payload, target execution, or alert destination. Check these details and any warning before continuing. To adjust a proposal, ask for a revised version in the conversation; cards do not have an inline editor.
+
+| Control or result | Meaning |
+| --- | --- |
+| **Confirm** | Apply the proposed operation through the dashboard API |
+| **Confirm deletion** | Permanently delete the proposed target after reviewing the warning |
+| **Request cancellation** | Ask a running handler to stop using its cancellation token |
+| **Dismiss** | Leave the proposal unapplied; the card becomes **Dismissed** |
+| **Applied** | The API accepted the operation; this does not mean a scheduled job has finished |
+| **Requested** | A running cancellation request was accepted; check execution status for the outcome |
+
+**Changes require an explicit action on the card.** Tools never write data or send test messages. If confirmation fails, the dashboard displays **Failed to apply** and leaves the card pending.
+
+Confirmation uses the normal authenticated dashboard APIs, including their read-only,
+license and integration-management checks. Execution cards recheck observed status
+and execution timestamps before submitting; the underlying APIs still enforce current
+state. Integration proposals retain the configuration version and fail on concurrent
+edits. Read-only users receive no proposal tools.
+
+A running cancellation requests cooperation through the handler's cancellation token;
+it does not prove that the job stopped. Retrying a cron execution creates a fresh
+occurrence using the current cron definition, while retrying a time ticker re-runs
+that ticker, without resetting an entire chain. Deletion cards explain their permanent
+effect. Monitors track individual function executions, including chain steps, rather
+than completion of a whole workflow.
+
+Cron proposals show the scheduler time zone. Deadline monitors have their own explicit
+time zone. Configure new destinations and edit webhook secrets/templates in Integrations.
+
+## Configure a chat client
+
+The assistant uses your server-side `Microsoft.Extensions.AI.IChatClient`. Register a provider adapter that supports chat and tool calls in the host, then pass that client through the existing dashboard builder. This snippet assumes an `IChatClient` is already registered in DI; it does not configure a provider or API key by itself:
+
+```csharp
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using TickerQ.Dashboard.DependencyInjection;
+
+options.AddDashboard(dashboard =>
+{
+    dashboard.AddAssistant(ai => ai
+        .UseChatClient(serviceProvider => serviceProvider.GetRequiredService<IChatClient>())
+        .WithMaxToolIterations(8));
+    // Optional: reuse your host application's authorization policy.
+    dashboard.AllowIntegrationManagement(context => context.User.IsInRole("Admin"));
+});
+```
+
+## Provider settings
+
+Keep API credentials in server configuration or a secret store. `WithModelName(...)` changes the label shown in the chat panel; the model is selected when constructing your `IChatClient`. `WithMaxToolIterations(...)` limits tool round-trips per turn, not your provider's token budget. An unreachable provider, invalid credentials, or exhausted quota still prevents a reply even when the dashboard reports that the assistant is configured.
+
+`UseChatClient` resolves its factory once from the root service provider. Supply a client suitable for singleton use; do not capture scoped database services. The dashboard wraps it for tool invocation and disposes the resulting client with the application. `WithSystemPrompt(...)` replaces the default prompt; preserve the instructions about untrusted tool data, read-only behavior, and explicit confirmation if you customize it.
+
+## Conversation history
+
+With server-side history enabled, a desktop conversation sidebar lists saved chats. Select a title to reopen it, choose **New chat** for a fresh conversation, or use the conversation's delete control and confirm deletion. This sidebar is hidden on smaller screens.
+
+Without server-side history, **New chat** appears in the chat header after the first message and clears the browser-local conversation. Starting a new chat does not undo any operation already applied through an action card.
+
+Without a registered history store, the dashboard retains the latest 40 text messages in browser `localStorage`. This fallback uses one key for the origin, not a key for each login, dashboard path, or application namespace. **New chat** clears that local history. On a shared browser, do not treat the fallback as separate personal conversations.
+
+EF Core can retain conversations by opting in on the operational store:
+
+```csharp
+// Inside the existing options.AddOperationalStore(store => { ... }) callback:
+store.AddAssistantHistory(history =>
+{
+    history.MaxConversationsPerUser = 50;
+    history.MaxMessagesPerConversation = 80;
+});
+```
+
+These values are the defaults. Enable the option in the design-time model too, and generate/apply an application migration for `AssistantConversations` and `AssistantMessages`. Without this opt-in, the EF provider maps no assistant-history tables. History storage is separate from execution-log persistence. When a server store is configured, the dashboard uses it instead of the local fallback and offers conversation selection and deletion. Stored exchanges contain user and assistant text; pending confirmation cards are not persisted, and conversation text is not proof that an action ran.
+
+The current implementation groups server history by the dashboard's resolved username. Use a stable, unique authenticated name for each person. API-key authentication uses the shared `api-user` name, custom authentication uses `custom-user`, and a host identity without a name becomes `host-user`; these modes do not produce separate personal histories for different people. Anonymous access shares an anonymous history identity.
+
+The EF history tables do not include an application-namespace partition. Applications sharing these tables and the same resolved username can therefore share conversation history even when their scheduler namespaces differ. Use separate history storage where that isolation is required. Treat retained text as application data: it can contain the runtime information discussed with the assistant.
+
+## Data sent to the model and request limits
+
+Logs and job data inspected by the assistant are sent to your configured model provider
+and may appear in conversation history. Apply your application's log redaction and
+model/data policies accordingly. Log reads verify that the execution belongs to the
+current runtime and return at most 100 retained lines and 24,000 characters; retention,
+truncation and storage availability can limit what the assistant sees. Request contracts
+are capped at 12,000 characters. The chat request sets a maximum output of 1,500 tokens; provider behavior and billing remain provider-specific. Chat requests use up to the last 20 individual user/assistant messages, with a 128 KB body
+limit and limits of 16,384 characters per message and 65,536 in total. AI proposals cap
+chains at 100 steps, ten levels, and five children per step.
+
+## Troubleshoot the assistant
+
+| Symptom | Check |
+| --- | --- |
+| AI assistant is not configured | Register an `IChatClient` and pass it to `AddAssistant` |
+| Configured, but no reply | Check the provider's credentials, endpoint, quota, and host logs using the error reference |
+| Answers work, but no action cards appear | Check read-only permissions and whether the provider supports tool calls |
+| Integration information is unavailable | Enable `AddIntegrations` and grant integration-management access |
+| A proposal is rejected when confirmed | Reload current job/configuration state and check write, license, and integration permissions |
+| Logs are missing or incomplete | Check execution-log retention, truncation, and storage availability; missing logs do not establish a successful run |
+
+The assistant cannot deploy application code, register a missing function handler, configure webhook credentials, or send test messages. Use the application's normal deployment process and the Integrations editor for those tasks.

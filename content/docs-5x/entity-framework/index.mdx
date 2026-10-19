@@ -1,0 +1,114 @@
+---
+title: "Entity Framework Core"
+description: "Persist TickerQ jobs in your application database with provider-independent EF Core integration."
+---
+
+Use `TickerQ.EntityFrameworkCore` with a relational EF provider such as SQL Server, PostgreSQL, or SQLite. Match the TickerQ package versions to your .NET line.
+
+## Choose the context
+
+| Need | Registration |
+| --- | --- |
+| Commit business data and new jobs together | `UseApplicationDbContext<AppDbContext>(...)` and [StageAsync](/docs/5.x/entity-framework/transactional-scheduling) |
+| Store jobs independently of the business context | `UseTickerQDbContext<TickerQDbContext>(...)` |
+
+Register one operational provider. Redis can be added alongside EF for caching and node coordination; see [Redis with EF Core](/docs/5.x/redis#combine-redis-with-ef-core).
+
+## Register your application context
+
+This example uses SQLite. Replace `UseSqlite` with your provider's normal EF configuration when using another database.
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using TickerQ.DependencyInjection;
+using TickerQ.EntityFrameworkCore.Customizer;
+using TickerQ.EntityFrameworkCore.DependencyInjection;
+
+builder.Services.AddDbContext<AppDbContext>(db =>
+    db.UseSqlite("Data Source=orders.db"));
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("tickerq.tqlicense");
+    options.UseApplicationNamespace("orders-production");
+    options.UseReconciliationEpoch(1);
+    options.AddOperationalStore(store =>
+        store.UseApplicationDbContext<AppDbContext>(ConfigurationType.UseModelCustomizer));
+});
+
+// Define this alongside your application's entities and mappings.
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options);
+```
+
+`UseModelCustomizer` adds TickerQ mappings and preserves your context's `OnModelCreating` calls. It replaces EF's `IModelCustomizer`; if your application already supplies a custom implementation, use the [manual mapping option](#map-tickerq-manually) below instead of assuming both customizers will run.
+
+## Create the schema
+
+Install your EF provider and design-time tooling, then generate an application-owned migration:
+
+```sh
+dotnet ef migrations add AddTickerQ --context AppDbContext
+dotnet ef database update --context AppDbContext
+```
+
+Review the migration and apply it before scheduler startup. Use the same model-affecting options at design time and runtime, including execution-log persistence when enabled. `EnsureCreated` is not an upgrade mechanism for an existing database.
+
+## Dedicated TickerQ context
+
+If jobs do not need to share the business context, the package supplies a dedicated context. Use this **instead of** `UseApplicationDbContext`:
+
+```csharp
+using TickerQ.EntityFrameworkCore.DbContextFactory;
+
+options.AddOperationalStore(store => store.UseTickerQDbContext<TickerQDbContext>(db =>
+    db.UseSqlite("Data Source=tickerq.db")));
+```
+
+Generate migrations for that context through your application's normal design-time setup. `SetSchema(...)` selects a relational schema where the provider supports schemas; SQLite does not. `AutoMigrateDatabase()` explicitly applies pending migrations at startup, but generating and reviewing them remains the application's responsibility. Use your deployment pipeline when schema changes need separate control.
+
+The dedicated context supports independent manager operations. It does not make `StageAsync` join an unrelated business context; that operation requires the application-context registration.
+
+## Map TickerQ manually
+
+Choose `ConfigurationType.IgnoreModelCustomizer` when your application owns the complete model configuration. Add these mappings to its `OnModelCreating` method, alongside your business entities:
+
+```csharp
+using TickerQ.EntityFrameworkCore.Configurations;
+using TickerQ.Utilities.Entities;
+
+modelBuilder.ApplyConfiguration(new TimeTickerConfigurations<TimeTickerEntity>("ticker"));
+modelBuilder.ApplyConfiguration(new CronTickerConfigurations<CronTickerEntity>("ticker"));
+modelBuilder.ApplyConfiguration(new CronTickerOccurrenceConfigurations<CronTickerEntity>("ticker"));
+modelBuilder.ApplyConfiguration(new TimeTickerResultConfigurations<TimeTickerEntity>("ticker"));
+modelBuilder.ApplyConfiguration(new CronTickerOccurrenceResultConfigurations<CronTickerEntity>("ticker"));
+modelBuilder.ApplyConfiguration(new NodeFinalizationOutboxConfigurations("ticker"));
+modelBuilder.ApplyConfiguration(new TickerQStoreMetadataConfigurations("ticker"));
+modelBuilder.ApplyConfiguration(new IntegrationSettingsConfigurations("ticker"));
+```
+
+Use the same schema as `store.SetSchema(...)` (default `ticker`), and replace the ticker entity types if you extend them. Keep the same mappings in design-time tooling. Add `ExecutionLogArchiveConfiguration` when [log persistence](/docs/5.x/guides/execution-logs#ef-core) is enabled; add `AssistantConversationConfigurations` and `AssistantMessageConfigurations` when [assistant history](/docs/5.x/dashboard/ai-assistant) is enabled.
+
+`IgnoreModelCustomizer` does not disable transactional scheduling. The DI registration still installs its save/commit interceptors; the context must include the mappings above.
+
+## Custom ticker entities
+
+Applications can extend `TimeTickerEntity<TSelf>` and `CronTickerEntity` with their own fields. Register `AddTickerQ<MyTimeTicker, MyCronTicker>(...)` and inject managers with the same two types. Preserve the TickerQ mappings and add your fields to the application migration. Do not change ownership, status, or lease fields directly to control execution.
+
+## Save jobs with business changes
+
+`StageAsync` supports both time jobs and cron schedules in your application's unit of work. It is available automatically with a scoped application context; no separate enable flag or context argument is required. Read [transactional scheduling](/docs/5.x/entity-framework/transactional-scheduling).
+
+For existing databases, replica rollout, stable cron identities, and schema ownership, use the [storage upgrade reference](/docs/5.x/guides/storage-upgrade).
+
+## Storage options and startup
+
+| Option | Purpose |
+| --- | --- |
+| `SetSchema("ticker")` | Names the relational schema, where the database supports it |
+| `SetDbContextPoolSize(1024)` | Sets the dedicated TickerQ context pool size; does not resize your application's `AddDbContextPool` |
+| `AutoMigrateDatabase()` | Applies existing pending migrations before scheduler initialization |
+| `AddAssistantHistory(...)` | Opts in to EF-backed dashboard chat history and its two tables |
+
+Execution logs and assistant history are optional model features. Integration settings and the Node finalization outbox are part of the current base mapping, even when those features are not in use. Check the generated model instead of copying an older three-table migration.
+
+Concurrent scheduler startup uses stable code-defined cron identities, a unique seed index, and transactional reconciliation. TickerQ runs reconciliation through the context's execution strategy. Configure your EF provider's own transient retry policy when needed; TickerQ does not turn permanent database errors into successful startup. Replicas of the same application must also agree on their [namespace and reconciliation epoch](/docs/5.x/guides/configuration).

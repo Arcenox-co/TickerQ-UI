@@ -1,0 +1,66 @@
+---
+title: "Message templates"
+description: "Customize separate job-alert, monitor-alert, and recovery payloads."
+---
+
+## Choose a message category
+
+In **Integrations → Configure → Message templates**, choose **Job alert**, **Monitor alert**, or **Recovery**. Each category can use the provider default or its own custom JSON. **Customize** starts with the current default layout and placeholders; **Use default** restores only the selected category. Switching categories preserves unsaved edits in the others.
+
+| Category | Used for |
+| --- | --- |
+| Job alert | Events matched by alert rules, and the connection's Send test action |
+| Monitor alert | A monitor opening an incident |
+| Recovery | A monitor closing its incident when recovery messages are enabled |
+
+## Provider defaults and previews
+
+Default Slack messages use a status heading, compact detail fields, a reason, an incident/job reference and UTC timestamp, and an optional dashboard button. Teams uses the same content in an Adaptive Card with an alert/recovery heading color. Function monitors omit unrelated worker/retry fields and show their condition, threshold and observed result instead. Default webhooks retain their event envelope and add structured monitoring context.
+
+Preview updates automatically. Choose a long-running, repeated-failure, or deadline sample for monitoring and recovery. **View JSON** shows the rendered request; the local layout preview shows supported text elements and never loads images or follows payload links. The receiving application controls the final rendering. Previews do not send requests to the integration.
+
+## Existing templates and API callers
+
+Existing connections with a single `payloadTemplate` continue to use it for every category. The editor copies it into all three categories when saving an edit. API callers can set `messageTemplates: { jobAlert, monitoringAlert, recovery }`; a null/blank category uses its provider default, and the explicit object replaces the legacy shared template. Settings use the existing encrypted storage, so no database migration is needed.
+
+## Customize a payload
+
+Slack templates accept message `text`, `blocks`, or `attachments`; see [Slack's incoming webhook format](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/). Teams templates use a `type: "message"` envelope with Adaptive Card attachments; see [Microsoft's Adaptive Card webhook format](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/connectors-using#send-adaptive-cards-using-an-incoming-webhook). The server checks JSON, placeholders, size, and the basic provider envelope before saving. It does not validate every Block Kit or Adaptive Card element; the receiving platform still validates those. Slack's channel and sender identity remain controlled by the webhook's app configuration.
+
+A custom destination sends an HTTP POST with `application/json`. Leave the template empty for the standard event envelope, or supply a JSON object:
+
+```json
+{
+  "text": "{{application}} / {{environment}}: {{function}} — {{event}}",
+  "details": {
+    "reason": "{{reason}}",
+    "jobId": "{{tickerId}}",
+    "eventId": "{{eventId}}",
+    "node": "{{node}}",
+    "occurredAtUtc": "{{occurredAtUtc}}"
+  },
+  "dashboard": "{{dashboardUrl}}"
+}
+```
+
+Placeholders work only inside JSON string values, including nested objects and arrays. Values are escaped as JSON; no scripts, expressions, or property-name substitutions run. Unknown tokens are rejected. Numeric placeholders are strings; literal JSON numbers and booleans retain their types.
+
+## Placeholder reference
+
+Token names are case-sensitive. Templates are limited to 16,000 characters and a maximum JSON depth of 16; rendered payloads must fit within 24,000 bytes. Validation uses samples for all three categories, but a larger real message can still exceed the rendered limit and fail delivery.
+
+Supported tokens: `eventId`, `application`, `environment`, `event`, `function`, `reason`, `tickerId`, `tickerType`, `node`, `retryCount`, `retries`, `occurredAtUtc`, `dashboardUrl`, `monitorId`, `monitorName`, `incidentId`. These monitoring identifiers are populated for monitoring messages and empty for ordinary job events.
+
+Additional placeholders:
+
+- Presentation: `title`, `severity` (`error`, `warning`, `success`), `statusIcon`, `statusColor` (Teams color), and `occurredAt` (readable UTC timestamp).
+- Monitoring summaries: `condition`, `threshold`, and `observed`, suitable for one template shared by different monitor conditions.
+- Structured monitoring values: `monitorKind`, `thresholdSeconds`, `observedDurationSeconds`, `failureCount`, `failureThreshold`, `deadlineUtc`, `timeZoneId`, and `graceMinutes`.
+
+Unavailable values become empty strings in custom templates and null in the default webhook. Default webhook counts/durations remain JSON numbers; custom placeholders inside strings are strings. Duration uses persisted execution time for completed runs, and time since first observed InProgress for active runs. Failure counts are retained observed counts and can be lower bounds. Recovery does not invent a completed job duration. `deadlineUtc` is the scheduled deadline before the separately reported grace period.
+
+## Correlation and links
+
+An incident and its recovery share `incidentId`; each transition has its own `eventId`. Links open the configured dashboard URL. The event contract does not currently carry enough information to deep-link every cron occurrence or chain step.
+
+<DashboardScreenshot name="integration-editor" alt="Slack message template editor and sample preview" caption="Preview a job alert, monitor alert, or recovery message before saving." />

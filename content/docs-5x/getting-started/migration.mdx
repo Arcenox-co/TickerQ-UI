@@ -1,0 +1,36 @@
+---
+title: "Upgrade to 5.x"
+description: "Plan the license, schema, runtime identity, and application changes before rollout."
+---
+
+Treat the commercial 5.x line as an application upgrade. Updating a package reference alone does not migrate an existing operational store.
+
+## Prepare the rollout
+
+1. Confirm the [license entitlement and certificate](/docs/5.x/getting-started/licensing) for your deployment.
+2. Align all TickerQ packages to one matching full version for your .NET target.
+3. Back up the operational store and persistent Data Protection key ring, and verify your rollback procedure.
+4. Review the new [application namespace and reconciliation epoch](/docs/5.x/guides/configuration).
+5. Generate and inspect application-owned EF migrations, or review your MongoDB/Redis upgrade requirements.
+6. Drain writers that predate the runtime partition/activation protocol before the first adoption. New fencing cannot control old binaries that do not participate in it.
+7. Validate the upgrade against a representative copy of your data before production.
+
+## Review these API changes
+
+| Area | What to check |
+| --- | --- |
+| Runtime identity | Use `UseApplicationNamespace(...)` and the deployment's positive `UseReconciliationEpoch(...)`. Do not generate a namespace per process. |
+| Cron overlap | Set `CronTickerEntity.SkipIfAlreadyRunning`; remove calls to the old function-context helper. |
+| Transactional scheduling | Use `StageAsync` on a scoped EF application context when jobs must commit with business data. `AddAsync` still persists independently. |
+| Chains | Add schema for recurring chains and deletion behavior; preserve existing graph ownership when migrating. |
+| Dashboard | Configure authentication explicitly. Review signing keys, proxy trust, and cross-origin settings. |
+| Integrations | The package and API names are `TickerQ.Integrations`, `AddIntegrations`, and `IntegrationSettings`. Rename existing preview storage without dropping encrypted settings. |
+| Execution logs | If database log storage is enabled, include its model at design time and apply its migration. |
+
+## Storage is application-owned
+
+Do not copy another application's migration history into your database, run `EnsureCreated` as an upgrade, or mark all legacy rows as belonging to one app without verifying their owner.
+
+The [storage upgrade reference](/docs/5.x/guides/storage-upgrade) covers required columns, indexes, legacy ownership mapping, interrupted activation, and rollback limits for each provider. Follow it before starting the new scheduler against existing data.
+
+After deployment, check activation and license status, verify a one-time and recurring execution, inspect chain progress, and confirm monitoring and integrations can read their retained state.

@@ -1,0 +1,153 @@
+---
+title: "Dashboard tour"
+description: "Explore each part of the 5.x dashboard with screenshots from the running demo."
+---
+
+The dashboard brings scheduling, execution history, and runtime configuration into your application. This tour uses **real screenshots from the local 5.x demo hosts**, including the chains, database logs, integration monitoring, and simulated-error examples. Counts and timestamps are sample activity, not performance benchmarks. Workspace names and certificate identifiers are anonymized.
+
+Select any screenshot to open the full-size image. See [dashboard setup](/docs/5.x/dashboard) to add the dashboard to your host, and [authentication](/docs/5.x/dashboard/authentication) before exposing it outside local development.
+
+## Navigate by task
+
+| Task | Views |
+| --- | --- |
+| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view) |
+| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [Live updates](#live-updates-and-ownership) |
+| Configure alerts | [Integrations](#integrations), [Alert rules](#alert-rules), [Monitoring](#monitoring), [Message templates](#message-templates) |
+| Check the installation | [License](#license), [About](#about), [AI assistant](#ai-assistant) |
+
+## Overview
+
+Start here for scheduler state, current workers, execution volume, and recent or upcoming jobs. Follow a job link to its details. The scheduler controls affect the host responding to this dashboard; they do not pause every replica.
+
+<DashboardScreenshot name="overview" alt="Overview showing scheduler state, job totals, execution volume, and scheduled work" caption="A running chains demo, with recent work and scheduler capacity in one view." />
+
+## Time tickers
+
+Browse one-time jobs, search by function, and filter standalone jobs or chains. Select a row to inspect that job. The chain badge opens its workflow. Jobs created by a recurring cron chain appear under the cron occurrence, keeping this list focused on time tickers.
+
+<DashboardScreenshot name="time-tickers" alt="Time tickers table showing standalone jobs and a five-step chain" caption="A chain's status summarizes all its steps, so a finished parent does not imply the whole workflow is done." />
+
+Learn about [time scheduling](/docs/5.x/guides/scheduling/time-ticker) and [cancellation](/docs/5.x/guides/job-lifecycle).
+
+## Cron tickers
+
+View recurring definitions with both the cron expression and its human-readable meaning. Check the next run, enable or disable a schedule, and open its occurrence history. A chain badge identifies recurring workflows.
+
+<DashboardScreenshot name="cron-tickers" alt="Cron definitions with readable expressions, recurring chain badge, last status, and next run" caption="Schedules and their run history are separate: changing a definition affects future runs." />
+
+### Occurrence history
+
+Open a cron ticker to see its individual runs. Select a run for details and logs, or select its chain badge to open that occurrence's workflow.
+
+<DashboardScreenshot name="cron-occurrences" alt="Recurring cron detail showing occurrence history and per-run chain progress" caption="Each recurring-chain occurrence creates a fresh set of jobs with its own progress and history." />
+
+See [recurring chains](/docs/5.x/guides/recurring-chains) and [overlap controls](/docs/5.x/guides/cron-overlap).
+
+## Chain view
+
+Follow connected steps and inspect each job's status, duration, and details. Click a step to open its details and logs. The table's aggregate status and the selected step's status answer different questions:
+
+| Chain label | Meaning |
+| --- | --- |
+| Running | At least one step is in progress |
+| Waiting | Unfinished steps remain, but none is in progress |
+| Done | All steps are terminal, with no failures or cancellations; skipped branches can still be present |
+| Finished with errors / cancellations | All steps are terminal and the chain contains failures or cancellations |
+| Chain unavailable | The dashboard could not build a complete chain summary |
+
+Progress counts all terminal steps, including skipped, failed, and cancelled steps. It is not a count of successful steps. Open the chain to see which branches ran.
+
+<DashboardScreenshot name="chain" alt="A recurring job chain showing connected preparation, processing, and completion steps" caption="The workflow view shows individual steps; the chain log panel brings their available log lines together." />
+
+## Executions
+
+Use the execution list to investigate outcomes across job types. Filter the history, compare duration and retry counts, and open a run for more detail.
+
+<DashboardScreenshot name="executions" alt="Execution history from the integration demo with successful and failed test runs" caption="These deliberate failures and recoveries come from the local monitoring demo." />
+
+### Job details and logs
+
+The details panel shows the selected job's status, duration, request payload, and available logs. Scheduler lifecycle messages sit alongside application log messages. A database log tail can remain available after a restart when persistence is configured.
+
+<DashboardScreenshot name="execution-logs" alt="Execution details panel with database log messages and a timeout cancellation" caption="A local timeout test: the log records creation, execution, sample progress, and cancellation when the function exits." />
+
+See [execution-log configuration and limits](/docs/5.x/guides/execution-logs).
+
+## Diagnostics
+
+Check the responding host's scheduler and log-storage health. Diagnostics distinguish a current problem from historical failure counts, and explain where to investigate next.
+
+<DashboardScreenshot name="diagnostics" alt="Diagnostics showing simulated overdue scan and database log write failures" caption="This is the simulated-error demo. The warnings illustrate what an operator sees when checks need attention." />
+
+## Integrations
+
+The optional `TickerQ.Integrations` package adds connections, alert rules, monitoring, and delivery activity. Connection secrets are never displayed back in the dashboard.
+
+<DashboardScreenshot name="integrations" alt="Integrations connections tab with a configured Slack destination" caption="Reuse a saved connection across rules and monitors. Sending a test is an explicit action." />
+
+### Alert rules
+
+Choose which events and functions should notify a destination. This separates the connection details from the conditions that trigger a message.
+
+<DashboardScreenshot name="alert-rules" alt="Alert rules tab showing function and event routing to Slack" caption="Route relevant events to the people who need them." />
+
+### Monitoring
+
+Configure monitors for repeated failures, long-running executions, or completion deadlines. Each monitor shows its current state and can send a recovery message after a successful execution confirms that the condition has cleared. This is separate from alerts for individual failure events.
+
+<DashboardScreenshot name="monitoring" alt="Two demo monitors for consecutive failures and long-running execution with recovery alerts enabled" caption="The demo monitors inspect function executions and send their alerts through the Slack connection." />
+
+### Message templates
+
+Customize job alerts, monitor alerts, and recovery messages separately. Preview the message using sample data before saving. Previewing does not deliver a webhook.
+
+<DashboardScreenshot name="integration-editor" alt="Slack integration editor with message template controls and a sample message preview" caption="The editor keeps the webhook secret hidden and lets you adjust the message content." />
+
+Read the [integration guide](/docs/5.x/integrations), [monitoring behavior](/docs/5.x/integrations/monitoring), and [payload templates](/docs/5.x/integrations/templates).
+
+## License
+
+See certificate validation, the workspace and plan, and the execution state reported by this host. The dashboard does not expose the raw certificate. Runtime execution state and contractual entitlement are explained in the [licensing guide](/docs/5.x/getting-started/licensing).
+
+<DashboardScreenshot name="license" alt="License page with an active Business certificate and anonymized workspace and certificate identifiers" caption="Workspace and certificate identifiers are hidden in this documentation screenshot." />
+
+## About
+
+About shows the host's effective configuration. Its sections separate general information, scheduler settings, retention, execution logs, and registered functions.
+
+### General
+
+<DashboardScreenshot name="about" alt="About general section with version, node, registered functions, and dashboard access" caption="Identify the responding host and its configured dashboard capabilities." />
+
+### Scheduler
+
+<DashboardScreenshot name="scheduler" alt="About scheduler section with concurrency, time zone, fallback checks, and timeouts" caption="The scheduler time zone interprets cron expressions; the toolbar time zone controls their display." />
+
+### Retention
+
+<DashboardScreenshot name="retention" alt="About retention section showing history limits and cleanup settings" caption="Inspect configured retention by status, along with cleanup interval and batch limits." />
+
+### Execution-log storage
+
+<DashboardScreenshot name="log-settings" alt="About execution-log section showing database persistence and log buffer limits" caption="Check whether log persistence is enabled and which limits apply on this host." />
+
+### Registered functions
+
+<DashboardScreenshot name="functions" alt="Registered function table in About with schedules, priorities, timeouts, and concurrency limits" caption="Confirm which function handlers the current application has registered." />
+
+## Live updates and ownership
+
+The dashboard uses SignalR notifications to refresh affected data. It reconnects and restores cron subscriptions after a disconnect. Active chains also refresh approximately every two seconds, and a visible active log tail refreshes approximately every 1.5 seconds; these browser refreshes are separate from scheduler timing.
+
+If a view stops updating, check the browser's hub connection, authentication, and reverse-proxy support for the dashboard hub route. Host status refreshes every five seconds, but that does not mean every table has a universal polling fallback.
+
+A job's **Node** field displays the configured node name. Its tooltip shows the full execution-owner identifier, including the process ID and instance suffix. The owner identifies the process that acquired the job; it is not the application's namespace or a count of workers. Scheduler controls and Diagnostics refer to the responding application instance.
+
+## AI assistant
+
+The optional assistant can inspect runtime data and propose supported actions for confirmation. Your host supplies the AI provider. See [AI assistant setup and capabilities](/docs/5.x/dashboard/ai-assistant).
+
+Open **AI → Chat AI**, select a suggested question, or type a request in the composer. Answers stream into the conversation. Proposed changes appear as action cards that you review and confirm or dismiss.
+
+<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a pending Create time ticker card showing Confirm and Dismiss" caption="A reply and a proposed one-time job in Chat AI. The card remains pending until you confirm it." />

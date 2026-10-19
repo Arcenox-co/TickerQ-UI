@@ -16,6 +16,15 @@ export const docs = defineDocs({
   },
 });
 
+export const commercialDocs = defineDocs({
+  dir: 'content/docs-5x',
+  docs: {
+    schema: pageSchema,
+    postprocess: { includeProcessedMarkdown: true },
+  },
+  meta: { schema: metaSchema },
+});
+
 export default defineConfig({
   mdxOptions: {
     // MDX options

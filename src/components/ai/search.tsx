@@ -19,15 +19,17 @@ import { DefaultChatTransport, type Tool, type UIToolInvocation } from 'ai';
 import { Markdown } from '@/components/markdown';
 import { Presence } from '@radix-ui/react-presence';
 import type { SearchTool } from '@/app/api/chat/route';
+import { docsVersions, type DocsVersion } from '@/lib/docs-versions';
 
 const Context = createContext<{
   open: boolean;
   setOpen: (open: boolean) => void;
   chat: UseChatHelpers<UIMessage>;
+  version: DocsVersion;
 } | null>(null);
 
 export function AISearchPanelHeader({ className, ...props }: ComponentProps<'div'>) {
-  const { setOpen } = useAISearchContext();
+  const { setOpen, version } = useAISearchContext();
 
   return (
     <div
@@ -38,7 +40,7 @@ export function AISearchPanelHeader({ className, ...props }: ComponentProps<'div
       {...props}
     >
       <div className="px-3 py-2 flex-1">
-        <p className="text-sm font-medium mb-2">AI Chat</p>
+        <p className="text-sm font-medium mb-2">Ask AI · {docsVersions[version].label}</p>
         <p className="text-xs text-fd-muted-foreground">
           AI can be inaccurate, please verify the answers.
         </p>
@@ -307,15 +309,15 @@ function Message({ message, ...props }: { message: UIMessage } & ComponentProps<
   );
 }
 
-export function AISearch({ children }: { children: ReactNode }) {
+export function AISearch({ children, version }: { children: ReactNode; version: DocsVersion }) {
   const [open, setOpen] = useState(false);
   const chat = useChat({
-    id: 'search',
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    id: `search-${version}`,
+    transport: new DefaultChatTransport({ api: '/api/chat', body: { version } }),
   });
 
   return (
-    <Context value={useMemo(() => ({ chat, open, setOpen }), [chat, open])}>{children}</Context>
+    <Context value={useMemo(() => ({ chat, open, setOpen, version }), [chat, open, version])}>{children}</Context>
   );
 }
 

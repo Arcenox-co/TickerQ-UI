@@ -1,0 +1,43 @@
+---
+title: "History and retention"
+description: "Keep useful job history while bounding storage growth."
+---
+
+Job retention is disabled by default. Configure a window for each terminal status you want cleaned up, inside your existing `AddTickerQ` registration:
+
+```csharp
+options.ConfigureJobRetention(retention =>
+{
+    retention.DeleteSucceededAfter = TimeSpan.FromDays(7);
+    retention.DeleteFailedAfter = TimeSpan.FromDays(30);
+    retention.DeleteCancelledAfter = TimeSpan.FromDays(7);
+    retention.DeleteSkippedAfter = TimeSpan.FromDays(7);
+    retention.SweepInterval = TimeSpan.FromHours(1);
+    retention.BatchSize = 500;
+    retention.MaxBatchesPerSweep = 10;
+});
+```
+
+A null window retains that status indefinitely. Age is evaluated from the terminal job's `ExecutedAt`, not its creation time; Done and DueDone share the succeeded window. Windows and batch settings must be positive. Retention removes eligible terminal time jobs/chains and cron occurrences; it does not delete cron schedule definitions.
+
+## Chains and active work
+
+Ownership, active execution, and [chain deletion rules](/docs/5.x/guides/chain-deletion) still apply. `Restrict` preserves a chain while any descendant is unfinished. Completing the final child makes the chain eligible for normal checks; it does not immediately delete history.
+
+## Bounded cleanup
+
+| Setting | Default | Valid range |
+| --- | --- | --- |
+| `BatchSize` | 500 aggregates | 1–10,000 |
+| `MaxBatchesPerSweep` | 10 provider calls across both streams | 1–1,000 |
+| `MaxNodesPerChain` | 1,000 jobs | 1–10,000 |
+
+A batch counts a time chain as an aggregate, so deleting 500 aggregates can remove more than 500 job rows. The maximum chain size examined by retention defaults to 1,000 nodes. Oversized or unsafe graphs stay intact. Redis retention currently retains nontrivial chains; plan explicit maintenance when relying on that provider for large chain histories.
+
+## Logs and monitoring
+
+[Execution log archives](/docs/5.x/guides/execution-logs) have their own retention and byte/line limits. Deleting job history is not a substitute for setting log-storage limits.
+
+Keep terminal rows long enough for [monitoring](/docs/5.x/integrations/monitoring) to observe them, including periods of downtime and delivery backlog. Deleting or rerunning a row before it is observed can remove the outcome that a monitor needs. Retained history and logs are operational data, not a permanent audit archive.
+
+The dashboard's **About → Retention** and **About → Execution logs** sections show the configured limits. Monitor actual database or Redis growth and adjust the windows to your workload.
