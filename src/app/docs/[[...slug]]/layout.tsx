@@ -1,4 +1,6 @@
-import { source } from '@/lib/source';
+import { documentationSources, getDocumentation } from '@/lib/source';
+import { versionDestination } from '@/lib/docs-versions';
+import { VersionSwitcher } from '@/components/docs/version-switcher';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import { baseOptions } from '@/lib/layout.shared';
 import { AISearch, AISearchPanel, AISearchTrigger } from '@/components/ai/search';
@@ -78,15 +80,24 @@ const tabs: LayoutTab[] = [
   },
 ];
 
-export default function Layout({ children }: LayoutProps<'/docs'>) {
+export default async function Layout({ children, params }: LayoutProps<'/docs/[[...slug]]'>) {
+  const { slug = [] } = await params;
+  const { source, version } = getDocumentation(slug);
+  const path = `/docs${slug.length ? `/${slug.join('/')}` : ''}`;
+  const destinations = {
+    '5.x': versionDestination(path, '5.x', documentationSources['5.x'].getPages().map(page => page.url)),
+    legacy: versionDestination(path, 'legacy', documentationSources.legacy.getPages().map(page => page.url)),
+  };
+  // Commercial docs use one task-oriented tree; legacy keeps its package tabs.
+  const versionTabs = version === 'legacy' ? tabs : false;
   return (
     <DocsLayout
       tree={source.getPageTree()}
-      tabs={tabs}
-      sidebar={{ defaultOpenLevel: 2 }}
+      tabs={versionTabs}
+      sidebar={{ defaultOpenLevel: version === 'legacy' ? 2 : 0, banner: <VersionSwitcher version={version} destinations={destinations} /> }}
       {...baseOptions()}
     >
-      <AISearch>
+      <AISearch key={version} version={version}>
         <AISearchPanel />
         <AISearchTrigger
           position="float"

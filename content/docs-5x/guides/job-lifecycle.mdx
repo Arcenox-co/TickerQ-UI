@@ -1,0 +1,69 @@
+---
+title: "Retries, timeouts, and cancellation"
+description: "Understand pending, running, and terminal states before operating a job."
+---
+
+Jobs normally move from **Idle** to **Queued** to **InProgress**, then reach a terminal status such as **Done**, **DueDone**, **Failed**, **Cancelled**, or **Skipped**. Some immediate paths enter execution without a separate queued display.
+
+**Done** and **DueDone** both mean success. DueDone identifies successful execution through the overdue/fallback path; it is not a failure or a guarantee that a business deadline was met. **Skipped** means the handler was not run for a recorded policy or condition.
+
+An individual parent's terminal status does not mean its whole chain is finished. Dashboard chain summaries include the root and all descendants; inspect the chain when other steps are still active.
+
+## Retries and timeouts
+
+Set `Retries` and `RetryIntervals` on the job or schedule. Intervals are seconds. For example, `Retries = 2` and `RetryIntervals = [10, 30]` allows two retry attempts after a failure, in addition to the first attempt. If the array is shorter than the retry count, its last interval is reused. If no intervals are supplied, retry waits default to 30 seconds. Timeout cancellation is terminal and does not consume the ordinary retry budget.
+
+`TimeoutSeconds` sets a per-attempt timeout. Null inherits the scheduler default; zero or a negative value disables the timeout for that job. A timeout requests cancellation. It cannot forcibly terminate arbitrary .NET code or reverse an external side effect.
+
+## Handle application exceptions
+
+Implement `ITickerExceptionHandler` from `TickerQ.Utilities.Interfaces` and register it inside `AddTickerQ` with `options.SetExceptionHandler<YourHandler>()` when your application needs a callback:
+
+| Callback | Called for |
+| --- | --- |
+| `HandleExceptionAsync(Exception, Guid, TickerType)` | Each failed function attempt, including attempts that may later succeed on retry |
+| `HandleCanceledExceptionAsync(Exception, Guid, TickerType)` | Observed execution cancellation and timeout cancellation |
+
+The handler is registered as a **singleton**. Keep it thread-safe and create a service scope if it needs scoped database services. The runtime awaits these callbacks; keep them short and do not treat them as a durable event queue. Cancelling a pending job without running it does not invoke an execution exception callback.
+
+For terminal-failure alerts, delivery retries, and recovery messages configured in the dashboard, use [Integrations](/docs/5.x/integrations). Its alert rules are distinct from these per-attempt application hooks.
+
+## Recovery after a worker stops
+
+`OnStale` is a separate per-job recovery decision when an execution lease expires:
+
+| Value | Behavior |
+| --- | --- |
+| `StaleAction.Restart` (default) | Make the job eligible to run again, bounded by `MaxStaleRestarts` |
+| `StaleAction.Cancel` | Record a cancelled stale execution instead of automatically restarting it |
+
+Set it on `TimeTickerEntity`, on `CronTickerEntity` for its occurrences, or on each `CronChainNode`. The scheduler's default stale-restart limit is three. This counter is separate from `Retries`, which handles failures returned by a live function. Recovery requires a provider that supports leases.
+
+Choosing `Cancel` does not establish exactly-once processing: an external operation may already have succeeded before the worker stopped, and manual reruns remain possible. Use a business idempotency key for side effects. See [lease recovery](/docs/5.x/guides/reliability#lease-renewal--stale-job-recovery).
+
+## Cancel a pending time ticker
+
+```csharp
+var result = await timeTickerManager.CancelAsync(jobId, cancellationToken);
+if (!result.IsSucceeded)
+    throw result.Exception;
+```
+
+Pending Idle/Queued work and its pending children are cancelled together. This does not execute the job or its `OnCancelled` child handlers: those pending children are cancelled too. Running and terminal jobs are not changed by this pending cancellation operation. If acquisition wins the race, check the result and use running cancellation where appropriate. Do not set `Status` directly in the database; manager operations enforce the state transition.
+
+## Request cancellation of running work
+
+```csharp
+var result = await timeTickerManager.RequestCancellationAsync(jobId, cancellationToken);
+```
+
+This signals a running execution **in the current host/runtime**. A cron manager takes the **occurrence ID**. It is not a cluster-wide remote cancellation mechanism, and a successful signal does not prove the function has exited.
+
+Handlers must cooperate:
+
+```csharp
+await httpClient.SendAsync(request, cancellationToken);
+cancellationToken.ThrowIfCancellationRequested();
+```
+
+Use the dashboard's cancellation confirmation to see which operation applies. Observe the subsequent status and logs before assuming the execution has stopped. For leases, stale recovery, and shutdown behavior, see [reliability](/docs/5.x/guides/reliability).

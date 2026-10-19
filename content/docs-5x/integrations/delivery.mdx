@@ -1,0 +1,97 @@
+---
+title: "Delivery and troubleshooting"
+description: "Understand retries, cooldowns, storage limits, and missing webhook messages."
+---
+
+Job alerts and monitoring messages share an HTTP transport, but their queues have different durability. Use **Integrations → Activity** to inspect recent outcomes and **Monitoring** to inspect incidents and pending transitions.
+
+## Delivery guarantees
+
+| Message source | Queue and state | Restart behavior |
+| --- | --- | --- |
+| Alert rule | Process-local event queue, cooldowns, and counters | Pending events and counters are lost |
+| Monitor | Persistent incident state and delivery queue when the operational provider supports it | Saved transitions resume after their leases expire |
+
+Settings persist in the operational store. That does not make ordinary event delivery durable. Event alerts have no replay, cluster-wide cooldown, or exactly-once delivery. Monitor queues also permit duplicates after a crash or an ambiguous HTTP result. Custom receivers can deduplicate with `eventId`; see [persistent monitoring delivery](/docs/5.x/integrations/monitoring#persistent-incident-state-and-delivery).
+
+HTTP success means the endpoint accepted the request. It does not prove that a person saw the message. Use an external alerting system for requirements such as guaranteed escalation or a permanent incident audit trail.
+
+## HTTP attempts and retries
+
+Job execution only enqueues the event. A background worker sends requests, with up to four destinations in parallel per event. Monitoring delivery runs separately.
+
+The transport makes at most three attempts per delivery. It retries network failures, timeouts, HTTP 408/429, and 5xx with 1-second and 5-second delays. A longer `Retry-After` is honored up to 60 seconds; a requested delay beyond that produces a visible failure. Other 4xx responses and redirects are not retried. Responses are not followed to another URL.
+
+Monitoring can retry a failed delivery batch after one and two minutes, for at most three batches. Each batch uses the HTTP retry policy above. Ordinary event alerts have no additional persistent retry stage.
+
+## Cooldowns and duplicates
+
+Overlapping alert rules send once per destination per event. The smallest matching cooldown wins. Cooldown applies to attempts for the same **destination, event kind, and function**, including failed attempts. Zero disables it; the accepted range is 0–86,400 seconds.
+
+Cooldown is local to each process. Replicas do not share it. Monitoring selects its destinations directly and does not use alert-rule cooldowns. Enabling both a `failed` alert rule and a repeated-failure monitor can intentionally produce both an individual failure message and a separate incident message.
+
+## Host options and limits
+
+Set these through the existing `options.AddIntegrations(...)` callback:
+
+| Host option | Default | Accepted range or behavior |
+| --- | --- | --- |
+| `QueueCapacity` | 1,000 events | 1–100,000; a full queue drops the new event |
+| `RequestTimeout` | 10 seconds | 1–60 seconds per HTTP attempt |
+| `MonitoringInterval` | 30 seconds | 5 seconds–5 minutes |
+| `AllowedHosts` | Empty | Exact DNS host allowlist; empty permits public HTTPS destinations |
+| `AllowPrivateEndpoints` | `false` | Explicit host opt-in for trusted internal destinations |
+| `ReasonSanitizer` | No custom sanitizer | Application-specific redaction before an event enters the queue |
+
+Queue drops increment the visible counter and generate rate-limited warnings. The latest 50 event delivery results are process-local. Monitoring adds its bounded persisted history to Activity.
+
+Configuration limits are 32 connections, 100 alert rules, 20 monitors, 16 headers per connection, 16,000 characters per template, 24,000 bytes per rendered payload, and a 256 KB dashboard request. There is no unbounded event backlog in memory.
+
+## Destination and payload boundaries
+
+HTTPS is required. Redirects and HTTP proxies are disabled. DNS addresses are checked and the connection uses a validated address. Loopback/private destinations are blocked unless the host enables `AllowPrivateEndpoints`; the dashboard cannot change that option. `AllowedHosts` contains hostnames, not full URLs or wildcard domain patterns, and does not bypass the private-address check.
+
+Job request bodies and stack traces are not included in integration events. Failure reasons are flattened and truncated to 512 characters; that is not secret detection. Use `ReasonSanitizer` when exception messages can contain application secrets or personal data. Transport logs omit destination URLs, headers, response bodies, and exception messages.
+
+## Diagnose a missing message
+
+| Observation | Check |
+| --- | --- |
+| A connection exists, but no messages appear | Create an enabled alert rule or monitor; a connection alone does not subscribe to events |
+| A test works, but job alerts do not | Verify the event type, exact function/pattern, exclusions, rule state, and cooldown; tests bypass event matching |
+| The suppressed counter increases | A matching alert was within this node's cooldown window |
+| The dropped counter increases | This node's event queue is full; investigate slow destinations and event volume |
+| Activity reports failure | Check its HTTP/timeout result, destination policy, DNS/TLS, and the current webhook credentials |
+| Settings are unavailable | Check the provider schema, shared Data Protection keys, and application name |
+| Saving reports a conflict | Reload the configuration and reapply the intended edit; another administrator or replica changed its version |
+| A recovery message is missing | Check that recovery is enabled and that the monitor recorded success after opening an incident; see [monitor states](/docs/5.x/integrations/monitoring#understand-monitor-state) |
+| Nothing arrives after an application outage | Event queues are lost on restart; monitors resume only when an application replica is running |
+
+A **Send test** action sends a sample job alert to the saved connection, even if the connection is paused. It does not run a job, exercise event matching, or prove that a monitor will open and recover. Only one test can be in progress per node.
+
+## Extend to another application
+
+Register a formatter with a unique stable name. It appears in the dashboard provider selector automatically, sharing the same storage, rules, and guarded HTTP transport:
+
+```csharp
+using TickerQ.Integrations;
+
+builder.Services.AddSingleton<IIntegrationPayloadFormatter, MyAppFormatter>();
+
+public sealed class MyAppFormatter : IIntegrationPayloadFormatter
+{
+    public string Name => "my-app";
+
+    public System.Text.Json.Nodes.JsonObject Format(
+        TickerQ.Utilities.Integrations.IntegrationDestination destination,
+        IntegrationMessage message) => new()
+    {
+        ["summary"] = $"{message.Event.Function}: {message.Event.Kind}",
+        ["reference"] = message.EventId.ToString()
+    };
+}
+```
+
+Formatters must be thread-safe and must not perform network I/O. This extension point supports applications accepting JSON over HTTPS; OAuth flows, non-HTTP transports, and file attachments need additional adapters. Register the same formatters on every replica sharing settings.
+
+Applications without the dashboard can resolve `ITickerIntegrationAdminService` from DI to read/redact settings, save with the returned version, preview, or send an explicit test. Enforce equivalent authorization if exposing those methods through another API.

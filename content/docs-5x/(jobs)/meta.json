@@ -1,0 +1,18 @@
+{
+  "title": "Jobs and workflows",
+  "icon": "Workflow",
+  "pages": [
+    "---Define and schedule---",
+    "../guides/defining-jobs",
+    "../guides/function-registration",
+    "../guides/requests-results",
+    "../guides/scheduling",
+    "../guides/managers",
+    "../guides/job-lifecycle",
+    "---Chain jobs---",
+    "../guides/job-chaining",
+    "../guides/recurring-chains",
+    "../guides/cron-overlap",
+    "../guides/chain-deletion"
+  ]
+}

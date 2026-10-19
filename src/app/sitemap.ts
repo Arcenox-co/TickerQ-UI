@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { source } from '@/lib/source';
+import { allDocPages } from '@/lib/source';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = 'https://tickerq.net';
@@ -9,7 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: base, lastModified: now, changeFrequency: 'weekly', priority: 1 },
   ];
 
-  const docRoutes: MetadataRoute.Sitemap = source.getPages().map((page) => ({
+  const docRoutes: MetadataRoute.Sitemap = allDocPages().map((page) => ({
     url: `${base}${page.url}`,
     lastModified: now,
     changeFrequency: 'weekly',

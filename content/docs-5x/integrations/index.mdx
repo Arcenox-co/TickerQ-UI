@@ -1,0 +1,144 @@
+---
+title: "Integrations"
+description: "Configure Slack, Teams, and custom webhook alerts from the dashboard."
+---
+
+Optional job alerts for Slack, Teams Workflows, and custom JSON webhooks. Operators manage destinations, function filters, event types, and payload templates in the TickerQ dashboard. Settings are encrypted and saved in the existing operational store, scoped to the application's runtime namespace.
+
+<DashboardScreenshot name="integrations" alt="Configured Slack connection in the TickerQ dashboard" caption="Manage shared connections in the dashboard. This screenshot comes from the local integration demo." />
+
+## Choose what to configure
+
+| Need | Configure | Guide |
+| --- | --- | --- |
+| Send a message when a job fails or times out | A connection and an alert rule | [Alert rules](#alert-rules-and-function-filters) |
+| Detect repeated failures, slow execution, or a missed daily deadline | A connection and a monitor | [Job monitoring](/docs/5.x/integrations/monitoring) |
+| Change the message content | Templates on the connection | [Message templates](/docs/5.x/integrations/templates) |
+| Understand retries, duplicates, or a missing message | Delivery activity and transport settings | [Delivery and troubleshooting](/docs/5.x/integrations/delivery) |
+
+A **connection** stores where to send messages. An **alert rule** matches a scheduler event. A **monitor** evaluates executions over time and tracks an incident and optional recovery. Both can use the same connection; a monitor does not need an additional alert rule.
+
+## Enable once in the host
+
+Add `TickerQ.Integrations` alongside the matching versions of TickerQ, the dashboard, and your storage provider. The core scheduler and dashboard do not depend on this package.
+
+```csharp
+using Microsoft.AspNetCore.DataProtection;
+using TickerQ.DependencyInjection;
+using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.Integrations;
+using TickerQ.Integrations.DependencyInjection;
+
+// Reuse your application's existing persistent Data Protection configuration.
+// Every replica needs the same application name and access to the same key ring.
+builder.Services.AddDataProtection()
+    .SetApplicationName("orders-production")
+    .PersistKeysToFileSystem(new DirectoryInfo("/var/lib/orders/data-protection"));
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseApplicationNamespace("orders-production");
+    options.UseReconciliationEpoch(1);
+    options.UseLicense("tickerq.tqlicense");
+    // Keep your existing operational-store and scheduler configuration here.
+    options.AddDashboard(dashboard =>
+    {
+        dashboard.WithHostAuthentication("SchedulerOperators");
+        dashboard.SetReadOnly(context =>
+            !context.User.IsInRole("SchedulerOperator") &&
+            !context.User.IsInRole("SchedulerAdmin"));
+        dashboard.AllowIntegrationManagement(context =>
+            context.User.IsInRole("SchedulerAdmin"));
+    });
+
+    options.AddIntegrations(integrations =>
+    {
+        integrations.ApplicationName = "Orders";
+        integrations.EnvironmentName = "Production";
+        integrations.DashboardUrl = "https://orders.example.com/tickerq/dashboard";
+        // Optional: restrict outbound destinations to exact DNS host names.
+        // integrations.AllowedHosts = ["hooks.slack.com", "alerts.example.com"];
+        // integrations.ReasonSanitizer = reason => RedactApplicationSecrets(reason);
+    });
+});
+```
+
+`options.AddIntegrations()` also works with defaults. It uses the same builder registration pipeline as the other TickerQ packages, supports custom ticker entity types, and can appear before or after `AddDashboard` and `AddOperationalStore`.
+
+Configure the host's authentication and `SchedulerOperators` authorization policy as usual. Integration management is denied by default. The permission callback is additional to dashboard authentication, read-only restrictions, and the existing license write gate. Grant it only to operators allowed to configure outbound HTTP destinations. Use the [existing-users example](/docs/5.x/dashboard/existing-users) to define that policy and its roles, or map [permission scopes](/docs/5.x/dashboard/authorization#roles-or-permission-scopes). With dashboard Basic authentication, `context.Items["auth.username"]` is available on authenticated API requests; use host authentication when role-based controls must also apply to the runtime configuration script.
+
+Protect the key-ring directory with service-account permissions, persist it across restarts, and share it across replicas. Use your deployment's supported Data Protection key-encryption mechanism for keys at rest. Losing the key ring makes existing destinations unreadable; back it up with the operational database. Do not use an ephemeral key provider in production.
+
+Use **either** this package **or** `NotifyFailuresViaWebhook(...)`. Registering both fails with a configuration error. To migrate, remove the old option, then add its URL, headers, and an appropriate rule in Integrations. Opting into this package replaces the `ITickerQFailureNotifier` registration.
+
+## Configure in the dashboard
+
+1. Open **System → Integrations → Connections** and choose Slack, Microsoft Teams, or Custom webhook. Give the connection a name and enter its HTTPS webhook URL. Save the integration in its editor.
+2. Choose **Add rule** on the connection, or open **Alert rules → Create rule**. Select integrations and events, then choose all functions or specific names/patterns. Exclusions and cooldown are under advanced settings. Save the rule to start matching events.
+3. In **Configure → Message templates**, choose **Job alert**, **Monitor alert**, or **Recovery**. Each has its own default or custom JSON template. Previews update with sample values without sending a message. Headers are under **Advanced settings**; blank keeps saved values and **Remove saved headers** clears them.
+4. Open **Monitoring → Create monitor** to configure a daily deadline, long-running execution, or repeated-failure condition for one function. Select its connections and whether to send recovery messages.
+5. Use **Send test** on a saved connection to send a sample message after confirmation, including when paused. No job runs. **Activity** combines recent delivery attempts from this node with persisted monitoring delivery history. Suppressed/dropped counters apply to event alerts on this node.
+
+Each integration and rule saves independently. Cancelling an editor discards its changes after confirmation. Removing an integration also removes any alert rules or monitors that use only that connection; the confirmation shows the affected count. Configure the package with `AddIntegrations` and grant dashboard access with `AllowIntegrationManagement`.
+
+### Alert rules and function filters
+
+| Event | When it is emitted |
+| --- | --- |
+| `failed` | Final failure after the available retries |
+| `timeout_cancelled` | Execution timeout cancellation |
+| `stale_recovered` | Recovery of an abandoned job |
+| `contract_drift` | Stored request contract no longer matches the registered function contract |
+
+Rules operate on scheduler events; they do not add messages for every retry, successful execution, or manual cancellation. Use a monitor with recovery enabled when you need an incident followed by a recovery message.
+
+Function filters are **case-sensitive**. An empty include list matches every function; an exclusion always wins. `*` matches zero or more characters and `?` matches one character. These are simple wildcard patterns, not regular expressions.
+
+For example, include `Invoices.*` and exclude `Invoices.Preview*` to alert on invoice functions except previews. Selecting `Invoices.Generate` matches only that exact function. A rule can contain up to 100 include patterns and 100 exclude patterns, each at most 256 characters. Monitors use one exact function name and do not accept patterns.
+
+Both the rule and its connection must be enabled. Settings are read when an event is dispatched, so pausing or editing a connection affects queued events that have not yet been sent. See [cooldowns and delivery guarantees](/docs/5.x/integrations/delivery#cooldowns-and-duplicates) before using overlapping rules.
+
+### Connection credentials
+
+Create an incoming webhook using [Slack's setup instructions](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks). For Teams, configure a [Workflows webhook that accepts Adaptive Cards](https://learn.microsoft.com/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook). Use a trigger compatible with the configured webhook URL and authentication headers; the package does not acquire or refresh OAuth tokens. Assign appropriate workflow co-owners so delivery does not depend on one employee account.
+
+URLs and header values are write-only in the dashboard API. Blank URL/headers preserve saved values; `{}` clears headers. Changing provider requires a new URL and does not reuse the previous provider's headers. Saves use a version token, so concurrent edits fail with a reload prompt instead of overwriting another operator's changes.
+
+## Storage and schema
+
+| Operational provider | Settings storage |
+| --- | --- |
+| EF Core | One `IntegrationSettings` row per runtime namespace; uses ordinary EF operations, without PostgreSQL-specific SQL. |
+| MongoDB | One document per namespace in `<TimeTickersCollectionName>_IntegrationSettings`; created on first save for new installations. |
+| Redis operational store | One `<runtimePrefix>integrations:settings` hash, atomically updated by Lua, without an expiration. Configure Redis persistence and an eviction policy appropriate for operational data. |
+| In-memory | Process-local settings, lost on restart. Intended for development. |
+
+For a new EF Core installation, **generate and apply a migration before enabling integrations**:
+
+```sh
+dotnet ef migrations add AddTickerQIntegrationSettings --context AppDbContext
+dotnet ef database update --context AppDbContext
+```
+
+The TickerQ model customizer and standalone context include the mapping automatically. If you use `ConfigurationType.IgnoreModelCustomizer` and maintain the model manually, add this alongside the existing TickerQ mappings before generating the migration:
+
+```csharp
+modelBuilder.ApplyConfiguration(
+    new TickerQ.EntityFrameworkCore.Configurations.IntegrationSettingsConfigurations("ticker"));
+// Replace "ticker" with your configured TickerQ schema.
+```
+
+A Redis cache layered over EF does not move these settings into Redis: the operational provider remains the source of truth. Custom providers can implement `ITickerIntegrationSettingsStore`; unsupported providers report an explicit error. All replicas sharing settings must use the same formatters and host-level endpoint policy.
+
+## Upgrade existing notification settings
+
+The former Notifications feature is now Integrations throughout the package, configuration contracts, dashboard API, and storage. Update callers to `AddIntegrations`, `AllowIntegrationManagement`, and the `Integration*` types in `TickerQ.Utilities.Integrations`. Dashboard API paths are now `/integrations`, `/integrations/preview`, and `/integrations/destinations/{id}/test` under the configured dashboard base path plus `/api/dashboard`. The old `/notifications` routes are not aliases.
+
+Before upgrading an existing installation, stop all old replicas and back up the settings and Data Protection key ring. Keep the existing runtime namespace, Data Protection application name, and keys. Rename the storage before starting the new version:
+
+- **EF Core:** generate a migration for your application context. Review the generated operations: changing both the CLR entity and table name can scaffold a destructive drop/create. Replace those operations with a table rename from `NotificationSettings` to `IntegrationSettings` and a primary-key rename from `PK_NotificationSettings` to `PK_IntegrationSettings` (drop/add the constraint, retaining its `ApplicationNamespaceKey` column). Keep your configured schema. The [Console sample migration](https://github.com/Arcenox-co/TickerQ/blob/000145760f7b59aba6814b83501fcc41a3731618/samples/TickerQ.Sample.Console/Migrations/20261018190000_RenameIntegrationSettings.cs) shows the provider-independent EF operations; matching migrations are included in the other samples. Existing encrypted payloads and version tokens remain intact.
+- **MongoDB:** rename `<TimeTickersCollectionName>_NotificationSettings` to `<TimeTickersCollectionName>_IntegrationSettings` in the same database using `RenameCollectionAsync` with `DropTarget = false`. This preserves every namespace's document. If both collections exist, resolve them before migration; do not drop the target.
+- **Redis operational store:** for each existing runtime prefix, use `RENAMENX <runtimePrefix>notifications:settings <runtimePrefix>integrations:settings`. Preserve the entire prefix, including the runtime partition/hash tag. This keeps the version and encrypted payload together. If both keys exist, resolve them before migration; do not overwrite the target. This step is unnecessary when Redis is only a cache over EF.
+- **In-memory:** settings do not survive a process restart; recreate them in the dashboard.
+
+New writes use the encryption purpose `TickerQ.Integrations.Configuration.v1`. On the first read, the service can decrypt a legacy `TickerQ.Notifications.Configuration.v1` payload and re-encrypt it under the new purpose. This update uses the stored version token, so it cannot overwrite a concurrent edit. Existing destinations, secrets, and rules are preserved; a stale editor must reload after the version changes. Invalid ciphertext fails without clearing settings. Do not run old and new versions together: old versions cannot decrypt upgraded records. A rollback needs the matching pre-upgrade settings and key-ring backup, not just the reverse table rename.

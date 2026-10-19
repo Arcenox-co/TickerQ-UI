@@ -1,0 +1,7 @@
+{
+  "title": "Entity Framework Core",
+  "pages": [
+    "index",
+    "transactional-scheduling"
+  ]
+}

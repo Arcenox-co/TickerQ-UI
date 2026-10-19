@@ -1,0 +1,39 @@
+---
+title: "Licensing and certificates"
+description: "One agreement, with Community, Evaluation, and paid subscription options."
+---
+
+Commercial 5.x packages are distributed under the [TickerQ Software License Agreement](https://github.com/Arcenox-co/TickerQ/blob/main-commercial/LICENSE.md). They are source-available. A public repository or package download does not itself grant permission to operate the software.
+
+## Choose your entitlement
+
+| Option | Who it is for |
+| --- | --- |
+| **Community — free** | Eligible individuals acting on their own behalf, registered nonprofits, qualifying educational use, and for-profit legal entities with consolidated gross revenue below USD 5 million |
+| **Evaluation** | A one-time 30-day internal, non-production evaluation, subject to the agreement |
+| **Commercial Subscription** | Organizations that require a paid entitlement, including for-profit entities at or above the USD 5 million threshold |
+
+Community eligibility uses the agreement's organization/control-group and revenue definitions, not just one team's revenue. Community certificates have a twelve-month term with eligibility reassessment for renewal. Educational and nonprofit categories have their own conditions. These summaries do not replace the agreement.
+
+[Start free or choose a plan in the licensing portal](https://license.tickerq.net). The portal supplies your certificate; the same technical setup applies to all entitlement options.
+
+## Install the certificate
+
+TickerQ looks for `tickerq.tqlicense` in the host's content root by default. To choose a different location, configure it inside `AddTickerQ`:
+
+```csharp
+options.UseLicense("licenses/tickerq.tqlicense");
+```
+
+Relative paths resolve from the content root. Mount or deploy the unmodified file on every replica, give the application identity read access, and keep certificates out of public source control. Restart the host after replacing a certificate.
+
+## Runtime behavior
+
+- A missing, invalid, or forged certificate blocks job execution. The dashboard can still report the licensing problem.
+- Expiration produces warnings and preserves runtime continuity. Continued execution does not establish permission to use the software.
+- Evaluation never permits production use. Community and Evaluation have no paid fallback entitlement.
+- Paid fallback rights depend on the agreement, covered packages, payment, functional line, and release dates. The runtime does not independently establish those contractual rights.
+
+## Earlier releases
+
+Previously distributed MIT and/or Apache 2.0 artifacts retain the terms included with those artifacts. The 5.x agreement does not revoke those historical grants. Use [legacy docs](/docs) for earlier APIs and review the [licensing reference](https://github.com/Arcenox-co/TickerQ/blob/main-commercial/LICENSING.md) for the transition boundaries.

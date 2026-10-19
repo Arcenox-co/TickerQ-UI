@@ -1,0 +1,96 @@
+---
+title: "Authentication and deployment"
+description: "Choose dashboard access, protect writes, and configure sessions and reverse proxies."
+---
+
+The dashboard can inspect and operate your scheduler. Configure authentication before exposing it. Startup rejects missing authentication unless you explicitly call `AllowAnonymousDashboard()`.
+
+## Choose an authentication mode
+
+| Mode | Configuration | Behavior |
+| --- | --- | --- |
+| Host authentication | `WithHostAuthentication(policy, loginRedirectPath)` | Reuses your application's authenticated user and authorization policy |
+| HTTP Basic | `WithBasicAuth(username, password)` | Validates Basic credentials; an async validator overload is also available |
+| API key | `WithApiKey(key)` or `WithApiKey(key, headerName)` | Validates a static key from Bearer authorization or your named header |
+| Dashboard JWT or cookie login | `WithAuthentication(auth => ...)` | Issues signed sessions using explicitly configured users and signing keys |
+| Custom authentication | `WithCustomAuth(...)` | Uses your header validator or async `HttpContext` validator; request-scoped database services are available |
+
+Basic authentication and API keys **do not issue dashboard JWTs**. The JWT/cookie login endpoints exist only when those issuing schemes are configured. Use HTTPS for credentials and keep secrets outside source control. Choose host authentication for individual application users and their roles; the other modes serve applications that deliberately manage dashboard access separately.
+
+`WithAuthentication(auth => ...)` can register multiple schemes. They are tried in registration order until one succeeds; adding schemes is not a way to require multiple credentials or MFA. Use a single host identity policy when combining access requirements.
+
+## Existing users, roles, and scopes
+
+For database-backed application users, use **host authentication**. It reuses your sign-in flow and authenticated principal, including roles and claims. It does not require copying users into dashboard configuration.
+
+- [Use existing users](/docs/5.x/dashboard/existing-users): connect ASP.NET Core Identity or your own user store, configure the host pipeline, and support browser sessions and live updates.
+- [Roles and permissions](/docs/5.x/dashboard/authorization): grant viewer, operator, and integration-administrator access using roles, permission claims, or OAuth scopes.
+
+`SetReadOnly(true)` makes the dashboard read-only for everyone. The predicate overload supports per-user restrictions with server-side enforcement. `AllowIntegrationManagement` is a separate permission and defaults to denied. Neither bypasses license restrictions.
+
+## Built-in JWT sessions
+
+Use this alternative when you deliberately want dashboard-issued credentials instead of host authentication:
+
+```csharp
+dashboard.WithAuthentication(auth => auth.AddJwtBearer(jwt =>
+{
+    jwt.SetSigningKey(builder.Configuration["TickerQ:Dashboard:SigningKey"]
+        ?? throw new InvalidOperationException("Dashboard signing key is required."));
+    jwt.AddUser(
+        builder.Configuration["TickerQ:Dashboard:Username"]
+            ?? throw new InvalidOperationException("Dashboard username is required."),
+        builder.Configuration["TickerQ:Dashboard:Password"]
+            ?? throw new InvalidOperationException("Dashboard password is required."));
+    jwt.AccessTokenLifetime = TimeSpan.FromMinutes(60);
+}));
+```
+
+Supply a strong signing secret of at least 32 bytes from a secret store. Replicas must share the key, issuer, audience, and user configuration. `AddCookieLogin(...)` provides the equivalent signed-cookie option, with `SessionLifetime` and `AddUser`. Cookie sessions default to eight hours; Bearer access tokens default to 60 minutes.
+
+For local development only, `AllowEphemeralSigningKey = true` permits a random process-local key. Tokens then stop working after restart or when routed to another instance. This option is not enabled automatically, even for a single server. The built-in user store is configured by the application; it is not a user-management or SSO service.
+
+### Renewal and logout
+
+With JWT/cookie login configured, paths are relative to the dashboard base path:
+
+| Endpoint | Behavior |
+| --- | --- |
+| `POST /api/auth/login` | Validate configured credentials and issue a session |
+| `POST /api/auth/refresh` | Renew from a still-valid token; expired tokens require login |
+| `POST /api/auth/logout` | Clear the auth cookie; the browser also discards its stored Bearer token |
+
+Renewal is sliding access-token renewal. There is no durable refresh-token store or per-token revocation. Client logout does not revoke an already-issued Bearer token. Keep lifetimes appropriate to your access policy; use your host identity system when you need its session-management capabilities.
+
+Cookies are HttpOnly and SameSite=Strict. `SecureCookie` defaults to true; disable it only for a plain-HTTP local demo. Login endpoints limit failures to five per five-minute window, using separate IP and username buckets. These limits are process-local; use edge controls when you need shared protection across replicas. A throttled request returns 429 with `Retry-After`.
+
+## Reverse proxies and cross-origin access
+
+Forwarded headers are disabled unless trusted proxies or networks are configured:
+
+```csharp
+dashboard.TrustForwardedProxy(System.Net.IPAddress.Parse("10.0.0.4"));
+// Or a network that is actually controlled by your deployment:
+// dashboard.TrustForwardedNetwork(System.Net.IPNetwork.Parse("10.0.0.0/24"));
+```
+
+These methods enable forwarded headers. Calling `EnableForwardedHeaders()` without a trust list fails validation. Trust only your actual proxy addresses so clients cannot choose their reported IP, host, or scheme.
+
+For a split-origin deployment, configure exact browser origins:
+
+```csharp
+dashboard.SetBackendDomain("https://api.example.com");
+dashboard.AllowOrigins("https://ops.example.com");
+```
+
+`SetBackendDomain` selects the API domain; it does not grant CORS access. Origins must be absolute HTTP(S) origins with no extra path, query, or fragment. Cross-origin access is denied by default. `SetCorsPolicy(...)` supports custom policies; retain a deliberate credentialed-origin boundary.
+
+## Local anonymous access
+
+```csharp
+dashboard.AllowAnonymousDashboard();
+```
+
+This exposes dashboard data and permitted operations to anyone who can reach it. Use it only for an isolated local demo or when an independently configured access layer protects the endpoint. Read-only mode limits mutations but does not make job data public-safe.
+
+Before production, verify the unauthenticated path, a read-only user, and an operator through the real proxy. Ensure live updates work, keep Data Protection keys persistent/shared when using integrations, and confirm application logs do not expose credentials. Dashboard settings are described in the [setup guide](/docs/5.x/dashboard).

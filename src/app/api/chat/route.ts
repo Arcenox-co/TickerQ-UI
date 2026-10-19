@@ -1,7 +1,8 @@
 import { openai } from '@ai-sdk/openai';
 import { convertToModelMessages, stepCountIs, streamText, tool } from 'ai';
 import { z } from 'zod';
-import { source, getLLMText } from '@/lib/source';
+import { documentationSources, getLLMText } from '@/lib/source';
+import { docsVersions, isDocsVersion, type DocsVersion } from '@/lib/docs-versions';
 import { Document, type DocumentData } from 'flexsearch';
 
 interface CustomDocument extends DocumentData {
@@ -18,9 +19,9 @@ interface SearchResult {
   excerpt: string;
 }
 
-const searchServer = createSearchServer();
+const searchServers: Partial<Record<DocsVersion, ReturnType<typeof createSearchServer>>> = {};
 
-async function createSearchServer() {
+async function createSearchServer(version: DocsVersion) {
   const search = new Document<CustomDocument>({
     document: {
       id: 'url',
@@ -30,7 +31,7 @@ async function createSearchServer() {
     tokenize: 'forward',
   });
 
-  const pages = source.getPages();
+  const pages = documentationSources[version].getPages();
   let indexed = 0;
 
   await Promise.all(
@@ -105,39 +106,41 @@ function extractResults(raw: unknown): SearchResult[] {
   return results;
 }
 
-const searchTool = tool({
-  description: 'Search the TickerQ documentation. Returns page titles, URLs, and content excerpts.',
-  inputSchema: z.object({
-    query: z.string().describe('Search query — use keywords like "TimeTicker", "cron", "retry", "dashboard auth"'),
-    limit: z.number().int().min(1).max(10).default(5),
-  }),
-  async execute({ query, limit }) {
-    const search = await searchServer;
+function createSearchTool(version: DocsVersion) {
+  return tool({
+    description: 'Search the TickerQ documentation. Returns page titles, URLs, and content excerpts.',
+    inputSchema: z.object({
+      query: z.string().describe('Search query — use keywords like "TimeTicker", "cron", "retry", "dashboard auth"'),
+      limit: z.number().int().min(1).max(10).default(5),
+    }),
+    async execute({ query, limit }) {
+      const search = await (searchServers[version] ??= createSearchServer(version));
 
-    // Search with individual words for better coverage
-    const words = query.split(/\s+/).filter(w => w.length > 1);
-    const queries = [query, ...words];
+      // Search with individual words for better coverage
+      const words = query.split(/\s+/).filter(w => w.length > 1);
+      const queries = [query, ...words];
 
-    const allResults: SearchResult[] = [];
-    const seen = new Set<string>();
+      const allResults: SearchResult[] = [];
+      const seen = new Set<string>();
 
-    for (const q of queries) {
-      const raw = await search.searchAsync(q, { limit, enrich: true });
-      const results = extractResults(raw);
-      for (const r of results) {
-        if (!seen.has(r.url)) {
-          seen.add(r.url);
-          allResults.push(r);
+      for (const q of queries) {
+        const raw = await search.searchAsync(q, { limit, enrich: true });
+        const results = extractResults(raw);
+        for (const r of results) {
+          if (!seen.has(r.url)) {
+            seen.add(r.url);
+            allResults.push(r);
+          }
         }
+        if (allResults.length >= limit) break;
       }
-      if (allResults.length >= limit) break;
-    }
 
-    return allResults.slice(0, limit);
-  },
-});
+      return allResults.slice(0, limit);
+    },
+  });
+}
 
-export type SearchTool = typeof searchTool;
+export type SearchTool = ReturnType<typeof createSearchTool>;
 
 const systemPrompt = [
   'You are an AI assistant for the TickerQ documentation site.',
@@ -155,13 +158,17 @@ const systemPrompt = [
 
 export async function POST(req: Request) {
   const reqJson = await req.json();
+  const version = reqJson.version ?? 'legacy';
+  if (!isDocsVersion(version)) {
+    return Response.json({ error: 'Unknown documentation version.' }, { status: 400 });
+  }
 
   const result = streamText({
     model: openai(process.env.OPENAI_MODEL ?? 'gpt-4o-mini'),
     stopWhen: stepCountIs(5),
-    tools: { search: searchTool },
+    tools: { search: createSearchTool(version) },
     messages: [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: `${systemPrompt}\nThe selected documentation is ${docsVersions[version].label}. Answer only for this version. Do not combine APIs or license terms from other versions. State when these docs do not answer the question.` },
       ...(await convertToModelMessages(reqJson.messages ?? [])),
     ],
     toolChoice: 'auto',

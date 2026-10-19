@@ -1,0 +1,95 @@
+---
+title: "Tracing and metrics"
+description: "Export job traces and runtime metrics through your existing observability pipeline."
+---
+
+Use traces to investigate one execution and metrics to follow runtime trends. Neither replaces persisted job history or [execution logs](/docs/5.x/guides/execution-logs).
+
+## Configure tracing
+
+Install `TickerQ.Instrumentation.OpenTelemetry` at the same full version as core. Configure an exporter using your application's existing OpenTelemetry setup.
+
+```csharp
+using OpenTelemetry.Trace;
+using TickerQ.Instrumentation.OpenTelemetry;
+
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing.AddTickerQInstrumentation());
+    // Add your chosen exporter to this tracing configuration.
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("tickerq.tqlicense");
+    options.UseApplicationNamespace("orders-production");
+    options.UseReconciliationEpoch(1);
+    // Keep your operational store and other options here.
+    options.AddOpenTelemetryInstrumentation();
+});
+```
+
+The host pipeline listens to TickerQ's activity source; the TickerQ builder enables the instrumentation that emits job spans. You need both registrations, plus an exporter if traces should leave the process.
+
+Core also provides `options.EnableActivitySource()`. If you already configure tracing without this optional package, enable that method and subscribe with `tracing.AddSource("TickerQ")`. Choose one instrumentation registration. Metrics use a separate meter and do not require enabling either tracing implementation.
+
+### What a trace contains
+
+| Activity | Meaning |
+| --- | --- |
+| `tickerq.job.execute.timeticker` / `tickerq.job.execute.cronticker` | Execution span with attempt and final-status tags |
+| `tickerq.job.enqueued` | Entry into the execution pipeline |
+| `tickerq.job.completed` | Completion outcome and duration |
+| `tickerq.job.failed`, `tickerq.job.cancelled`, `tickerq.job.skipped` | Failure, cancellation, or skipped execution event |
+| `tickerq.seeding.started`, `tickerq.seeding.completed` | Startup seeding events |
+| `tickerq.job_request_serialization.failed` | Request deserialization failure |
+
+Retries are recorded as attempt/retry tags and structured logs; there is no dedicated retry activity for every attempt. Parent job IDs are included when present. TickerQ does not persist and restore the originating HTTP request's trace context across the job database, restarts, or replicas; a parent-ID tag does not guarantee one continuous distributed trace for an entire chain.
+
+Use your observability system for external uptime checks and durable alert history. In-application [monitoring](/docs/5.x/integrations/monitoring) cannot send alerts while every scheduler replica is down.
+
+## Export metrics
+
+The `TickerQ` meter is separate from the activity source. Subscribe through your host's OpenTelemetry metrics setup:
+
+```csharp
+using OpenTelemetry.Metrics;
+using TickerQ.Utilities.Instrumentation;
+
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddMeter(TickerQMetrics.MeterName));
+    // Add your metrics exporter to this pipeline.
+```
+
+The core meter defines these instruments:
+
+| Instrument | Measures |
+| --- | --- |
+| `tickerq.jobs.enqueued` | Jobs handed to the execution pipeline |
+| `tickerq.jobs.completed` | Finished executions; `tickerq.success` distinguishes successful and unsuccessful outcomes |
+| `tickerq.jobs.failed` | Jobs that exhausted retries and reached Failed |
+| `tickerq.jobs.retried`, `tickerq.jobs.cancelled`, `tickerq.jobs.skipped` | Retry and policy outcomes |
+| `tickerq.jobs.stale_recovered` | Expired-lease recovery actions |
+| `tickerq.jobs.active` | In-flight executions on the current node |
+| `tickerq.job.duration` | Execution duration in milliseconds, including retry waits |
+| `tickerq.logs.pending_writes`, `tickerq.logs.dropped_unflushed`, `tickerq.logs.write_failures` | Buffered archive writes, dropped tails, and write failures |
+| `tickerq.logs.write_available` | Last write outcome: -1 unknown, 0 failed, 1 succeeded |
+| `tickerq.logs.last_successful_flush`, `tickerq.fallback.last_success` | Unix seconds of the last success; 0 before the first success |
+| `tickerq.fallback.failures` | Failed overdue-work scans |
+
+Current package limitation: `AddOpenTelemetryInstrumentation()` emits the enqueue activity but does not increment `tickerq.jobs.enqueued`. The core `EnableActivitySource()` implementation does increment it. Do not rely on that counter with the optional instrumentation package until this is corrected.
+
+Job counters and durations use the `tickerq.function` tag; completion/duration also carry `tickerq.success`. Attach service, environment, and instance identity through your host's OpenTelemetry resource configuration so multiple applications or replicas can be distinguished.
+
+The meter can be inspected locally with `dotnet-counters monitor --process-id PID --counters TickerQ` when the diagnostic tool is installed. Metrics are emitted by running processes, not reconstructed from database history. Label instances and aggregate deliberately in your collector; node-local values are not cluster totals.
+
+## Exported data
+
+Job spans include identity, function, priority, retries, parent ID when applicable, outcome, and duration. Failure tags include the exception type; the instrumentation does not export request bodies, exception messages, or stack traces as span tags. Caller/source-location metadata can be included, so treat the trace backend as a destination for application metadata. This restriction applies to TickerQ's span tags: structured `ILogger` events can still contain exception messages and cancellation/skip reasons, and your own job spans or logs may contain additional data.
+
+Metrics, diagnostic log tails, and integration messages serve different purposes. Use traces for execution investigation, metrics for trends and alerts, and [Integrations](/docs/5.x/integrations) for configured messages to operators.
+
+## If telemetry is missing
+
+- For traces, confirm both an emitting instrumentation registration and a listener for the `TickerQ` activity source. Your sampler must retain the activity, and an exporter is needed to send it outside the process.
+- For metrics, subscribe to the `TickerQ` meter separately; adding the activity source does not subscribe to metrics.
+- Confirm the job actually ran on the process you are inspecting. A dashboard may show shared database history from another replica.
+- Check the exporter endpoint and host logging configuration. TickerQ does not provision a collector or enable an exporter automatically.

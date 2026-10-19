@@ -1,0 +1,99 @@
+---
+title: "Function registration"
+description: "Choose attributes, typed classes, or delegates, and keep scheduled function identities stable."
+---
+
+TickerQ supports three registration styles. Use the one that fits your application; all three register functions for the same time and cron managers.
+
+| Style | Best fit | Registration |
+| --- | --- | --- |
+| `[TickerFunction]` | Job methods with generated dispatch and request/result metadata | Annotate a method; the source generator discovers it |
+| `ITickerFunction` | One class per job with explicit DI registration | `builder.Services.MapTicker<TFunction>()` |
+| Delegate | A small handler registered during startup | `builder.Services.MapTicker("Name", handler)` |
+
+Register functions before `builder.Build()` and `app.UseTickerQ()`. These examples extend the [quick start](/docs/5.x/getting-started/quick-start); keep its TickerQ registration and runtime identity.
+
+## Register a job class
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+builder.Services.MapTicker<CleanupJob>()
+    .WithMaxConcurrency(1);
+
+public class CleanupJob(ILogger<CleanupJob> logger) : ITickerFunction
+{
+    public Task ExecuteAsync(TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Cleanup job {JobId}", context.Id);
+        return Task.CompletedTask;
+    }
+}
+```
+
+The default function name is the class name, `CleanupJob`. Its DI lifetime is scoped unless you supply another lifetime. Renaming the class changes the default persisted function identity; plan that change for existing jobs.
+
+Schedule it through a scoped manager:
+
+```csharp
+var result = await timeTickerManager.AddAsync<CleanupJob>(
+    DateTime.UtcNow.AddMinutes(5), cancellationToken);
+if (!result.IsSucceeded)
+    throw result.Exception;
+```
+
+For a typed request, implement `ITickerFunction<TRequest>`, register with `MapTicker<TFunction, TRequest>()`, then call `AddAsync<TFunction, TRequest>(executionTime, request, cancellationToken)`. Cron managers have the equivalent overload with a cron expression instead of an execution time. Use entity-based creation when setting retries, timeouts, overlap, or chain templates.
+
+## Return output from a job class
+
+A class implementing `ITickerFunction` can publish output for a child even though `ExecuteAsync` returns `Task`. Call `context.SetResult(value, jsonTypeInfo)` inside the parent and `context.GetParentResult(jsonTypeInfo)` inside an `OnSuccess` child. `ITickerFunction<TRequest>` supports the same pattern; `TRequest` remains the input type.
+
+Follow the [CleanupJob → CleanupSummaryJob example](/docs/5.x/guides/requests-results#publish-from-an-itickerfunction-class) for the result DTO, both handlers, generated JSON metadata, registration, and chain scheduling. Attribute-based `ResultType` is a different registration path; do not add `[TickerFunction]` to a method already registered through `MapTicker`.
+
+## Register a recurring function
+
+```csharp
+builder.Services.MapTicker<CleanupJob>()
+    .WithCron("0 2 * * *")
+    .WithMaxConcurrency(1);
+```
+
+This is an alternative registration for the same class: use it instead of the earlier `MapTicker<CleanupJob>()` call. `WithCron` creates a code-defined schedule during startup reconciliation. Its time zone is the [scheduler time zone](/docs/5.x/guides/scheduler), not the browser's display zone. It supplies no request payload; create a dynamic schedule through the cron manager when a function requires one.
+
+## Group related functions
+
+```csharp
+builder.Services.MapTickerGroup("Maintenance", group =>
+{
+    group.WithMaxConcurrency(1);
+    group.MapTicker<CleanupJob>("Cleanup");
+});
+```
+
+This alternative registers the stable name `Maintenance.Cleanup`. Group defaults apply to each function separately; they do not create one shared concurrency limit for the group. A group is a naming convention, while an [application namespace](/docs/5.x/guides/configuration) separates runtime data in the store.
+
+## Register a delegate
+
+```csharp
+builder.Services.MapTicker("Maintenance.Ping", (context, cancellationToken) =>
+{
+    cancellationToken.ThrowIfCancellationRequested();
+    return Task.CompletedTask;
+});
+```
+
+An overload also supplies the execution's `IServiceProvider`; resolve scoped dependencies there instead of capturing services from a request that has already ended. Delegate registrations can use `WithCron`, `WithPriority`, and `WithMaxConcurrency` too.
+
+## Registration rules
+
+- Use a unique, stable function name. Do not register the same function through both attributes and `MapTicker`.
+- Keep registrations consistent across worker replicas of one namespace. A producer also needs the function/request contracts used to validate its scheduling calls.
+- Confirm the resulting registry in **About → Functions**. A registered function is not proof that a cron definition is enabled or that a job has been created.
+- For attributes and typed payloads, continue with [defining jobs](/docs/5.x/guides/defining-jobs) and [requests and results](/docs/5.x/guides/requests-results).
+
+## Next steps
+
+Create a [time ticker](/docs/5.x/guides/scheduling/time-ticker) for one-time work or a [cron ticker](/docs/5.x/guides/scheduling/cron-ticker) for a recurring schedule. Registration alone does not create a time ticker; `WithCron` and cron-bearing attributes opt into a code-defined recurring schedule.

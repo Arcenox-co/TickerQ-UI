@@ -1,0 +1,9 @@
+{
+  "title": "Storage",
+  "icon": "Database",
+  "pages": [
+    "../entity-framework",
+    "../mongodb/index",
+    "../redis/index"
+  ]
+}

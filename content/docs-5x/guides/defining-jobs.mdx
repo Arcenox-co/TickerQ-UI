@@ -1,0 +1,75 @@
+---
+title: "Define job functions"
+description: "Use stable function names, dependency injection, and typed request contracts."
+---
+
+A function describes the work. A time ticker or cron ticker describes when that work should run. Multiple jobs can call the same registered function.
+
+```csharp
+using TickerQ.Utilities.Base;
+
+public class InvoiceJobs(ILogger<InvoiceJobs> logger)
+{
+    [TickerFunction("Invoices.Generate", maxConcurrency: 1)]
+    public async Task GenerateAsync(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Generating invoices for job {JobId}", context.Id);
+        await Task.Delay(100, cancellationToken); // Replace with your async work.
+    }
+}
+```
+
+Keep function names stable: persisted schedules refer to them. The source generator discovers annotated methods and creates the dispatch code; constructor dependencies are supplied through DI. Pass the provided cancellation token to asynchronous operations.
+
+For explicit class or delegate registration, see [function registration](/docs/5.x/guides/function-registration).
+
+## Typed requests
+
+Use `TickerFunctionContext<TRequest>` to access a typed request. Serialize the corresponding scheduling payload with `TickerHelper.CreateTickerRequest(...)`.
+
+```csharp
+using TickerQ.Utilities;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Entities;
+
+public record InvoiceRequest(Guid OrderId);
+
+public class OrderJobs(ILogger<OrderJobs> logger)
+{
+    [TickerFunction("Orders.Invoice")]
+    public Task InvoiceAsync(TickerFunctionContext<InvoiceRequest> context, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        logger.LogInformation("Invoice order {OrderId}", context.Request.OrderId);
+        return Task.CompletedTask;
+    }
+}
+
+// Inside a service with the time ticker manager:
+// await manager.AddAsync(new TimeTickerEntity
+// {
+//     Function = "Orders.Invoice",
+//     ExecutionTime = DateTime.UtcNow,
+//     Request = TickerHelper.CreateTickerRequest(new InvoiceRequest(orderId))
+// }, cancellationToken);
+```
+
+Treat request changes as a contract migration. Changing a stored payload's shape can prevent an older job from executing; inspect contract-drift diagnostics instead of silently assuming it was processed.
+
+For returned values, committed parent results, compression, and generated JSON metadata, see [requests and results](/docs/5.x/guides/requests-results).
+
+## Per-function concurrency
+
+`maxConcurrency: 1` allows one invocation of this function at a time **on each host**, including chained jobs. Other invocations wait for a permit. This is separate from the scheduler's total worker capacity and from a cron job's [skip-on-overlap policy](/docs/5.x/guides/cron-overlap). It is not a distributed lock across servers.
+
+## Execution scope
+
+Each local function attempt gets a new asynchronous DI scope. Resolve scoped services such as an application `DbContext` through constructor injection; do not capture a request's context in a long-lived handler. A retry gets another attempt scope. Await work before returning so scope disposal, logs, completion, and cancellation still describe that work.
+
+## Execution context
+
+`Id`, `FunctionName`, `ScheduledFor`, `RetryCount`, and `ParentId` identify the current execution. For a cron occurrence, `ParentId` is its cron definition; for a chain step, it is the immediate parent time ticker.
+
+Use `ILogger` for [captured execution logs](/docs/5.x/guides/execution-logs). Make external side effects idempotent: retries or recovery can invoke a function again even when execution ownership is correctly fenced.

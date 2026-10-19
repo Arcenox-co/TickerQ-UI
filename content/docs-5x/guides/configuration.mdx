@@ -1,0 +1,74 @@
+---
+title: "Application namespace and workers"
+description: "Separate applications sharing a store while allowing replicas of the same application to cooperate."
+---
+
+Scheduler hosts require both a stable application namespace and an explicit positive reconciliation epoch. Configure the namespace once on `AddTickerQ`. You do not put it on every time ticker or cron ticker.
+
+```csharp
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("licenses/tickerq.tqlicense");
+    options.UseApplicationNamespace("orders-production");
+    options.UseReconciliationEpoch(1);
+    options.ConfigureScheduler(scheduler =>
+    {
+        scheduler.NodeIdentifier = "orders-worker";
+    });
+    // Add your operational store and optional packages here.
+});
+```
+
+## A practical example
+
+You run three Orders replicas and two Reporting replicas against one database:
+
+| Deployment | Namespace | What it can execute |
+| --- | --- | --- |
+| Orders replica 1, 2, and 3 | `orders-production` | Jobs in the Orders runtime partition |
+| Reporting replica 1 and 2 | `reporting-production` | Jobs in the Reporting runtime partition |
+| Orders staging | `orders-staging` | Staging jobs only |
+
+Replicas of one application use the **same namespace** and coordinate acquisition. A different namespace isolates time jobs, cron definitions/occurrences, and related runtime state. Namespaces are not worker names, and they are not a replacement for database credentials or a hostile-tenant security boundary.
+
+The readable namespace is converted to a canonical storage identity. The built-in providers persist ownership using `ApplicationNamespaceKey` and scoped storage structures; the database key is not necessarily the literal display name. Manager calls stamp the configured runtime identity automatically. Do not manually move a stored job into another partition.
+
+## Which name goes where?
+
+| Name | Set it on | Example |
+| --- | --- | --- |
+| Application namespace | `AddTickerQ` → `UseApplicationNamespace` | `orders-production`, shared by all Orders replicas |
+| Node identifier | `ConfigureScheduler` → `NodeIdentifier` | `orders-worker-1`, a readable host label |
+| Function name | `[TickerFunction]` or `MapTicker` | `Orders.SendInvoice`, selected by each job |
+| Job ID | Returned by the manager | One scheduled time job or one cron definition |
+
+The same function name can appear in different application namespaces without allowing one namespace's scheduler to acquire the other's jobs. A namespace does not route work to one particular replica; replicas in that namespace cooperate.
+
+## Node identifier
+
+`NodeIdentifier` is the readable worker label. Execution ownership also includes a process ID and unique per-process value, so two processes with the same label cannot impersonate each other's leases. Keep the application namespace stable; each running host has its own execution owner.
+
+## Reconciliation epoch
+
+`UseReconciliationEpoch(1)` identifies the deployment generation authorized to reconcile code-defined schedules and run this namespace. It is a positive, monotonically advancing number stored with activation metadata.
+
+All replicas in one deployment use the same epoch. Keep it stable across ordinary restarts. Advance it when code-defined schedules, request contracts, seed inputs, or reconciliation behavior change. A restart with the same already-activated epoch skips startup reconciliation; it does not compare and apply a changed manifest. An old binary using a lower epoch cannot simply resume ownership afterward. It is not a per-job counter or a timestamp to regenerate on startup.
+
+## Existing data
+
+Changing the namespace does not automatically adopt old rows. Legacy ownership and first activation require an explicit rollout plan, particularly when several applications share a store. Follow the [storage upgrade reference](/docs/5.x/guides/storage-upgrade) rather than applying a catch-all adoption to a shared database.
+
+## Separate producers and workers
+
+A web API can accept work while a separate worker executes it. Give both applications the same namespace, durable store, and compatible function/request registrations. Disable background processing only on the producer:
+
+```csharp
+// In the producer's existing AddTickerQ configuration:
+options.UseApplicationNamespace("orders-production");
+options.DisableBackgroundServices();
+// Add the same operational store used by the worker.
+```
+
+The worker keeps background services enabled and configures the deployment's reconciliation epoch. The producer can use `AddAsync` to save jobs, or EF `StageAsync` when it shares the application's business context. Use a persistent provider: two in-memory processes do not share a queue. `RunNowAsync` requires a running local dispatcher, so it is not a producer-only dispatch mechanism.
+
+Queue-only processes do not perform scheduler activation. Their lack of an epoch does not remove the need for compatible schemas and contracts. Avoid the namespace-less legacy-global mode for new applications.

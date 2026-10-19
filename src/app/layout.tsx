@@ -3,6 +3,7 @@ import { RootProvider } from 'fumadocs-ui/provider/next';
 import './global.css';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Body } from './layout.client';
+import { VersionedSearchDialog } from '@/components/docs/search-dialog';
 
 export const metadata: Metadata = {
   title: {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
     template: '%s | TickerQ',
   },
   description:
-    'Source-generated, Native AOT ready background job scheduler for .NET. Persist with EF Core or Redis, monitor with a real-time dashboard.',
+    'Schedule .NET jobs and workflows with a self-hosted dashboard, EF Core, MongoDB, Redis, and configurable alerts.',
   icons: {
     icon: '/tickerq-logo.svg',
   },
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'TickerQ — Background jobs for .NET',
     description:
-      'Source-generated, Native AOT ready background job scheduler for .NET.',
+      'Background jobs, workflows, and monitoring for .NET.',
     url: 'https://tickerq.net',
     siteName: 'TickerQ',
     type: 'website',
@@ -46,7 +47,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
       suppressHydrationWarning
     >
       <Body>
-        <RootProvider theme={{ disableTransitionOnChange: false }}>
+        <RootProvider theme={{ disableTransitionOnChange: false }} search={{ SearchDialog: VersionedSearchDialog }}>
           {children}
         </RootProvider>
       </Body>

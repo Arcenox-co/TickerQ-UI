@@ -1,0 +1,64 @@
+---
+title: "Scheduler settings"
+description: "Understand concurrency limits, scheduling time zones, waits, and recovery settings."
+---
+
+Configure the scheduler inside your existing `AddTickerQ` call. The values below are an example, not the defaults:
+
+```csharp
+options.ConfigureScheduler(scheduler =>
+{
+    scheduler.NodeIdentifier = "orders-worker";
+    scheduler.SchedulerTimeZone = TimeZoneInfo.Utc;
+    scheduler.MaxConcurrency = 8;
+    scheduler.DefaultExecutionTimeout = TimeSpan.FromMinutes(10);
+    scheduler.ShutdownDrainTimeout = TimeSpan.FromSeconds(30);
+});
+```
+
+The dashboard's **About → Scheduler** shows effective settings on the responding host. Changing a displayed value requires updating the host configuration; it is not a live settings editor.
+
+## Choose the right concurrency control
+
+| Control | Scope | At capacity |
+| --- | --- | --- |
+| `scheduler.MaxConcurrency` | Scheduler work items on one host | New work items wait for capacity |
+| Function `maxConcurrency` / `WithMaxConcurrency` | Invocations of one registered function on one host, including chain steps | The invocation waits for a permit |
+| Cron `SkipIfAlreadyRunning` | One cron definition | A competing run is skipped, not deferred |
+
+With two replicas configured for eight concurrent scheduler executions each, there is no shared eight-execution cluster limit. A function with `maxConcurrency: 1` can run once on each replica. Ordinary cron overlap protection is also host-local; **recurring-chain overlap** checks unfinished persisted chains across the runtime partition. See [cron overlap](/docs/5.x/guides/cron-overlap) for the distinction.
+
+A chain is handled inside its root's scheduler work item. Matching siblings and `InProgress` children can run concurrently within that item. For example, `MaxConcurrency = 1` does not serialize three different child functions in one chain. Use a sequential parent → child structure for ordering, and per-function limits for a shared handler.
+
+Per-function permits are held while an attempt runs and released between retries. They do not stay held while a parent traverses its children. Await the work started by a function: detached tasks outlive the scheduler's ability to track their completion.
+
+`TickerTaskPriority.High`, `Normal`, and `Low` order the scheduler's acquired batch before publication. They do not create a globally prioritized queue or interrupt running work; manual dispatch and already queued work need not preserve that ordering. `LongRunning` selects a dedicated-thread execution strategy while using the same scheduler capacity. Priority is not an isolation or delivery guarantee.
+
+## Time zones
+
+The default `SchedulerTimeZone` is `TimeZoneInfo.Local`, so it follows the host environment. Set it explicitly on every replica for predictable cron interpretation. Keep time-ticker `ExecutionTime` values in UTC.
+
+The dashboard toolbar changes timestamp presentation only. It does not change the cron schedule's time zone. Integration deadline monitors have a separate, explicit time zone.
+
+## Waits and recovery defaults
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `MaxConcurrency` | `Environment.ProcessorCount` | Scheduler execution capacity per host |
+| Function maximum concurrency | `0` | No additional per-function limit |
+| `MinPollingInterval` | 1 second | Minimum calculated scheduler wait; not a fixed polling cadence |
+| `FallbackIntervalChecker` | 30 seconds | Delay after an empty or failed overdue-work scan |
+| `FallbackBatchSize` | 100 | Maximum overdue roots of each ticker type acquired per scan |
+| `IdleWorkerTimeOut` | 1 minute | Delay before extra idle workers retire |
+| `DefaultExecutionTimeout` | `null` | No default attempt timeout |
+| `ShutdownDrainTimeout` | 30 seconds | Bounded wait for in-flight work on shutdown |
+
+The normal scheduler waits until the next computed execution, subject to its minimum wait. Notifications can interrupt that wait, and immediate dispatch is separate. Lowering `MinPollingInterval` does not make it a continuously polling timer or promise exact start times. Database access, available workers, and function limits also affect latency.
+
+For lease duration, stale recovery, timeout behavior, and shutdown sequencing, see [runtime reliability](/docs/5.x/guides/reliability). For storage growth, configure [job retention](/docs/5.x/guides/retention) and [execution logs](/docs/5.x/guides/execution-logs) separately.
+
+## Startup choices
+
+- `SkipStaleCronOccurrencesOnStartup(TimeSpan.FromSeconds(5))` explicitly skips eligible old Idle/Queued occurrences during startup initialization. It is disabled by default. Enable it only when missing old runs is preferable to recovering those existing occurrences; it does not create every slot missed during downtime.
+- `IgnoreSeedDefinedCronTickers()` disables automatic creation/reconciliation of attribute and `WithCron` schedules. Dynamic manager-created schedules remain separate.
+- `DisableBackgroundServices()` creates a producer that queues jobs without processing them locally. Use the worker's namespace and persistent store. See [producer and worker deployments](/docs/5.x/guides/configuration#separate-producers-and-workers).

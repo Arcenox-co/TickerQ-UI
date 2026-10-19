@@ -1,0 +1,91 @@
+---
+title: "Manager API reference"
+description: "Choose the correct operation, identifier, and persistence boundary for each scheduling action."
+---
+
+Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerEntity>` from `TickerQ.Utilities.Interfaces.Managers`. If your application uses custom ticker entities, use those same types in its manager interfaces.
+
+## Choose by intent
+
+| I need to… | Start here |
+| --- | --- |
+| Save a new job now | `AddAsync` |
+| Commit new work with my business transaction | `StageAsync` with the EF application context |
+| Stop pending work before its handler runs | Time `CancelAsync` |
+| Ask a running handler to stop | `RequestCancellationAsync` on the owning host |
+| Repeat work immediately | `RunNowAsync`, then inspect its persisted outcome |
+| Remove old history automatically | [Job retention](/docs/5.x/guides/retention) |
+
+## Time ticker operations
+
+| Method | Behavior |
+| --- | --- |
+| `AddAsync(entity, ct)` | Validate and persist a new job or complete chain independently |
+| `AddOnceAsync(identifier, entity, ct)` | Create a seed once while that initialization identifier exists; return the existing job unchanged on later calls |
+| `StageAsync(entity, ct)` | Track a new job/chain in the same scoped EF application context as business data; caller saves and commits |
+| `UpdateAsync(entity, ct)` | Update an eligible job; this is not a direct status setter |
+| `ReplaceChainAsync(rootId, newRoot, ct)` | Validate and replace an eligible complete graph atomically, preserving the original if replacement fails |
+| `RunNowAsync(rootId, ct)` | Acquire an eligible root for execution now; does not reset an entire chain |
+| `CancelAsync(id, ct)` | Cancel an Idle/Queued job and its pending descendants; preserve records |
+| `RequestCancellationAsync(id, ct)` | Signal one running execution on the current host |
+| `SetDeleteBehaviorAsync(rootId, behavior, ct)` | Change the root's chain-deletion policy |
+| `DeleteAsync(id, ct)` | Remove an eligible job/chain, subject to ownership and deletion checks |
+
+`AddBatchAsync`, `UpdateBatchAsync`, and `DeleteBatchAsync` are also available. Batch atomicity depends on the operation and provider; do not assume multiple independent calls form one transaction. Use [EF staging](/docs/5.x/entity-framework/transactional-scheduling) for new jobs that must commit with business data.
+
+## Cron operations and identifiers
+
+| Method | Identifier / behavior |
+| --- | --- |
+| `AddAsync(entity, ct)` | Create a recurring definition, optionally with a chain template |
+| `StageAsync(entity, ct)` | Stage a new definition in the scoped EF application context |
+| `UpdateAsync(entity, ct)` | Update the schedule definition |
+| `SetEnabledAsync(cronId, enabled, ct)` | Pause/resume future scheduling; running work continues |
+| `RunNowAsync(cronId, ct)` | Create a fresh manual occurrence; return its occurrence ID |
+| `RequestCancellationAsync(occurrenceId, ct)` | Signal that occurrence on this host; do not pass its definition ID |
+| `DeleteAsync(cronId, ct)` | Delete an eligible definition; this is not an occurrence cancellation operation |
+
+Cron managers also support add/update/delete batches and typed `AddAsync<TFunction>` overloads. A recurring-chain occurrence is a dispatcher: after its chain is launched, manage the resulting time jobs individually.
+
+## Interpret the result
+
+Most mutations return `TickerResult<T>`. Always check the operation before using its output:
+
+```csharp
+var run = await cronTickerManager.RunNowAsync(cronId, cancellationToken);
+if (!run.IsSucceeded)
+    throw run.Exception;
+
+var occurrenceId = run.Result.Id;
+```
+
+| Member | Meaning |
+| --- | --- |
+| `IsSucceeded` | The manager operation succeeded; it is not a job completion status |
+| `Exception` | Failure details when `IsSucceeded` is false |
+| `Result` | Returned entity when that operation provides one |
+| `AffectedRows` | Provider-reported change count for operations that return counts |
+
+Time `RunNowAsync` returns an affected count without a result entity. Cron `RunNowAsync` returns the new occurrence. Successful update/delete/cancellation calls can affect zero rows; inspect the count when it is relevant. Batch counts can include descendants and need not equal the number of roots submitted.
+
+`StageAsync` is different: it returns the tracked entity and **throws** on invalid input or unsupported configuration. It has not persisted anything until you save and commit the context.
+
+Once a mutation commits, a failed dashboard refresh notification does not undo it. Avoid blindly repeating a creation call after an uncertain network response: it may create another job. Make business effects idempotent as described in [reliability](/docs/5.x/guides/reliability).
+
+## Seed one-time work
+
+```csharp
+options.UseTickerSeeder(async (ITimeTickerManager<TimeTickerEntity> manager, CancellationToken ct) =>
+{
+    var result = await manager.AddOnceAsync("initial-catalog-import-v1", new TimeTickerEntity
+    {
+        Function = "Catalog.Import",
+        ExecutionTime = DateTime.UtcNow
+    }, ct);
+
+    if (!result.IsSucceeded)
+        throw result.Exception;
+});
+```
+
+Register `Catalog.Import` before startup. Built-in durable providers converge concurrent first-time seeding on one identity. `AddOnceAsync` is scoped to stored records: if deletion or retention removes that record, the identifier can be created again. It is not a permanent business deduplication ledger. Seeder callbacks run as part of initialization; changed startup inputs require a new reconciliation epoch.

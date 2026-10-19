@@ -10,10 +10,11 @@ export const fdLayoutWidthStyle = {
 } as CSSProperties;
 
 export const linkItems: LinkItemType[] = [
+  { type: "main", text: "5.x docs", url: "/docs/5.x", on: "nav" },
   {
     type: "main",
-    text: "Releases",
-    url: "/docs/releases",
+    text: "Changelog",
+    url: "/docs/5.x/changelog",
     on: "nav",
   },
   {

@@ -1,0 +1,12 @@
+{
+  "title": "Integrations",
+  "icon": "Plug",
+  "pages": [
+    "---Connect and alert---",
+    "index",
+    "templates",
+    "delivery",
+    "---Monitor jobs---",
+    "monitoring"
+  ]
+}

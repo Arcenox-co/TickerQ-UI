@@ -1,0 +1,54 @@
+---
+title: "Installation"
+description: "Select the package line for your .NET target and add only the components you need."
+---
+
+Install `TickerQ` in the application that declares and runs your functions. Add optional packages for your storage provider, dashboard, or integrations.
+
+## Select a version
+
+Choose a published `10.5.x` version for .NET 10, `9.5.x` for .NET 9, or `8.5.x` for .NET 8. Install the **same full version** of all TickerQ packages. Include the preview suffix if that is the release you are evaluating.
+
+The commands below use `VERSION` as a placeholder. Replace it with the published version you selected from [NuGet](https://www.nuget.org/packages/TickerQ#versions-body-tab); do not paste the placeholder literally. An unqualified install can select a different release line.
+
+```sh
+dotnet add package TickerQ --version VERSION
+dotnet add package TickerQ.Dashboard --version VERSION
+```
+
+## Optional packages
+
+| Package | Purpose |
+| --- | --- |
+| `TickerQ.EntityFrameworkCore` | Relational storage through your EF Core provider |
+| `TickerQ.MongoDB` | MongoDB operational storage |
+| `TickerQ.Caching.StackExchangeRedis` | Redis operational storage or Redis support alongside an operational provider |
+| `TickerQ.Dashboard` | Embedded web dashboard |
+| `TickerQ.Integrations` | Slack, Teams, custom webhooks, and monitoring |
+| `TickerQ.Instrumentation.OpenTelemetry` | Job execution tracing and optional metric export; see the [instrumentation guide](/docs/5.x/opentelemetry) |
+
+Choose one authoritative operational store. With no durable provider, TickerQ uses process-local in-memory storage; jobs disappear when that process exits. EF Core and MongoDB are alternatives, not two stores for the same scheduler.
+
+`TickerQ` includes its source generator in the NuGet package and depends on `TickerQ.Utilities` for shared contracts. A normal package installation does not require a separate source-generator package reference. Keep any explicitly referenced TickerQ packages on the same full version.
+
+The optional packages use the same `AddTickerQ(options => ...)` registration: `AddDashboard`, `AddOperationalStore` (EF Core or MongoDB), `AddStackExchangeRedis`, and `AddIntegrations`. Follow the selected package's guide for its exact configuration. [Function registration](/docs/5.x/guides/function-registration) describes the core's Native AOT support and the separate limitations of optional components.
+
+## Choose a store
+
+| Store | Suitable use | Main requirement |
+| --- | --- | --- |
+| In-memory | Local development and disposable work | Process-local; no restart durability or shared queue |
+| [EF Core](/docs/5.x/entity-framework) | Relational job storage, including jobs committed with business changes | Application-owned migrations and a compatible relational provider |
+| [MongoDB](/docs/5.x/mongodb) | MongoDB operational storage | Replica set or mongos for scheduler transactions |
+| [Redis](/docs/5.x/redis) | Redis as the operational store, or caching alongside EF | Standalone/primary-replica scheduler topology; configure durability when Redis holds jobs |
+
+EF `StageAsync` is the supported shared-business-transaction path. Do not assume an ordinary `AddAsync` joins another context's transaction or that MongoDB/Redis expose the same staging API.
+
+## Before running
+
+1. Obtain a [license certificate](/docs/5.x/getting-started/licensing).
+2. Configure a stable [application namespace](/docs/5.x/guides/configuration).
+3. Apply required database migrations before starting a persistent scheduler.
+4. Follow the [quick start](/docs/5.x/getting-started/quick-start), then add your chosen provider.
+
+If you already have TickerQ data, read the [upgrade guide](/docs/5.x/getting-started/migration) before changing package versions.

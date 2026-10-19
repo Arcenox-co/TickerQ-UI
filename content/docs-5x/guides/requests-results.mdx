@@ -1,0 +1,217 @@
+---
+title: "Requests and results"
+description: "Pass typed input into jobs and publish committed results for the next chain step."
+---
+
+A **request** is input saved when you schedule a job. A **result** is output published after a successful execution. They have separate contracts: a parent's result does not automatically replace its child's request.
+
+
+Choose the result-publishing approach for your registration style:
+
+| Registration | Publish output |
+| --- | --- |
+| Attribute-discovered method | Declare `ResultType` and return the matching value, `Task<T>`, or `ValueTask<T>` |
+| `ITickerFunction` / `ITickerFunction<TRequest>` | Keep `ExecuteAsync` returning `Task` and call `context.SetResult(...)` |
+| Delegate registered with `MapTicker` | Call `context.SetResult(...)` inside the handler |
+
+For job classes, jump to the [complete CleanupJob example](#publish-from-an-itickerfunction-class).
+
+## Send a typed request
+
+Declare a serializable request and receive it through `TickerFunctionContext<TRequest>`:
+
+```csharp
+using TickerQ.Utilities.Base;
+
+public record InvoiceRequest(Guid OrderId);
+public record InvoiceResult(Guid OrderId, string Reference);
+
+public class InvoiceJobs
+{
+    [TickerFunction("Invoices.Create", ResultType = typeof(InvoiceResult))]
+    public Task<InvoiceResult> CreateAsync(
+        TickerFunctionContext<InvoiceRequest> context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new InvoiceResult(context.Request.OrderId, "INV-DEMO"));
+    }
+}
+```
+
+The example returns a demonstration value. Replace that work with your invoice service and its idempotency checks. `ResultType` declares the method's returned type; generated code serializes the result using generated metadata. Supported return shapes include `T`, `Task<T>`, and `ValueTask<T>` when they match the declared result type.
+
+Schedule the registered function:
+
+```csharp
+using TickerQ.Utilities;
+using TickerQ.Utilities.Entities;
+
+var result = await timeTickerManager.AddAsync(new TimeTickerEntity
+{
+    Function = "Invoices.Create",
+    ExecutionTime = DateTime.UtcNow,
+    Request = TickerHelper.CreateTickerRequest(new InvoiceRequest(orderId))
+}, cancellationToken);
+if (!result.IsSucceeded)
+    throw result.Exception;
+```
+
+Use the same request helper for a cron definition or chain step. Store a business ID or a small snapshot instead of large documents, credentials, or service objects. Jobs may run after the original HTTP request and its DI scope have ended.
+
+## Read the direct parent's result
+
+A child using `RunCondition.OnSuccess` can read its immediate parent's committed output:
+
+```csharp
+using System.Text.Json.Serialization;
+using TickerQ.Utilities.Base;
+
+public class SendInvoiceJob(ILogger<SendInvoiceJob> logger)
+{
+    [TickerFunction("Invoices.Send")]
+    public Task SendAsync(TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!context.HasParentResult)
+            throw new InvalidOperationException("The parent did not publish an invoice result.");
+
+        var invoice = context.GetParentResult(InvoiceJsonContext.Default.InvoiceResult);
+        logger.LogInformation("Send invoice {Reference}", invoice.Reference);
+        return Task.CompletedTask;
+    }
+}
+
+[JsonSerializable(typeof(InvoiceRequest))]
+[JsonSerializable(typeof(InvoiceResult))]
+internal partial class InvoiceJsonContext : JsonSerializerContext;
+```
+
+Add `Invoices.Send` as an `OnSuccess` child of `Invoices.Create` using the [chain guide](/docs/5.x/guides/job-chaining). A grandchild sees its own parent's result, not the root's. A parallel `InProgress` child cannot depend on an output that its parent has not committed yet.
+
+## Publish explicitly
+
+Handlers returning `Task` can publish a value through their context instead:
+
+```csharp
+context.SetResult(
+    new InvoiceResult(orderId, "INV-DEMO"),
+    InvoiceJsonContext.Default.InvoiceResult);
+```
+
+Serialization happens at the call; repeated calls keep the last value. The runtime publishes it only with an acknowledged successful terminal outcome. A failed attempt, cancellation, skip, or stale completion does not publish that attempt's result. An explicit JSON `null` is a present result and differs from never calling `SetResult`.
+
+The convenience `SetResult(value)` and `GetParentResult<T>()` overloads use reflection-based JSON serialization. Prefer the `JsonTypeInfo<T>` overloads above for trimmed or Native AOT applications.
+
+## Publish from an ITickerFunction class
+
+`ITickerFunction.ExecuteAsync` returns `Task`; its result is published explicitly through the context. The generic argument in `ITickerFunction<TRequest>` describes the **request**, not the result. Both interfaces support the same `SetResult` and `GetParentResult` methods.
+
+The example below extends your existing host setup. Register both classes before `builder.Build()` and `app.UseTickerQ()`. If you already use the basic `CleanupJob` from the [registration guide](/docs/5.x/guides/function-registration), replace that class with this version and keep only one registration.
+
+```csharp
+using Microsoft.Extensions.Logging;
+using System.Text.Json.Serialization;
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+builder.Services.MapTicker<CleanupJob>()
+    .WithMaxConcurrency(1);
+builder.Services.MapTicker<CleanupSummaryJob>();
+
+public record CleanupResult(int DeletedFiles);
+
+public class CleanupJob(ILogger<CleanupJob> logger) : ITickerFunction
+{
+    public Task ExecuteAsync(
+        TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Sample output: replace this count with your successful cleanup result.
+        var result = new CleanupResult(DeletedFiles: 12);
+        logger.LogInformation("Cleanup result: {Count} files", result.DeletedFiles);
+
+        context.SetResult(result, CleanupJsonContext.Default.CleanupResult);
+        return Task.CompletedTask;
+    }
+}
+
+public class CleanupSummaryJob(ILogger<CleanupSummaryJob> logger) : ITickerFunction
+{
+    public Task ExecuteAsync(
+        TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!context.HasParentResult)
+            throw new InvalidOperationException("The parent did not publish a cleanup result.");
+
+        var result = context.GetParentResult(CleanupJsonContext.Default.CleanupResult)
+            ?? throw new InvalidOperationException("The parent published a null cleanup result.");
+        logger.LogInformation("Parent cleanup reported {Count} files", result.DeletedFiles);
+        return Task.CompletedTask;
+    }
+}
+
+[JsonSerializable(typeof(CleanupResult))]
+internal partial class CleanupJsonContext : JsonSerializerContext;
+```
+
+Registration makes the handlers available. To run them together, schedule the root through your scoped time-ticker manager and attach the summary as an `OnSuccess` child:
+
+```csharp
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Enums;
+
+var scheduled = await timeTickerManager.AddAsync(new TimeTickerEntity
+{
+    Function = nameof(CleanupJob),
+    ExecutionTime = DateTime.UtcNow,
+    Children =
+    [
+        new TimeTickerEntity
+        {
+            Function = nameof(CleanupSummaryJob),
+            RunCondition = RunCondition.OnSuccess
+        }
+    ]
+}, cancellationToken);
+
+if (!scheduled.IsSucceeded)
+    throw scheduled.Exception;
+```
+
+These ungrouped registrations use the class names as their function names. Leave the child's `ExecutionTime` unset so it runs after its parent succeeds. The summary reads the saved `CleanupResult`; it does not receive a replacement request. The same result APIs work inside [recurring chains](/docs/5.x/guides/recurring-chains).
+
+Do not add `[TickerFunction]` to these mapped methods. The current `MapTicker` builder has no `WithResultType` option: explicit publication supports passing the value to children, but it does not declare the generated output contract/schema provided by the attribute's `ResultType`. `CleanupJsonContext` supplies generated serialization metadata for the result value.
+
+## Serialization and contract changes
+
+Inside `AddTickerQ`, `options.WithJsonContext(InvoiceJsonContext.Default)` supplies generated request serialization metadata. An explicit request overload is also available:
+
+```csharp
+var payload = TickerHelper.CreateTickerRequest(
+    new InvoiceRequest(orderId), InvoiceJsonContext.Default.InvoiceRequest);
+```
+
+`ConfigureRequestJsonOptions(...)` customizes request serialization. `UseGZipCompression()` opts into request compression; it does not enable execution-log persistence. Keep serialization configuration consistent across producers and workers.
+
+Treat a change to a stored request's required fields or types as a deployment change. Inspect pending jobs before rollout, update the [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch) when contracts change, and investigate contract-drift diagnostics. Do not disable validation merely to run an incompatible payload.
+
+A missing parent result and a result containing JSON `null` are different. `HasParentResult` tests presence; it does not guarantee a non-null deserialized value. `GetParentResult` throws when no result was published and rejects unsupported envelope versions. Handle nullable business results explicitly.
+
+Results are execution data, not a substitute for your business records. Store large artifacts in your own storage and return a reference. Job history and results can be removed by deletion or retention; use the dashboard's job details to inspect available output.
+
+
+### Native AOT boundaries
+
+For attribute-discovered functions, the function-aware request overload can use the generated metadata:
+
+```csharp
+var payload = TickerHelper.CreateTickerRequest(
+    new InvoiceRequest(orderId), "Invoices.Create");
+```
+
+Use this after the function registry has been initialized. The explicit `JsonTypeInfo<T>` overload is useful when you already own the serialization context. Include all required request and result types in generated metadata, and verify your published application with trimming enabled.
+
+Core generated dispatch does not make every optional component AOT-compatible. In particular, the dashboard assistant's tool-invocation path uses reflection and is not trim/AOT-clean. Check the selected database and AI provider too; successful compilation of an ordinary .NET build is not an AOT compatibility test.

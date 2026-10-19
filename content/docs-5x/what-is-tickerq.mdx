@@ -1,0 +1,64 @@
+---
+title: "What is TickerQ?"
+description: "Understand how functions, jobs, schedules, and workers fit together in your .NET application."
+icon: Info
+---
+
+**TickerQ is a background job scheduler and workflow library for .NET.** It runs application work immediately, at a future time, or on a recurring schedule. Use it for invoice processing, reports, data imports, notifications, and maintenance tasks that should run outside an HTTP request.
+
+You write the business logic in C#. TickerQ handles scheduling, execution state, retries, and coordination between dependent jobs. Optional packages add persistent storage, a management dashboard, integrations, and telemetry.
+
+## Where it runs
+
+TickerQ runs inside your application using the .NET host. You can add it to an ASP.NET Core application or a worker service; you do not need a separate scheduling server to get started. Your handlers can use the services already registered in your application's dependency injection container.
+
+When you need separate workers, your web application can save jobs to a shared persistent store while worker processes execute them. In-memory storage is useful for a local demonstration, but it does not survive process restarts or share work between applications. See [application namespaces and workers](/docs/5.x/guides/configuration).
+
+## The four main concepts
+
+| Concept | What it means | Example |
+| --- | --- | --- |
+| **Function** | Registered C# code that performs the work | `Invoices.Create` |
+| **Time ticker** | One scheduled job, with its own input and execution state | Create the invoice for order 123 in five minutes |
+| **Cron ticker** | A recurring definition with a cron expression | Prepare invoices every morning at 07:00 |
+| **Cron occurrence** | One scheduled or manually triggered run of that definition | This morning's invoice run |
+
+Registering a function makes it available to the scheduler; it does not create a one-time job. Use the time manager to schedule individual jobs, or the cron manager to create recurring schedules. A cron-bearing attribute or `WithCron` registration can also define a recurring schedule in code.
+
+See [time tickers](/docs/5.x/guides/scheduling/time-ticker) and [cron tickers](/docs/5.x/guides/scheduling/cron-ticker) for scheduling examples.
+
+## From one job to a workflow
+
+Consider an invoice workflow:
+
+**Create the invoice → generate its PDF → send it to the customer.**
+
+Each step is a function. A chain connects the jobs and specifies when a child should run, such as after its parent succeeds. The parent can publish an invoice reference as its result, and the child can read that result separately from its own configured request.
+
+Schedule the chain once for a particular order, or attach a template to a cron ticker to create a fresh chain for every run. Each job keeps its own execution state and logs. Start with [job chaining](/docs/5.x/guides/job-chaining), [requests and results](/docs/5.x/guides/requests-results), or [recurring chains](/docs/5.x/guides/recurring-chains).
+
+## Choose how to write your functions
+
+Use `[TickerFunction]` on a method for source-generated registration and dispatch. Alternatively, implement `ITickerFunction` in a class and register it with `builder.Services.MapTicker<TFunction>()`, or register a delegate. These styles use the same scheduling managers.
+
+The [function registration guide](/docs/5.x/guides/function-registration) explains the choices, typed requests, and stable function names.
+
+## Add the components you need
+
+The core package provides scheduling and execution. The following components are optional:
+
+- **[EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), or [Redis](/docs/5.x/redis):** persist jobs and coordinate workers using a supported store.
+- **[Dashboard](/docs/5.x/dashboard):** inspect executions, logs, chains, and diagnostics; manage jobs with access controls.
+- **[Integrations](/docs/5.x/integrations):** configure Slack, Teams, webhooks, and job monitoring.
+- **[OpenTelemetry](/docs/5.x/opentelemetry):** connect execution traces and runtime metrics to your observability tools.
+- **[AI assistant](/docs/5.x/dashboard/ai-assistant):** explore jobs and prepare actions for confirmation using your configured model provider.
+
+## When your application grows
+
+Replicas of one application use the same **application namespace** and persistent store to coordinate work. Independent applications can use different namespaces to separate their jobs. A **node identifier** labels one running host; it is not the application namespace.
+
+Design handlers to tolerate retries and recovery: a job may execute more than once. Review [reliability](/docs/5.x/guides/reliability) before deploying, and see [licensing](/docs/5.x/getting-started/licensing) for the certificate and usage terms that apply to this release line.
+
+## Next steps
+
+Use the [Guide](/docs/5.x) to find a topic, or follow the [Quick start](/docs/5.x/getting-started/quick-start) to run your first job.

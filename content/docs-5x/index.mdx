@@ -1,0 +1,61 @@
+---
+icon: BookOpen
+title: "Guide"
+description: "Find the guides for getting started, building workflows, and operating TickerQ 5.x."
+---
+
+Use this guide to set up TickerQ, build background workflows, and operate them in your .NET application. New to the library? Start with [What is TickerQ?](/docs/5.x/what-is-tickerq) for the concepts and architecture.
+
+**This is the commercial, source-available documentation line.** Community, Evaluation, and paid subscriptions use the same packages and technical documentation. Eligible companies with consolidated gross revenue below USD 5 million can [start with a free Community license](/docs/5.x/getting-started/licensing).
+
+## Start here
+
+<Cards>
+  <Card title="What is TickerQ?" href="/docs/5.x/what-is-tickerq" description="Understand functions, scheduled jobs, workflows, and how the pieces fit together." />
+  <Card title="Installation" href="/docs/5.x/getting-started/installation" description="Choose matching packages for your .NET application." />
+  <Card title="Quick start" href="/docs/5.x/getting-started/quick-start" description="Run your first one-time job and recurring function." />
+  <Card title="Upgrade to 5.x" href="/docs/5.x/getting-started/migration" description="Plan the certificate, schema, and application changes for an existing deployment." />
+</Cards>
+
+The sidebar groups guides by task. Open a group to explore its pages; your current section opens automatically. The version selector switches between this line and the earlier documentation.
+
+| Group | What you will find |
+| --- | --- |
+| **Getting started** | Package selection, your first job, licensing, and migration |
+| **Jobs and workflows** | Functions, time/cron schedules, requests and results, chains, retries, and cancellation |
+| **Storage** | EF Core, transactional scheduling, MongoDB, and Redis |
+| **Dashboard** | A visual tour, existing users, roles and scopes, and the AI assistant |
+| **Operations** | Application namespaces, workers, logging, telemetry, retention, reliability, and troubleshooting |
+| **Integrations** | Slack, Teams, webhooks, payload templates, deadlines, and recovery alerts |
+
+See the [Changelog](/docs/5.x/changelog) for release notes and upgrade information.
+
+## Common tasks
+
+- **Save a job with a business change:** use [EF transactional scheduling](/docs/5.x/entity-framework/transactional-scheduling).
+- **Run a recurring workflow:** define [recurring chains](/docs/5.x/guides/recurring-chains) and choose an overlap policy.
+- **Give your team dashboard access:** reuse [existing database users](/docs/5.x/dashboard/existing-users) and map [roles or permission scopes](/docs/5.x/dashboard/authorization).
+- **Investigate an execution:** inspect [logs](/docs/5.x/guides/execution-logs) and follow the [troubleshooting guide](/docs/5.x/guides/troubleshooting).
+- **Alert when work misses its deadline:** configure [job monitoring](/docs/5.x/integrations/monitoring).
+
+## What does 5.x mean?
+
+5.x is the **functional release line**, not the .NET target or the full NuGet version.
+
+| Application target | Matching package line |
+| --- | --- |
+| .NET 10 | `10.5.x` |
+| .NET 9 | `9.5.x` |
+| .NET 8 | `8.5.x` |
+
+Use matching package versions throughout your application, including the same preview suffix when applicable. These docs describe the commercial 5.x source; check published package availability before installing. A preview package remains a preview even when its feature is documented here.
+
+## Explore the packages
+
+- **Core:** functions, scheduling, chains, retries, cancellation, and runtime isolation.
+- **[Dashboard](/docs/5.x/dashboard):** execution history, logs, chain views, diagnostics, and an optional AI assistant.
+- **[EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), and [Redis](/docs/5.x/redis):** storage options with documented deployment requirements.
+- **[Integrations](/docs/5.x/integrations):** configurable connections, alert rules, payloads, and function monitoring.
+- **[OpenTelemetry](/docs/5.x/opentelemetry):** connect job traces and runtime metrics to your existing observability stack.
+
+Running an earlier package? Select **Legacy** in the documentation version menu. [Earlier documentation](/docs) remains at its original URLs. Historical artifacts retain the license shipped with them.

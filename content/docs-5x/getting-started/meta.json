@@ -1,0 +1,10 @@
+{
+  "title": "Getting started",
+  "icon": "Rocket",
+  "pages": [
+    "installation",
+    "quick-start",
+    "licensing",
+    "migration"
+  ]
+}

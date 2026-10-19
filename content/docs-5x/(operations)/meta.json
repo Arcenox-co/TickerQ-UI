@@ -1,0 +1,17 @@
+{
+  "title": "Operations",
+  "icon": "Activity",
+  "pages": [
+    "---Configure workers---",
+    "../guides/configuration",
+    "../guides/scheduler",
+    "---Observe and maintain---",
+    "../guides/execution-logs",
+    "../guides/retention",
+    "../opentelemetry/index",
+    "---Deploy and troubleshoot---",
+    "../guides/reliability",
+    "../guides/troubleshooting",
+    "../guides/storage-upgrade"
+  ]
+}

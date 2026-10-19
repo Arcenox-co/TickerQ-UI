@@ -1,101 +1,35 @@
 import Link from "next/link";
-import { LiquidGlassLink } from "@/components/liquid-glass-button";
-import { AnimatedGradientText } from "@/registry/magicui/animated-gradient-text";
-import { HeroLibraryStats } from "@/components/hero-library-stats";
-import { CopyInstallCommandButton } from "@/components/copy-install-command-button";
-import { HeroTerminalLazy } from "@/components/hero-terminal-lazy";
-import { WatchHubDemo } from "./watch-hub-demo";
-
-const heroPrimaryCtaClassName =
-  "inline-flex items-center gap-2 rounded-full bg-gradient-to-b from-deep-navy to-space-indigo px-8 py-3.5 text-sm font-semibold text-bright-snow shadow-[0_10px_40px_-8px_hsl(225_66%_21%/0.45)] transition-[box-shadow,transform] hover:shadow-[0_14px_48px_-8px_hsl(226_66%_17%/0.55)] hover:-translate-y-0.5 active:translate-y-0";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { DashboardPreview } from "./dashboard-preview";
 
 export function HomeHeroSection() {
   return (
-    <section className="relative overflow-x-hidden">
-      <div className="relative min-h-screen w-full overflow-hidden border-b border-black/[0.07] px-4 shadow-[0_25px_80px_-20px_rgba(15,23,42,0.15)] backdrop-blur-xl dark:border-white/[0.08] dark:shadow-[0_25px_80px_-24px_rgba(0,0,0,0.55)]">
-        {/* Hero background as real <img> for early LCP discovery. <picture> with media queries means only the matching theme downloads. */}
-        <picture>
-          <source srcSet="/hero-dark.jpg" media="(prefers-color-scheme: dark)" />
-          <img
-            src="/hero-light.jpg"
-            alt=""
-            width={1024}
-            height={570}
-            fetchPriority="high"
-            decoding="async"
-            aria-hidden
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center select-none"
-          />
-        </picture>
-        <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/80 via-white/50 to-white/65 dark:from-neutral-950/78 dark:via-neutral-950/52 dark:to-neutral-950/68"
-          aria-hidden
-        />
-        <div className="relative">
-          <div className="p-6 sm:p-8 md:p-10 md:pb-5 ">
-            <div className="text-center mt-10">
-              <HeroLibraryStats />
-              {/* Static H1 so LCP lands here instead of the deferred terminal animation */}
-              <h1 className="text-4xl font-bold tracking-tight text-deep-navy dark:text-ghost-white sm:text-5xl md:text-6xl md:leading-[1.08]">
-                <span className="inline align-baseline">Background jobs for</span>{" "}
-                <AnimatedGradientText
-                  speed={1.1}
-                  colorFrom="hsl(217 91% 48%)"
-                  colorTo="hsl(262 83% 58%)"
-                  className="font-bold"
-                >
-                  .NET
-                </AnimatedGradientText>
-              </h1>
-
-              <p className="mx-auto mt-6 max-w-3xl text-pretty text-base leading-relaxed text-blue-slate dark:text-lavender-grey md:text-lg">
-                Source-generated. Native AOT ready. Zero reflection. Persist
-                with EF Core or Redis and monitor everything from a real-time
-                dashboard.
-              </p>
-
-              <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  href="/docs/getting-started/quick-start"
-                  className={`${heroPrimaryCtaClassName} inline-flex items-center gap-2`}
-                >
-                  <span>Get Started</span>
-                  <svg
-                    className="size-4 opacity-90"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden
-                  >
-                    <path d="M5 12h14M13 5l7 7-7 7" />
-                  </svg>
-                </Link>
-                <LiquidGlassLink
-                  href="/docs/what-is-tickerq"
-                  className="rounded-full px-8 py-3.5"
-                >
-                  <span>Why TickerQ?</span>
-                </LiquidGlassLink>
-                <WatchHubDemo />
-              </div>
-
-              <div className="mx-auto mt-8 inline-flex flex-wrap items-center justify-center gap-2 rounded-2xl border border-platinum bg-ghost-white-2/95 px-3 py-2 font-mono text-sm text-deep-navy shadow-inner backdrop-blur-sm dark:border-space-indigo dark:bg-deep-navy/50 dark:text-ghost-white sm:gap-3 sm:px-5 sm:py-3">
-                <span className="text-deep-navy select-none dark:text-platinum">
-                  $
-                </span>
-                <span className="font-mono text-sm">dotnet add package TickerQ</span>
-                <CopyInstallCommandButton />
-              </div>
-            </div>
+    <section className="relative overflow-hidden border-b border-fd-border">
+      <div aria-hidden className="pointer-events-none absolute -right-32 top-1/2 h-[640px] w-[900px] -translate-y-1/2 bg-[radial-gradient(ellipse_at_center,rgba(20,184,166,0.07),transparent_65%)]" />
+      <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.25fr)] lg:gap-12 lg:py-16">
+        <div className="mx-auto w-full max-w-xl lg:max-w-none">
+          <h1 className="text-[2.125rem] font-semibold leading-[1.14] tracking-[-0.035em] text-fd-foreground sm:text-5xl lg:text-[clamp(2.25rem,3.3vw,3rem)]">
+            <span className="block">Background jobs</span>{" "}
+            &amp; workflows{" "}
+            <span className="whitespace-nowrap text-teal-700 dark:text-teal-400">for .NET.</span>
+          </h1>
+          <p className="mt-5 max-w-md text-base leading-7 text-fd-muted-foreground sm:text-lg sm:leading-8">
+            Schedule recurring tasks, build job chains, and monitor every run from one dashboard.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3 max-[359px]:gap-2">
+            <a href="https://license.tickerq.net/register" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-3 text-sm max-[359px]:px-3 max-[359px]:text-[13px] font-semibold text-white transition-colors hover:bg-teal-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700 dark:bg-teal-400 dark:text-neutral-950 dark:hover:bg-teal-300 dark:focus-visible:outline-teal-400 sm:px-5">
+              Get license <ArrowUpRight className="size-4" aria-hidden />
+            </a>
+            <Link href="/docs/5.x" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-fd-border bg-fd-background px-4 py-3 text-sm max-[359px]:px-3 max-[359px]:text-[13px] font-medium transition-colors hover:bg-fd-accent focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700 dark:focus-visible:outline-teal-400 sm:px-5">
+              Read the docs <ArrowRight className="size-4" aria-hidden />
+            </Link>
           </div>
-
-          <div className="relative px-0 pb-2 sm:px-2 md:px-6">
-            <HeroTerminalLazy />
-          </div>
+          <p className="mt-6 max-w-sm border-l-2 border-teal-700/20 pl-3 text-xs leading-5 text-fd-muted-foreground dark:border-teal-400/25">
+            <span className="font-medium text-fd-foreground">Free Community licenses</span> for eligible companies below $5M USD in annual revenue.
+            {" "}<Link href="/docs/5.x/getting-started/licensing" className="underline underline-offset-4 hover:text-fd-foreground">See eligibility</Link>
+          </p>
         </div>
+        <div className="mx-auto min-w-0 w-full max-w-xl lg:max-w-none"><DashboardPreview /></div>
       </div>
     </section>
   );

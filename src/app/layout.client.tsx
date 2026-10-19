@@ -18,7 +18,8 @@ function getSection(slug: string | undefined): string {
 
 export function Body({ children }: { children: ReactNode }) {
   const { slug = [] } = useParams<{ slug?: string[] }>();
-  const section = getSection(Array.isArray(slug) ? slug[0] : undefined);
+  const sectionSlug = Array.isArray(slug) ? (slug[0] === '5.x' ? slug[1] : slug[0]) : undefined;
+  const section = getSection(sectionSlug);
 
   return (
     <body className={`${section} relative flex min-h-screen flex-col font-sans`}>

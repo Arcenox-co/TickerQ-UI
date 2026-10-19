@@ -1,0 +1,78 @@
+---
+title: "Job monitoring and deadlines"
+description: "Detect missed deadlines, repeated failures, and long executions, then send recovery messages."
+---
+
+Monitoring is part of **`TickerQ.Integrations`** and uses the existing `AddIntegrations` registration, dashboard permission, connections, payload templates, and HTTP transport. No additional package or registration is required. Create monitors in **System → Integrations → Monitoring**. No monitoring alerts are produced until a monitor is enabled.
+
+## Choose a condition
+
+| Condition | Behavior |
+| --- | --- |
+| Daily deadline | Require a successful execution since local midnight by a chosen time, with a time zone and optional grace period. For example, monitor `Invoices.Generate` by `08:00`, `Europe/Berlin`, with 10 minutes of grace. It can alert even when no execution row exists. A late success can send recovery. |
+| Long-running execution | Alert when an active or completed execution meets the configured duration. Active timing starts at the first observation; completed runs use their recorded duration, including retry waits. This catches slow jobs that finish between checks. Queued time is excluded. A slow successful completion can produce an alert followed by recovery in the same check. It never cancels the job. |
+| Repeated failures | Alert after 2–20 consecutive final failures within a 1–168 hour lookback. Retries are not separate failures. Successful or cancelled executions break the streak; skipped executions are ignored. Recovery requires a subsequent success, not just old failures aging out. |
+
+Each monitor targets **one exact function name**, across its time tickers and cron occurrences in the current runtime namespace. Chain steps count as individual executions; a parent's success does not prove its entire chain finished. For a chain completion deadline, monitor the final successful step. Recurring-chain dispatcher occurrences are excluded to avoid counting the same function twice.
+
+### Daily deadlines
+
+Daily deadlines run every day, including weekends. They have no weekday/calendar filter. The grace period can be 0–720 minutes. New or edited monitors begin with a cutoff at or after their first check, where the cutoff is the deadline plus grace; earlier cutoffs are not replayed. A monitor created after 08:00 but before an 08:10 grace cutoff can still evaluate that day's deadline. Daylight-saving gaps advance to the first valid minute; repeated local times use the later occurrence. A successful run during grace counts as meeting the expectation. Monitor time zones are independent of the dashboard display time zone.
+
+### Long-running executions and failure streaks
+
+A long-running threshold can be 5 seconds–7 days. Monitoring observes execution duration; it does not change the function's timeout, retry policy, or scheduler capacity. Use the [scheduler configuration](/docs/5.x/guides/scheduler) for execution controls.
+
+A repeated-failure monitor can open an incident after its threshold is reached, then remain open even if the failures age out of the lookback. A cancellation breaks the streak, but does not confirm recovery. Recovery needs a subsequent successful execution.
+
+## Check frequency and retained history
+
+Checks default to approximately every 30 seconds. The interval can be changed within the existing registration:
+
+```csharp
+options.AddIntegrations(integrations =>
+    integrations.MonitoringInterval = TimeSpan.FromSeconds(30));
+```
+
+The supported range is 5 seconds to 5 minutes. Active jobs still have observation delay. Terminal executions are processed in completion order using a persisted checkpoint, so three failures followed by success between checks produce both the incident and recovery. A deadline uses the actual cutoff including grace; a late success produces recovery even when both are first observed together. Equal completion timestamps have no portable execution order: a success or cancellation conservatively breaks the failure streak for that timestamp.
+
+Reads use provider-independent queries in batches of up to 512 completions, with a one-second catch-up interval while more history remains. Timestamp groups are kept together; a group exceeding 512 produces an unavailable check instead of silently skipping rows. New monitors establish their baseline from retained history and start replay after their first check; an existing failure streak can alert immediately. Keep terminal rows until monitoring has processed them, including any delivery backlog. Deleting or rerunning a row before it is observed can remove its previous outcome. A captured success remains in monitor state after retention removes its row. Failed queries do not advance the checkpoint or confirm recovery. Editing a monitor restarts its observation window and discards pending deliveries for its previous version.
+
+## Understand monitor state
+
+| State | Meaning |
+| --- | --- |
+| Waiting | The first check, daily cutoff, or enough observations have not arrived |
+| Healthy | The latest successful check found no open incident |
+| Needs attention (`incident`) | A condition opened an incident that has not recovered |
+| Unknown | A check could not establish current health; inspect the message and last-check time |
+| Paused | The monitor is disabled |
+
+An incident stays visible during a failed or delayed check; the system does not report recovery from missing data. If the last check becomes older than twice the configured interval plus one minute, the dashboard reports delayed checks instead of continuing to imply current health.
+
+Recovery is a transition for an existing incident, not a notification for every successful job. A successful execution must confirm the condition has cleared. For long-running monitors, another overdue active execution can keep the incident open. Each monitor opens one incident at a time, so repeated observations of the same condition do not send a fresh alert every check.
+
+## Persistent incident state and delivery
+
+- EF Core and MongoDB use a **separate record in the existing `IntegrationSettings` table/collection**, keyed by `monitor:<runtime-partition hash>`. No further schema migration is needed once the integrations settings table exists. Redis uses `<runtimePrefix>integrations:monitoring`. In-memory state is process-local and disappears on restart.
+- State is encrypted with Data Protection purpose `TickerQ.Integrations.Monitoring.v1`. Retain/share the same application name and key ring as configuration. State updates use version comparisons; a one-minute scan lease coordinates replicas without PostgreSQL-specific behavior. Custom providers must explicitly implement the monitoring storage capability; otherwise the dashboard reports it unavailable.
+- Each monitor opens one incident and sends one transition per enabled destination. Optional recovery is queued when success confirms recovery and the monitored condition is clear. Monitoring selects destinations directly; it does not need a separate Alert rule or use event-rule cooldowns.
+- A bounded persistent queue holds up to 256 delivery attempts. Detected transitions are saved first, including paired alert/recovery transitions, even when that queue is full. Each monitor retains at most one bounded observation batch of transitions and waits for them to enter the delivery queue before reading another batch. The checkpoint and transition records commit together. Pending counts include both stages; restart and queue pressure do not discard already detected incidents. Delivery runs separately from checks.
+- Each pending delivery has a ten-minute expiring lease. Failed delivery batches are retried after one and two minutes, with at most three batches; each batch uses the [HTTP transport retry policy](/docs/5.x/integrations/delivery#http-attempts-and-retries). Results appear in Activity. A crash after remote acceptance can cause a duplicate after lease expiry: receivers can deduplicate using the stable `eventId`. This is not exactly-once delivery or guaranteed escalation.
+- Persisted monitoring delivery history is bounded to the latest 50 results and seven days. It is operational feedback, not a permanent audit log. Pausing/removing a monitor or connection discards its pending deliveries; an already in-flight HTTP request may finish.
+
+## Provider queries and limits
+
+Limits: 20 monitors per namespace, at most 200 matching cron definitions and 1,000 active executions per function. Exceeding query limits produces an unavailable check instead of a false healthy result.
+
+Monitoring uses `ReadMonitoringSnapshotAsync`, a dedicated provider contract for bounded execution metadata. It returns only IDs, status, completion time, elapsed duration and execution generation; it does not materialize request payloads, exception text, results or entity graphs. EF Core applies partition/function/time filters, ordering, limits and projections through LINQ in the database, with no provider-specific SQL. MongoDB applies equivalent server-side projections and limits. These query changes require no schema migration. Custom providers implementing monitoring must also implement this read contract; unsupported reads report an unavailable check.
+
+The Redis operational provider uses cursor scans and reads one stored JSON aggregate at a time, including nested chain steps, retaining at most 513 completed and 1,001 active metadata entries. Payload fields are skipped during parsing. Redis still transfers each complete JSON value, so peak read memory depends on the largest stored aggregate, and scan cost grows with retained history. This is a bounded-memory scan, not an indexed history query. Account for that cost when choosing retention and the monitoring interval on large Redis stores. The in-memory provider scans its existing rows without cloning payloads or rebuilding chain graphs.
+
+## Deployment and verification
+
+Monitoring runs inside your application. **If every replica is down, no checks or alerts can run until one returns.** Use an external uptime monitor for application-wide outages. Use the same package version and monitoring configuration across replicas.
+
+To verify a repeated-failure monitor, use a dedicated test function: enable a monitor with threshold three, complete three failed executions, then complete one successful execution. Check the incident and recovery in Monitoring and the delivery results in Activity. Allow the configured check interval and delivery retries. Previewing a template or sending a connection test does not exercise this state transition. If the function has retries, wait for final failure rather than counting each attempt.
+
+<DashboardScreenshot name="monitoring" alt="Demo monitors for repeated failures and long-running jobs" caption="Monitor states and recovery settings in the running demo." />
