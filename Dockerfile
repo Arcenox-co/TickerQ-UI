@@ -15,7 +15,10 @@ RUN bun run postinstall && bun run build
 # Production image
 FROM base AS runner
 WORKDIR /app
+ARG APP_REVISION=unknown
 ENV NODE_ENV=production
+ENV APP_REVISION=${APP_REVISION}
+LABEL org.opencontainers.image.revision=${APP_REVISION}
 
 RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
 RUN mkdir .next && chown nextjs:nodejs .next

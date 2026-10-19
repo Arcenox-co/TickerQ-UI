@@ -1,35 +1,85 @@
-  name: Deploy TickerQ-Docs
+name: Deploy TickerQ-Docs
 
-  on:
-    push:
-      branches:
-        - main
-        
-  permissions:
-    contents: read
-    packages: write
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
-  jobs:
-    build_and_deploy:
-      runs-on: ubuntu-latest
+concurrency:
+  group: tickerq-docs-production
+  cancel-in-progress: false
 
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v4
+permissions:
+  contents: read
+  packages: write
 
-        - name: Login to GHCR
-          run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+jobs:
+  build_and_deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
-        - name: Build and push Docker image
-          run: |
-            OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-            docker build -t ghcr.io/$OWNER/v8_tickerq_ui:latest .
-            docker push ghcr.io/$OWNER/v8_tickerq_ui:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-        - name: Trigger deploy
-          run: |
-            curl -X POST \
-              -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
-              -H "Content-Type: application/json" \
-              -d '{"app":"v8_tickerq_ui"}' \
-              "http://deploy.tickerq.net:9000/hooks/deploy"
+      - name: Login to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and push Docker image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/v8_tickerq_ui"
+          docker build --build-arg APP_REVISION="$GITHUB_SHA" \
+            -t "$image:$GITHUB_SHA" -t "$image:latest" .
+
+          git fetch --no-tags origin main
+          if [[ "$(git rev-parse FETCH_HEAD)" != "$GITHUB_SHA" ]]; then
+            echo "Refusing to publish a superseded main-branch deployment." >&2
+            exit 1
+          fi
+          docker push "$image:$GITHUB_SHA"
+          docker push "$image:latest"
+
+      - name: Trigger deploy over authenticated HTTPS
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          # The existing origin certificate is not in the public CA bundle.
+          # This exact key was verified over SSH; never disable CA checking
+          # without the pin, which is checked before the token is transmitted.
+          DEPLOY_PUBLIC_KEY_PIN: sha256//dV1VhqKkUa4cinZvVNwARruWES46LXwBTmjgnpSin6Y=
+        run: |
+          test -n "$DEPLOY_TOKEN"
+          response="$(curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --insecure --pinnedpubkey "$DEPLOY_PUBLIC_KEY_PIN" \
+            -H "X-Deploy-Token: $DEPLOY_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"app":"v8_tickerq_ui"}' \
+            "https://deploy.tickerq.net/hooks/deploy")"
+          # This hook returns an empty body on acceptance, but may return a
+          # rule-mismatch message with HTTP 200 when the token is rejected.
+          if [[ -n "$response" ]]; then
+            echo "The deployment hook did not accept the request." >&2
+            exit 1
+          fi
+
+      - name: Verify deployed revision
+        run: |
+          # The webhook acknowledges receipt before docker compose finishes.
+          # Do not report success while the previous container is still serving.
+          for attempt in {1..40}; do
+            if response="$(curl --fail --silent --show-error \
+              --connect-timeout 5 --max-time 10 \
+              -H 'Cache-Control: no-cache' \
+              "https://tickerq.net/api/health?revision=$GITHUB_SHA&attempt=$attempt")" && \
+              jq -e --arg revision "$GITHUB_SHA" \
+                '.status == "ok" and .revision == $revision' <<< "$response" > /dev/null; then
+              echo "Verified live docs revision $GITHUB_SHA"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The docs did not report the expected deployed revision." >&2
+          exit 1

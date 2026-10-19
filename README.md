@@ -62,7 +62,13 @@ The documentation tests cover version boundaries, navigation fallback, the six c
 
 With a local server running, `bun run test:docs` checks every documentation page, canonical URLs, search isolation, rendered link anchors, screenshot assets, navigation coverage, Markdown exports, social images, and invalid version requests. Set `DOCS_TEST_URL` if the server uses a port other than 3000.
 
-Pushes to `main` trigger the repository's deployment workflow. Review changes on a branch before merging.
+Pushes to `main` trigger the repository's deployment workflow; it can also be run manually on `main`. Review changes on a branch before merging.
+
+The workflow builds an image tagged with the commit SHA and `latest`, then calls the existing deployment webhook over HTTPS on port 443. The origin uses a Cloudflare Origin certificate, so the request authenticates its exact public key using curl's `--pinnedpubkey`. Keep the verified pin in sync when the server certificate key changes; never remove the pin or switch back to plaintext port 9000. `DEPLOY_TOKEN` stays in GitHub Actions secrets.
+
+The webhook starts deployment asynchronously. `/api/health` returns the running container's `APP_REVISION` with caching disabled, and the workflow waits until it matches the commit being deployed. A successful webhook request alone does not count as a successful deployment. If verification fails, inspect the docs container and deployment service logs before retrying. Local builds without an explicit revision report `unknown`.
+
+The Docker context excludes local dependencies, generated output, and environment files. Configure production secrets on the server rather than putting them in the image.
 
 ## Dashboard screenshots
 

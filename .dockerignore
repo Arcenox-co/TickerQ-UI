@@ -1,0 +1,14 @@
+.git
+node_modules
+.next
+.source
+out
+build
+coverage
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.DS_Store
