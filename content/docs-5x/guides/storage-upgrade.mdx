@@ -139,16 +139,50 @@ The generated model must include:
 - TimeTicker:
   - nullable `ChainRootId` during rollout/backfill;
   - nullable `ChainGeneration`, preserving the root's exact fencing token during repair;
+  - nullable `ChainRetryFromId` and `ChainRetryPreviousStatus`, which preserve an active in-place chain retry across node failure;
+  - nullable `ProgressPercent`, `ProgressMessage` (maximum 500 characters), and `ProgressUpdatedAt` for generation-fenced execution progress;
   - indexes used by parent traversal, chain traversal, retention, and acquisition.
-- The `TickerQStoreMetadata` row for each application partition, including schema/data versions, optimistic-concurrency
+- CronTickerOccurrence:
+  - nullable `ProgressPercent`, `ProgressMessage` (maximum 500 characters), and `ProgressUpdatedAt`.
+- The singleton `TickerQStoreMetadata` row, including schema/data versions, optimistic-concurrency
   `Version`, durable `ActivationEpoch`, `ActivationPhase`, and nullable `ActivationCheckpoint`.
+  Its `Id` column must allow 80 characters, including the full runtime activation key.
 - The complete `NodeFinalizationOutbox` table and its current identity/due indexes whenever the current TickerQ EF model maps it.
+- The `TickerQNodes` heartbeat table and `TickerQControlCommands` durable control table.
+- The `TickerQDefinitions` table used by chain templates and non-executable time drafts, including its normalized unique `NameKey` index.
+- When `AddAssistantHistory()` is enabled, `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`.
 
 The repository's ApplicationDbContext, Console, and WebApi samples contain reviewed host-owned
 `ApplicationRuntimePartitioning` migrations and matching snapshots. Consumers must generate and
 review their own equivalent migration; the provider does not own application migration history.
 
 On SQL Server, the unique nullable `SeedKey` index must exclude null rows. SQLite and PostgreSQL allow multiple null values in a unique index. Use the generated provider-specific model rather than hard-coding one provider's quoting or filter syntax.
+
+### Widen the activation metadata key
+
+Earlier 5.x models limited `TickerQStoreMetadata.Id` to 64 characters. A runtime activation key contains the `tq:runtime:v1:` prefix and a 64-character SHA-256 hash, totaling **78 characters**. PostgreSQL and SQL Server enforce the old limit and reject activation inserts. The current model allows **80 characters**; shortening the application namespace does not shorten its hash.
+
+Generate a provider-specific migration that widens the existing column to 80 while preserving its composite primary key and checkpoint rows. Apply it before starting upgraded replicas. Fresh databases created from the current model already have the corrected limit. Keep the widened column during binary rollback; do not truncate or rewrite activation keys.
+
+### Add node discovery and control tables
+
+The Nodes dashboard and cross-node cooperative cancellation require `TickerQNodes` and `TickerQControlCommands`. Generate both from the current model and apply the migration before an upgraded replica starts. They store instance identity, scheduler counters, optional dashboard URLs, and short-lived control commands; they do not contain requests or results.
+
+Keep both tables partitioned by `ApplicationNamespaceKey`. Do not make `NodeIdentifier` unique: several replicas may share a logical role, while `NodeKey` identifies one process. Read [nodes and cluster operations](/docs/5.x/dashboard/clustering).
+
+### Add saved templates and drafts
+
+`TickerQDefinitions` stores reusable chain configurations and non-executable time drafts. It contains no execution state, locks, logs, or results. Draft activation uses an optimistic version and durable activation claim so two dashboard nodes cannot publish the same draft twice.
+
+Template names are unique within an application namespace and scheduler target. The model stores a normalized, hashed `NameKey` and enforces it with `UX_TickerQDefinitions_Name`. Do not model Draft as a `TickerStatus`: drafts stay outside `TimeTickers` until activation. Read [drafts and templates](/docs/5.x/dashboard/saved-work).
+
+### Add AI assistant investigation history
+
+`AddAssistantHistory()` maps five optional tables. `AssistantConversations` and `AssistantMessages` retain per-user chat and proposal history. `AssistantInvestigations` contains namespace-scoped structured diagnoses, review state, and detected recovery metadata.
+
+`AssistantInvestigationLeases` coordinates one renewable model call per evidence fingerprint. `AssistantInvestigationBudgets` records the rolling namespace-wide hourly call allowance. Neither coordination table stores prompts, source excerpts, logs, or model responses.
+
+The unique namespace/execution index on investigations is required. Apply all five tables before enabling automatic investigations; startup rejects automatic mode when its durable investigation store or coordinator is unavailable. Creating these tables does not enable AI or background provider calls by itself. Read [AI assistant](/docs/5.x/dashboard/ai-assistant#automatic-investigations).
 
 ### Startup and data repair
 

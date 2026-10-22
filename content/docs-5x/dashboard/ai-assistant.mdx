@@ -3,20 +3,32 @@ title: "AI assistant"
 description: "Use Chat AI to investigate jobs, inspect logs, and review proposed changes in the dashboard."
 ---
 
-Use the assistant to investigate scheduler data and prepare changes for review. It uses the same dashboard authentication and authorization as other views. It is an optional feature of `TickerQ.Dashboard`; there is no separate AI package.
+Use the assistant to investigate scheduler data, review saved diagnoses, and prepare changes for human approval. It uses the same dashboard authentication and authorization as other views. It is an optional feature of `TickerQ.Dashboard`; there is no separate AI package.
 
-<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a pending Create time ticker card showing Confirm and Dismiss" caption="A real conversation from the local demo. The assistant has proposed a one-time job; it has not been created. Review the card, then Confirm or Dismiss." />
+<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a reviewable job proposal card" caption="A local assistant conversation with a reviewable proposal. Current one-time proposals are saved as non-executable drafts before they can be activated." />
+
+## AI Operations workspace
+
+The **AI Operations** page has three views:
+
+| View | Purpose |
+| --- | --- |
+| **Overview** | Unread investigations, diagnoses completed today, detected recoveries, recent failures, and repeated function/classification patterns |
+| **Chat** | Streaming operational assistant, saved conversations, and confirmation cards |
+| **Investigations** | Searchable, namespace-scoped diagnoses with Unread, Read, and Resolved review states |
+
+Opening an investigation marks it read. Resolving it records an operator review state; it does not change the underlying execution. Repeated investigations for the same function are grouped visually, newest first, while each execution remains individually selectable and deletable.
 
 ## Use Chat AI
 
 1. Open **AI → Chat AI** in the dashboard sidebar.
 2. Select a suggested question to send it immediately, or type your own request. Press **Enter** to send and **Shift+Enter** for a new line.
-3. Read the answer as it streams, then ask a follow-up in the same conversation. Include the function name or execution ID when you want to inspect a particular job.
+3. Read the answer as it streams, then ask a follow-up in the same conversation. Include the function name or execution ID when you want to inspect a particular job, or choose **Continue in chat** on a saved investigation.
 4. If the assistant proposes a change, review the action card before applying it. Asking a question does not apply a proposed change.
 
 The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. The model label below **Chat AI** comes from the host configuration; provider selection and credentials are configured on the server.
 
-Already using the interface? See [supported requests](#inspect-data-and-propose-changes), [action cards](#confirm-operational-changes), and [conversation history](#conversation-history). Setting it up for the first time? [Configure a chat client](#configure-a-chat-client).
+Already using the interface? See [supported requests](#inspect-data-and-propose-changes), [action cards](#confirm-operational-changes), [run investigations](#investigate-one-execution), and [conversation history](#conversation-and-proposal-history). Setting it up for the first time? [Configure a chat client](#configure-a-chat-client).
 
 ## Inspect data and propose changes
 
@@ -27,9 +39,9 @@ also inspect destinations, rules, monitoring state and recent delivery outcomes.
 Webhook URLs, headers, message templates and delivery response bodies are excluded
 from integration tool results.
 
-The assistant drafts confirmation cards for:
+The assistant drafts review cards for:
 
-- One-time jobs, cron schedules, and one-time or recurring chains.
+- One-time job and chain drafts, plus cron schedules and recurring chains.
 - Cron schedule updates, including enabling/disabling a schedule.
 - Execution retries, cancellation, and deletion.
 - New alert rules and deadline, long-running or consecutive-failure monitors, using
@@ -51,6 +63,8 @@ Action cards show the relevant function or chain steps, schedule and time zone, 
 
 | Control or result | Meaning |
 | --- | --- |
+| **Save draft** | Store a non-executable one-time job or chain draft for review |
+| **Open draft** | Open a saved draft in the visual builder; activation remains a separate confirmation |
 | **Confirm** | Apply the proposed operation through the dashboard API |
 | **Confirm deletion** | Permanently delete the proposed target after reviewing the warning |
 | **Request cancellation** | Ask a running handler to stop using its cancellation token |
@@ -58,7 +72,9 @@ Action cards show the relevant function or chain steps, schedule and time zone, 
 | **Applied** | The API accepted the operation; this does not mean a scheduled job has finished |
 | **Requested** | A running cancellation request was accepted; check execution status for the outcome |
 
-**Changes require an explicit action on the card.** Tools never write data or send test messages. If confirmation fails, the dashboard displays **Failed to apply** and leaves the card pending.
+**Changes require an explicit action on the card.** Model tools never write data or send test messages. If confirmation fails, the dashboard displays **Failed to apply** and leaves the card pending.
+
+One-time job and one-time chain cards save a [non-executable draft](/docs/5.x/dashboard/saved-work). Review and edit that draft in the builder, then activate it separately. This prevents an assistant-created proposal from becoming runnable immediately. Cron schedules and recurring chains use their own confirmation cards because they create or update cron definitions.
 
 Confirmation uses the normal authenticated dashboard APIs, including their read-only,
 license and integration-management checks. Execution cards recheck observed status
@@ -67,11 +83,11 @@ state. Integration proposals retain the configuration version and fail on concur
 edits. Read-only users receive no proposal tools.
 
 A running cancellation requests cooperation through the handler's cancellation token;
-it does not prove that the job stopped. Retrying a cron execution creates a fresh
-occurrence using the current cron definition, while retrying a time ticker re-runs
-that ticker, without resetting an entire chain. Deletion cards explain their permanent
-effect. Monitors track individual function executions, including chain steps, rather
-than completion of a whole workflow.
+it does not prove that the job stopped. Re-running a cron occurrence revives that exact
+occurrence. A time-ticker retry reuses the selected stored execution; chain-specific
+**Retry from this job** operations preview and reset only the affected downstream path.
+Deletion cards explain their permanent effect. Monitors track individual function executions,
+including chain steps, rather than completion of a whole workflow.
 
 Cron proposals show the scheduler time zone. Deadline monitors have their own explicit
 time zone. Configure new destinations and edit webhook secrets/templates in Integrations.
@@ -101,15 +117,15 @@ Keep API credentials in server configuration or a secret store. `WithModelName(.
 
 `UseChatClient` resolves its factory once from the root service provider. Supply a client suitable for singleton use; do not capture scoped database services. The dashboard wraps it for tool invocation and disposes the resulting client with the application. `WithSystemPrompt(...)` replaces the default prompt; preserve the instructions about untrusted tool data, read-only behavior, and explicit confirmation if you customize it.
 
-## Conversation history
+## Conversation and proposal history
 
-With server-side history enabled, a desktop conversation sidebar lists saved chats. Select a title to reopen it, choose **New chat** for a fresh conversation, or use the conversation's delete control and confirm deletion. This sidebar is hidden on smaller screens.
+With server-side history enabled, the conversation sidebar lists saved chats. Select a title to reopen it, choose **New chat** for a fresh conversation, or delete a conversation after confirmation. Starting a new chat does not undo an operation already applied through an action card.
 
-Without server-side history, **New chat** appears in the chat header after the first message and clears the browser-local conversation. Starting a new chat does not undo any operation already applied through an action card.
+TickerQ stores proposal cards with the exchange when the history store supports `IAssistantProposalHistoryStore`. Reopening a conversation restores pending, dismissed, failed, and applied cards, including the **Open draft** link returned after a one-time draft is saved. Conversation text alone is never proof that an operation ran; the card state and current scheduler data remain authoritative.
 
-Without a registered history store, the dashboard retains the latest 40 text messages in browser `localStorage`. This fallback uses one key for the origin, not a key for each login, dashboard path, or application namespace. **New chat** clears that local history. On a shared browser, do not treat the fallback as separate personal conversations.
+Without a registered server history store, the dashboard keeps a bounded browser-local transcript and proposal list. It is scoped by the stable authenticated user, backend origin, and dashboard mount. Anonymous or unresolved identities do not inherit another user's transcript, and logging out clears the active local session. **New chat** clears the current local conversation.
 
-EF Core can retain conversations by opting in on the operational store:
+EF Core can retain conversations, cards, and structured investigations by opting in on the operational store:
 
 ```csharp
 // Inside the existing options.AddOperationalStore(store => { ... }) callback:
@@ -117,14 +133,86 @@ store.AddAssistantHistory(history =>
 {
     history.MaxConversationsPerUser = 50;
     history.MaxMessagesPerConversation = 80;
+    history.MaxInvestigationsPerNamespace = 500;
+    history.InvestigationRetention = TimeSpan.FromDays(30);
 });
 ```
 
-These values are the defaults. Enable the option in the design-time model too, and generate/apply an application migration for `AssistantConversations` and `AssistantMessages`. Without this opt-in, the EF provider maps no assistant-history tables. History storage is separate from execution-log persistence. When a server store is configured, the dashboard uses it instead of the local fallback and offers conversation selection and deletion. Stored exchanges contain user and assistant text; pending confirmation cards are not persisted, and conversation text is not proof that an action ran.
+Enable the option in the design-time model too, and generate/apply an application migration for five optional tables: `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`. Without this opt-in, EF maps none of them. Assistant storage is separate from execution-log persistence.
 
-The current implementation groups server history by the dashboard's resolved username. Use a stable, unique authenticated name for each person. API-key authentication uses the shared `api-user` name, custom authentication uses `custom-user`, and a host identity without a name becomes `host-user`; these modes do not produce separate personal histories for different people. Anonymous access shares an anonymous history identity.
+Conversation history is private to a stable authenticated identity. Host authentication must provide `sub` or `ClaimTypes.NameIdentifier`; the key also includes the issuer and authentication scheme. Dashboard-issued cookie and bearer sessions share their issuer-scoped subject. A custom `IAuthService` should return a stable `AuthResult.UserId`. Anonymous sessions and identities without a stable subject can chat but do not persist history.
 
-The EF history tables do not include an application-namespace partition. Applications sharing these tables and the same resolved username can therefore share conversation history even when their scheduler namespaces differ. Use separate history storage where that isolation is required. Treat retained text as application data: it can contain the runtime information discussed with the assistant.
+Investigations are operational records shared by authorized dashboard users in the same TickerQ application namespace. Treat stored conversation and diagnosis text as application data because it can contain the runtime information discussed with the assistant.
+
+## Investigate one execution
+
+Failed and cancelled time jobs and cron occurrences expose **Investigate with AI** in the job-details header. A failed chain summary targets the failed child execution rather than diagnosing only its successful root. You can also give Chat AI an exact execution ID, including for a skipped execution.
+
+The investigator assembles a bounded evidence set:
+
+- status, timing, retries, and current/last node holder;
+- the structured exception and application source frames captured by TickerQ;
+- up to 50 retained log lines;
+- up to 50 related workflow steps;
+- an optional source excerpt supplied by the application.
+
+Request payload values are deliberately excluded. Exception, log, source, and function text is treated as untrusted evidence rather than model instructions. The saved diagnosis separates confirmed evidence from inference and a suggested next action.
+
+Select **Continue in chat** to open a conversation scoped to that investigation. Follow-up questions keep the saved diagnosis as context and can re-read live execution evidence when needed. A general chat such as “Why are my jobs failing?” can return suggested investigation cards; it does not silently choose an unrelated old failure.
+
+## Add bounded source context
+
+For development, or a deployment that deliberately ships the matching source revision, allow-list local files explicitly:
+
+```csharp
+var revision = Environment.GetEnvironmentVariable("GIT_COMMIT_SHA")
+    ?? "local-working-tree";
+
+dashboard.AddAssistant(assistant => assistant
+    .UseChatClient(chatClient)
+    .ConfigureRunInvestigator(investigator => investigator
+        .UseLocalSourceContext(builder.Environment.ContentRootPath, source => source
+            .WithRepository("Orders API")
+            .WithRevision(revision)
+            .WithContextLines(before: 20, after: 20)
+            .MapFunction("Payments.Charge", "Jobs/PaymentJob.cs")
+            .MapSourceFile("InvoiceJob.cs", "Jobs/InvoiceJob.cs"))
+        .WithSourceContextLimits(maximumLines: 60, maximumCharacters: 10_000)
+        .RedactEvidenceWith(RedactApplicationSecrets)));
+```
+
+The local provider never searches the checkout. Paths must be relative to the configured root and cannot traverse outside it. Function mappings take precedence over filename mappings, which avoids ambiguity when several projects contain `Program.cs`.
+
+For a private repository, register an application-owned `IExecutionSourceContextProvider`. The adapter receives the safe function, exception type, method, filename, and line; it can use host-owned GitHub/GitLab credentials, SourceLink artifacts, or an internal source service to return a small excerpt from an immutable revision. TickerQ does not need the repository token, does not clone a repository, and never exposes repository credentials to the browser.
+
+## Automatic investigations
+
+Automatic investigation is opt-in because it sends evidence to the configured model provider without waiting for an operator click:
+
+```csharp
+dashboard.AddAssistant(assistant => assistant
+    .UseChatClient(chatClient)
+    .WithModelName("operations-model")
+    .ConfigureRunInvestigator(investigator => investigator
+        .EnableAutomaticInvestigations(automatic => automatic
+            .Every(TimeSpan.FromSeconds(30))
+            .WithLookback(TimeSpan.FromMinutes(15))
+            .WithBatchSize(10)
+            .WithHourlyLimit(30)
+            .WithCoordinationLease(TimeSpan.FromMinutes(5))
+            .IncludeCancellations()
+            .DetectSuccessfulRecovery())));
+```
+
+Only terminal failures with exhausted retries are investigated. Cancellations are excluded unless enabled. Each sweep has a bounded lookback and batch size.
+
+Automatic investigation requires a durable `IAssistantInvestigationStore` and `IAssistantInvestigationCoordinator`; EF `AddAssistantHistory()` supplies both. Before calling the model, one node acquires a renewable database lease for the evidence fingerprint and consumes the shared rolling hourly budget. Other healthy nodes cannot purchase the same diagnosis concurrently. A crashed owner's work becomes recoverable after the configured lease period.
+
+Repeated failures at the same application source line reuse the latest completed diagnosis in that namespace. TickerQ creates a new investigation record for the new execution, but copies the diagnosis without another model call or hourly-budget charge. The fingerprint includes the function, terminal status, exception type, safe source filename, and line. When no application frame exists, it also includes the normalized exception message so unrelated failures are not grouped together.
+
+A later successful execution can mark older diagnoses as **Recovered** evidence. Recovery does not automatically resolve the operator review state. Deleting a diagnosis leaves a durable suppression marker for that execution, so a later automatic sweep does not immediately recreate the deleted item.
+
+The coordination lease prevents simultaneous calls from healthy replicas. It cannot prove whether a provider billed a request if the process exits after the provider accepts it but before the response is committed; that attempt remains counted in the shared hourly budget.
 
 ## Data sent to the model and request limits
 
@@ -147,5 +235,8 @@ chains at 100 steps, ten levels, and five children per step.
 | Integration information is unavailable | Enable `AddIntegrations` and grant integration-management access |
 | A proposal is rejected when confirmed | Reload current job/configuration state and check write, license, and integration permissions |
 | Logs are missing or incomplete | Check execution-log retention, truncation, and storage availability; missing logs do not establish a successful run |
+| Investigations are unavailable | Enable a durable assistant history store and apply its migration |
+| Automatic investigation starts on more than one node | Verify every node uses the same namespace and shared coordinator tables, and that clocks are synchronized |
+| A source excerpt is missing | Check the allow-list mapping, immutable revision, file path, source line, and redaction callback |
 
 The assistant cannot deploy application code, register a missing function handler, configure webhook credentials, or send test messages. Use the application's normal deployment process and the Integrations editor for those tasks.

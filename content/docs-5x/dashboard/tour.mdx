@@ -11,10 +11,10 @@ Select any screenshot to open the full-size image. See [dashboard setup](/docs/5
 
 | Task | Views |
 | --- | --- |
-| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view) |
-| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [Live updates](#live-updates-and-ownership) |
+| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view), [Saved work](#saved-work) |
+| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [AI Operations](#ai-operations) |
 | Configure alerts | [Integrations](#integrations), [Alert rules](#alert-rules), [Monitoring](#monitoring), [Message templates](#message-templates) |
-| Check the installation | [License](#license), [About](#about), [AI assistant](#ai-assistant) |
+| Check the installation | [License](#license), [About](#about), [Nodes](#nodes), [Live updates](#live-updates-and-ownership) |
 
 ## Overview
 
@@ -26,9 +26,17 @@ Start here for scheduler state, current workers, execution volume, and recent or
 
 Browse one-time jobs, search by function, and filter standalone jobs or chains. Select a row to inspect that job. The chain badge opens its workflow. Jobs created by a recurring cron chain appear under the cron occurrence, keeping this list focused on time tickers.
 
+The create flow can run a new function or chain as an ephemeral test before saving it. Use **Save draft** to retain unfinished one-time work without creating an `Idle` ticker.
+
 <DashboardScreenshot name="time-tickers" alt="Time tickers table showing standalone jobs and a five-step chain" caption="A chain's status summarizes all its steps, so a finished parent does not imply the whole workflow is done." />
 
 Learn about [time scheduling](/docs/5.x/guides/scheduling/time-ticker) and [cancellation](/docs/5.x/guides/job-lifecycle).
+
+## Saved work
+
+Saved work separates non-executable drafts from reusable chain templates. Search and order saved definitions, open a draft to edit its inherited execution time, or update a template in place. Activating a draft asks you to keep or change its time and publishes the graph once through a durable activation claim.
+
+Read [drafts, templates, and activation](/docs/5.x/dashboard/saved-work).
 
 ## Cron tickers
 
@@ -58,6 +66,8 @@ Follow connected steps and inspect each job's status, duration, and details. Cli
 
 Progress counts all terminal steps, including skipped, failed, and cancelled steps. It is not a count of successful steps. Open the chain to see which branches ran.
 
+Durable parallel groups appear as containers rather than fake function cards. Their branches stay inside the group, and a single merge rail leads to the success, failure, cancellation, or all-terminal outcomes. Edge colors describe the condition path; job cards keep the execution-status colors. Select a settled step to preview **Retry from this job**, or select the group to rerun all grouped branches.
+
 <DashboardScreenshot name="chain" alt="A recurring job chain showing connected preparation, processing, and completion steps" caption="The workflow view shows individual steps; the chain log panel brings their available log lines together." />
 
 ## Executions
@@ -68,7 +78,9 @@ Use the execution list to investigate outcomes across job types. Filter the hist
 
 ### Job details and logs
 
-The details panel shows the selected job's status, duration, request payload, and available logs. Scheduler lifecycle messages sit alongside application log messages. A database log tail can remain available after a restart when persistence is configured.
+The details panel shows the selected job's status, duration, durable progress, request payload, parent ID, input from the parent's committed result, the job's output result, and available logs when those values exist. IDs have a copy action and parent links stay inside the same flowchart.
+
+Exception details prioritize the application frame and source line, while generated and TickerQ scheduler frames stay out of the primary trace. Failed and cancelled executions show **Investigate with AI** in the details header when the assistant is configured. Scheduler lifecycle messages sit alongside application log messages. A database log tail can remain available after a restart when persistence is configured.
 
 <DashboardScreenshot name="execution-logs" alt="Execution details panel with database log messages and a timeout cancellation" caption="A local timeout test: the log records creation, execution, sample progress, and cancellation when the function exits." />
 
@@ -144,10 +156,18 @@ If a view stops updating, check the browser's hub connection, authentication, an
 
 A job's **Node** field displays the configured node name. Its tooltip shows the full execution-owner identifier, including the process ID and instance suffix. The owner identifies the process that acquired the job; it is not the application's namespace or a count of workers. Scheduler controls and Diagnostics refer to the responding application instance.
 
-## AI assistant
+## Nodes
 
-The optional assistant can inspect runtime data and propose supported actions for confirmation. Your host supplies the AI provider. See [AI assistant setup and capabilities](/docs/5.x/dashboard/ai-assistant).
+Open **Clustering → Nodes** to compare replicas in the current application namespace: heartbeat state, version, registered functions, execution capacity, running/queued attempts, waits, retries, and start time. Offline nodes are muted and the list is paged. An advertised dashboard URL is an operator link only; cross-node cancellation uses a durable store command rather than an HTTP request.
+
+Read [nodes and cluster operations](/docs/5.x/dashboard/clustering).
+
+## AI Operations
+
+The optional assistant has Overview, Chat, and Investigations views. It can inspect runtime data, diagnose one failed or cancelled execution, retain review states, and propose supported actions for confirmation. Optional automatic investigation uses a shared namespace budget and coordination lease so replicas do not purchase the same diagnosis concurrently. Your host supplies the AI provider and decides whether source excerpts are available.
 
 Open **AI → Chat AI**, select a suggested question, or type a request in the composer. Answers stream into the conversation. Proposed changes appear as action cards that you review and confirm or dismiss.
 
-<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a pending Create time ticker card showing Confirm and Dismiss" caption="A reply and a proposed one-time job in Chat AI. The card remains pending until you confirm it." />
+<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a reviewable proposal card" caption="A reply and a proposed one-time job. Current one-time proposals save a non-executable draft before activation." />
+
+See [AI assistant setup, history, source context, and automatic investigations](/docs/5.x/dashboard/ai-assistant).

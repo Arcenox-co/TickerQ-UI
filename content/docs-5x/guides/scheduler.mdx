@@ -11,6 +11,9 @@ options.ConfigureScheduler(scheduler =>
     scheduler.NodeIdentifier = "orders-worker";
     scheduler.SchedulerTimeZone = TimeZoneInfo.Utc;
     scheduler.MaxConcurrency = 8;
+    scheduler.MaxQueuedExecutions = 1024;
+    scheduler.MaxActiveWorkflows = 128;
+    scheduler.MaxConcurrentChainSteps = 16;
     scheduler.DefaultExecutionTimeout = TimeSpan.FromMinutes(10);
     scheduler.ShutdownDrainTimeout = TimeSpan.FromSeconds(30);
 });
@@ -23,6 +26,9 @@ The dashboard's **About → Scheduler** shows effective settings on the respondi
 | Control | Scope | At capacity |
 | --- | --- | --- |
 | `scheduler.MaxConcurrency` | Scheduler work items on one host | New work items wait for capacity |
+| `scheduler.MaxQueuedExecutions` | Admitted function attempts waiting in this host's execution queue | Additional scheduler acquisition waits; request-side immediate dispatch can be rejected |
+| `scheduler.MaxActiveWorkflows` | Admitted root workflows, including chains waiting to retry | Background scheduling waits before admitting more roots |
+| `scheduler.MaxConcurrentChainSteps` | Live step tasks inside one chain | Additional ready steps remain lightweight graph nodes |
 | Function `maxConcurrency` / `WithMaxConcurrency` | Invocations of one registered function on one host, including chain steps | The invocation waits for a permit |
 | Cron `SkipIfAlreadyRunning` | One cron definition | A competing run is skipped, not deferred |
 
@@ -45,17 +51,31 @@ The dashboard toolbar changes timestamp presentation only. It does not change th
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `MaxConcurrency` | `Environment.ProcessorCount` | Scheduler execution capacity per host |
+| `AcquisitionBatchSize` | `100` | Maximum time-ticker roots loaded by one scheduled/immediate acquisition |
+| `MaxQueuedExecutions` | `1,024` | Maximum admitted attempts waiting for execution capacity |
+| `MaxActiveWorkflows` | `128` | Maximum admitted root workflows, including chains and delayed retries |
+| `MaxConcurrentChainSteps` | `16` | Maximum live step tasks in one chain |
 | Function maximum concurrency | `0` | No additional per-function limit |
 | `MinPollingInterval` | 1 second | Minimum calculated scheduler wait; not a fixed polling cadence |
 | `FallbackIntervalChecker` | 30 seconds | Delay after an empty or failed overdue-work scan |
 | `FallbackBatchSize` | 100 | Maximum overdue roots of each ticker type acquired per scan |
-| `IdleWorkerTimeOut` | 1 minute | Delay before extra idle workers retire |
 | `DefaultExecutionTimeout` | `null` | No default attempt timeout |
+| `TimeoutGracePeriod` | 5 seconds | Delay before a still-running, cancellation-insensitive delegate is reported as timeout-pending |
 | `ShutdownDrainTimeout` | 30 seconds | Bounded wait for in-flight work on shutdown |
 
 The normal scheduler waits until the next computed execution, subject to its minimum wait. Notifications can interrupt that wait, and immediate dispatch is separate. Lowering `MinPollingInterval` does not make it a continuously polling timer or promise exact start times. Database access, available workers, and function limits also affect latency.
 
 For lease duration, stale recovery, timeout behavior, and shutdown sequencing, see [runtime reliability](/docs/5.x/guides/reliability). For storage growth, configure [job retention](/docs/5.x/guides/retention) and [execution logs](/docs/5.x/guides/execution-logs) separately.
+
+## Detailed scheduler logging
+
+Opt in to additional scheduler decision and recovery diagnostics through your application's normal `ILogger` pipeline:
+
+```csharp
+options.EnableDetailedLogging();
+```
+
+Detailed logging covers acquisition, queue publication, recovery, restart, and retry decisions. It includes ticker IDs and function names but never request or result payloads. It is disabled by default because high-throughput hosts can produce substantial log volume. This setting is separate from the bounded per-execution log tails configured with `ConfigureExecutionLogs(...)`.
 
 ## Startup choices
 

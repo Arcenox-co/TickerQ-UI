@@ -33,9 +33,12 @@ For a loopback-only local demo, explicitly opt into `dashboard.AllowAnonymousDas
 | Overview | Recent and upcoming work, with links to job details |
 | Time tickers | One-time jobs and their chains |
 | Cron tickers | Recurring definitions, human-readable expressions, and occurrences |
-| Executions and chain view | Per-run status, ownership, results, and logs |
+| Saved work | One-time drafts and reusable time/cron chain templates |
+| Executions and chain view | Per-run status, progress, ownership, requests/results, errors, and logs |
 | Diagnostics | Runtime warnings, health, and recovery information |
 | Integrations | Connections, alert rules, monitoring, and delivery feedback |
+| Nodes | Scheduler replicas, capacity, queue pressure, heartbeats, and navigation links |
+| AI Operations | Chat, saved investigations, automatic diagnoses, and reviewed action cards |
 | License | Certificate and entitlement status |
 | About | Registered functions, scheduler settings, retention, and execution-log configuration |
 
@@ -51,11 +54,13 @@ The chain badge summarizes the root and all descendants. It shows **Running** wh
 | Separate viewer, operator, and administrator access | [Roles and permissions](/docs/5.x/dashboard/authorization) |
 | Choose credentials, sessions, proxy, and origin settings | [Authentication and deployment](/docs/5.x/dashboard/authentication) |
 | Learn the views and controls | [Dashboard tour](/docs/5.x/dashboard/tour) |
+| Save an unfinished chain or reusable design | [Drafts and templates](/docs/5.x/dashboard/saved-work) |
+| Discover replicas and route cancellation | [Nodes and cluster operations](/docs/5.x/dashboard/clustering) |
 | Ask questions and review proposed actions | [AI assistant](/docs/5.x/dashboard/ai-assistant) |
 
 ## Optional capabilities
 
-Enable [database execution logs](/docs/5.x/guides/execution-logs) for retained tails and [Integrations](/docs/5.x/integrations) for Slack, Teams, and webhook configuration. The optional [AI assistant](/docs/5.x/dashboard/ai-assistant) can inspect runtime data and draft actions for confirmation.
+Enable [database execution logs](/docs/5.x/guides/execution-logs) for retained tails and [Integrations](/docs/5.x/integrations) for Slack, Teams, and webhook configuration. The optional [AI assistant](/docs/5.x/dashboard/ai-assistant) can inspect runtime data, save diagnoses, and draft actions for confirmation. Saved definitions and cluster control depend on capabilities supplied by the operational provider.
 
 
 ## Path, appearance, and read-only access
@@ -65,10 +70,11 @@ Configure these inside the same `AddDashboard` callback:
 ```csharp
 dashboard.SetBasePath("/operations/jobs");
 dashboard.SetTitle("Orders — background jobs");
+dashboard.SetEnvironmentName(builder.Environment.EnvironmentName);
 dashboard.SetTimeZone(TimeZoneInfo.Utc);
 dashboard.SetReadOnly(context => !context.User.IsInRole("SchedulerAdmin"));
 ```
 
-`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
+`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetEnvironmentName` adds a visible deployment label to the dashboard and sign-in page; it does not change the scheduler namespace. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
 
 Set integration `DashboardUrl` to the externally reachable dashboard URL if alert messages should link back here. The URL is for message links; it does not enable dashboard hosting or authentication.

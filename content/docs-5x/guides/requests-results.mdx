@@ -89,6 +89,8 @@ internal partial class InvoiceJsonContext : JsonSerializerContext;
 
 Add `Invoices.Send` as an `OnSuccess` child of `Invoices.Create` using the [chain guide](/docs/5.x/guides/job-chaining). A grandchild sees its own parent's result, not the root's. A parallel `InProgress` child cannot depend on an output that its parent has not committed yet.
 
+Branches inside a durable `ThenMany` group receive the committed result of the executable step immediately before the group. Group outcome continuations receive that same upstream result. Results from several branches are not merged automatically because their contracts may differ; publish a deliberate aggregate in a separate step when the workflow needs one.
+
 ## Publish explicitly
 
 Handlers returning `Task` can publish a value through their context instead:

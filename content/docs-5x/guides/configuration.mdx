@@ -14,6 +14,9 @@ builder.Services.AddTickerQ(options =>
     options.ConfigureScheduler(scheduler =>
     {
         scheduler.NodeIdentifier = "orders-worker";
+        scheduler.NodeDisplayName = "Orders worker · EU 1";
+        scheduler.AdvertisedDashboardUrl =
+            "https://orders-eu-1.internal/tickerq/dashboard";
     });
     // Add your operational store and optional packages here.
 });
@@ -39,6 +42,7 @@ The readable namespace is converted to a canonical storage identity. The built-i
 | --- | --- | --- |
 | Application namespace | `AddTickerQ` → `UseApplicationNamespace` | `orders-production`, shared by all Orders replicas |
 | Node identifier | `ConfigureScheduler` → `NodeIdentifier` | `orders-worker-1`, a readable host label |
+| Node display name | `ConfigureScheduler` → `NodeDisplayName` | `Orders worker · EU 1`, an operator-facing label |
 | Function name | `[TickerFunction]` or `MapTicker` | `Orders.SendInvoice`, selected by each job |
 | Job ID | Returned by the manager | One scheduled time job or one cron definition |
 
@@ -47,6 +51,8 @@ The same function name can appear in different application namespaces without al
 ## Node identifier
 
 `NodeIdentifier` is the readable worker label. Execution ownership also includes a process ID and unique per-process value, so two processes with the same label cannot impersonate each other's leases. Keep the application namespace stable; each running host has its own execution owner.
+
+`NodeDisplayName` supplies a friendlier dashboard label. `AdvertisedDashboardUrl` optionally gives operators a link to that node's dashboard; it is never used as a backend control endpoint. Node discovery and cross-node cancellation travel through the operational store. Read [nodes and cluster operations](/docs/5.x/dashboard/clustering).
 
 ## Reconciliation epoch
 

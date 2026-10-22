@@ -94,7 +94,7 @@ After changing permissions, refresh the host session and reload the dashboard. T
 
 These controls cover dashboard entry, all dashboard writes, and integration management. There is no built-in per-function, per-job-owner, per-tenant, or individual run/delete permission matrix. Read-only users can still inspect the runtime's job details, requests, results, and retained logs.
 
-Assistant history has additional [identity and storage boundaries](/docs/5.x/dashboard/ai-assistant#conversation-history); shared credentials do not create separate personal histories.
+Assistant history has additional [identity and storage boundaries](/docs/5.x/dashboard/ai-assistant#conversation-and-proposal-history); shared credentials do not create separate personal histories.
 
 An OAuth permission scope is also different from an [application namespace](/docs/5.x/guides/configuration): the former authorizes a user; the latter partitions scheduler storage and workers. A namespace is not a user-level data filter.
 

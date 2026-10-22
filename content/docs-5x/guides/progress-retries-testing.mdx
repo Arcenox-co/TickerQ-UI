@@ -1,0 +1,96 @@
+---
+title: "Progress, retries, and test runs"
+description: "Report durable job progress, retry an existing execution safely, and preview a function without creating scheduler records."
+---
+
+TickerQ separates three operator actions that answer different needs:
+
+| Action | Persists scheduler history? | Purpose |
+| --- | --- | --- |
+| Report progress | Updates the active execution | Show how far long-running work has advanced |
+| Run again / retry from here | Reuses the durable execution or chain | Repeat real scheduled work while preserving its identity |
+| Test once / test chain | No ticker, cron, or occurrence row | Preview newly configured work before saving it |
+
+## Report progress from a function
+
+Use `TickerFunctionContext.ReportProgressAsync(...)` at meaningful checkpoints:
+
+```csharp
+[TickerFunction("Invoices.Import")]
+public async Task ImportAsync(
+    TickerFunctionContext context,
+    CancellationToken cancellationToken)
+{
+    for (var page = 1; page <= 20; page++)
+    {
+        await ImportPageAsync(page, cancellationToken);
+
+        await context.ReportProgressAsync(
+            percent: page * 5,
+            message: $"Imported page {page} of 20",
+            cancellationToken);
+    }
+}
+```
+
+Percentages must be between `0` and `100`; messages are limited to 500 characters. The dashboard shows a compact running indicator, percentage, and the latest message on supported execution and chain views. Progress lifecycle entries are also available in the execution log tail when lifecycle logging is enabled.
+
+Progress is a provider write, so report a completed batch, page, stage, or other useful checkpoint. Do not report every record in a tight loop.
+
+Every update is fenced to the execution's current acquisition generation. A late callback from an old attempt cannot overwrite a completed, cancelled, or retried execution. Starting another attempt clears the previous attempt's progress. EF Core deployments need the nullable `ProgressPercent`, `ProgressMessage`, and `ProgressUpdatedAt` columns described in the [storage upgrade guide](/docs/5.x/guides/storage-upgrade).
+
+## Run a durable job again
+
+**Run now** and **Re-run** operate on stored scheduler records:
+
+- Running a time ticker again atomically reacquires that ticker. A concurrent request cannot create a second acquisition.
+- Running a cron definition now creates a new occurrence and observes its overlap policy.
+- Re-running a cron occurrence revives that occurrence in place and preserves its ID.
+- Retrying a chain step keeps the existing chain and job IDs.
+
+These are real executions. Application side effects, logs, results, monitoring, and retention behave normally.
+
+## Retry a chain from the middle
+
+After a chain has settled, select a step and choose **Retry from this job**. TickerQ clears that step and the affected downstream path, then runs the path under a new acquisition generation. Completed ancestors are traversal points and are not invoked again.
+
+```csharp
+var retried = await timeTickerManager.RetryFromAsync(
+    failedStepId,
+    cancellationToken);
+
+if (!retried.IsSucceeded)
+    throw retried.Exception;
+```
+
+The confirmation dialog previews the affected jobs before the retry starts. For a job inside a durable group, completed sibling branches keep their recorded outcomes while the group outcome is evaluated again. Selecting the group itself uses **Retry this group**: every grouped branch and its descendants run again, followed by the matching group outcomes.
+
+Only one retry can acquire a settled chain. Retry state is persisted so stale recovery can continue the same path after a node failure without calling successful ancestors again.
+
+## Test newly configured work
+
+The create-job and chain builders expose **Test once** or **Test chain** before the work is saved. A test run:
+
+- invokes the real locally registered function through the normal execution pipeline;
+- uses the request payload currently entered in the form;
+- honors local function concurrency and a 1–300 second timeout;
+- streams its status, progress, logs, result, and error to the temporary test view;
+- creates no time ticker, cron ticker, cron occurrence, or durable execution history.
+
+Test runs suppress integration failure notifications and application `ITickerExceptionHandler` callbacks. They can still write to your database, publish messages, charge a payment provider, or call any other dependency used by the function. Treat the confirmation dialog as approval to execute real application code.
+
+A function can choose a safe preview path:
+
+```csharp
+if (context.IsTestRun)
+{
+    await ValidateInvoiceAsync(cancellationToken);
+    return;
+}
+
+await ChargeAndPublishInvoiceAsync(cancellationToken);
+```
+
+Remote SDK functions require a durable execution and cannot use this local test endpoint. Progress reported during a test is visible only while that bounded test result remains in the current dashboard host.
+
+For work you want to revisit without executing, save a [time draft or chain template](/docs/5.x/dashboard/saved-work).

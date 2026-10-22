@@ -33,9 +33,9 @@ Consider an invoice workflow:
 
 **Create the invoice → generate its PDF → send it to the customer.**
 
-Each step is a function. A chain connects the jobs and specifies when a child should run, such as after its parent succeeds. The parent can publish an invoice reference as its result, and the child can read that result separately from its own configured request.
+Each step is a function. A chain connects the jobs and specifies when a child should run, such as after its parent succeeds. Durable groups can run several branches and join them through success, failure, cancellation, or all-terminal outcomes. The parent can publish an invoice reference as its result, and the child can read that result separately from its own configured request.
 
-Schedule the chain once for a particular order, or attach a template to a cron ticker to create a fresh chain for every run. Each job keeps its own execution state and logs. Start with [job chaining](/docs/5.x/guides/job-chaining), [requests and results](/docs/5.x/guides/requests-results), or [recurring chains](/docs/5.x/guides/recurring-chains).
+Schedule the chain once for a particular order, or attach a template to a cron ticker to create a fresh chain for every run. Each job keeps its own execution state, durable progress, logs, and committed result. A failed step can be retried with its affected downstream path without invoking successful ancestors again. Start with [job chaining](/docs/5.x/guides/job-chaining), [requests and results](/docs/5.x/guides/requests-results), [progress and retry](/docs/5.x/guides/progress-retries-testing), or [recurring chains](/docs/5.x/guides/recurring-chains).
 
 ## Choose how to write your functions
 
@@ -48,14 +48,14 @@ The [function registration guide](/docs/5.x/guides/function-registration) explai
 The core package provides scheduling and execution. The following components are optional:
 
 - **[EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), or [Redis](/docs/5.x/redis):** persist jobs and coordinate workers using a supported store.
-- **[Dashboard](/docs/5.x/dashboard):** inspect executions, logs, chains, and diagnostics; manage jobs with access controls.
+- **[Dashboard](/docs/5.x/dashboard):** inspect executions, progress, logs, chains, nodes, and diagnostics; test new work and manage jobs with access controls.
 - **[Integrations](/docs/5.x/integrations):** configure Slack, Teams, webhooks, and job monitoring.
 - **[OpenTelemetry](/docs/5.x/opentelemetry):** connect execution traces and runtime metrics to your observability tools.
-- **[AI assistant](/docs/5.x/dashboard/ai-assistant):** explore jobs and prepare actions for confirmation using your configured model provider.
+- **[AI assistant](/docs/5.x/dashboard/ai-assistant):** explore jobs, retain bounded run investigations, and prepare reviewed actions using your configured model provider.
 
 ## When your application grows
 
-Replicas of one application use the same **application namespace** and persistent store to coordinate work. Independent applications can use different namespaces to separate their jobs. A **node identifier** labels one running host; it is not the application namespace.
+Replicas of one application use the same **application namespace** and persistent store to coordinate work. Independent applications can use different namespaces to separate their jobs. A **node identifier** labels one running host; it is not the application namespace. The [Nodes view](/docs/5.x/dashboard/clustering) discovers replicas within the namespace and routes cooperative cancellation through the shared store.
 
 Design handlers to tolerate retries and recovery: a job may execute more than once. Review [reliability](/docs/5.x/guides/reliability) before deploying, and see [licensing](/docs/5.x/getting-started/licensing) for the certificate and usage terms that apply to this release line.
 

@@ -8,6 +8,7 @@
     "scheduling",
     "managers",
     "job-lifecycle",
+    "progress-retries-testing",
     "---Build workflows---",
     "job-chaining",
     "recurring-chains",

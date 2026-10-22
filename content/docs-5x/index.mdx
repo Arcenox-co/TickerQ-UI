@@ -22,9 +22,9 @@ The sidebar groups guides by task. Open a group to explore its pages; your curre
 | Group | What you will find |
 | --- | --- |
 | **Getting started** | Package selection, your first job, licensing, and migration |
-| **Jobs and workflows** | Functions, time/cron schedules, requests and results, chains, retries, and cancellation |
+| **Jobs and workflows** | Functions, time/cron schedules, requests and results, durable groups, progress, retries, test runs, and cancellation |
 | **Storage** | EF Core, transactional scheduling, MongoDB, and Redis |
-| **Dashboard** | A visual tour, existing users, roles and scopes, and the AI assistant |
+| **Dashboard** | A visual tour, drafts/templates, existing users, roles/scopes, cluster nodes, and AI Operations |
 | **Operations** | Application namespaces, workers, logging, telemetry, retention, reliability, and troubleshooting |
 | **Integrations** | Slack, Teams, webhooks, payload templates, deadlines, and recovery alerts |
 
@@ -35,7 +35,11 @@ See the [Changelog](/docs/5.x/changelog) for release notes and upgrade informati
 - **Save a job with a business change:** use [EF transactional scheduling](/docs/5.x/entity-framework/transactional-scheduling).
 - **Run a recurring workflow:** define [recurring chains](/docs/5.x/guides/recurring-chains) and choose an overlap policy.
 - **Give your team dashboard access:** reuse [existing database users](/docs/5.x/dashboard/existing-users) and map [roles or permission scopes](/docs/5.x/dashboard/authorization).
-- **Investigate an execution:** inspect [logs](/docs/5.x/guides/execution-logs) and follow the [troubleshooting guide](/docs/5.x/guides/troubleshooting).
+- **Build a parallel workflow with outcomes:** use [`ThenMany` and durable group joins](/docs/5.x/guides/job-chaining#run-several-branches-and-join-them).
+- **Show long-running work and retry from a failed step:** use [progress and in-place retry](/docs/5.x/guides/progress-retries-testing).
+- **Save work before publishing it:** use [one-time drafts and chain templates](/docs/5.x/dashboard/saved-work).
+- **Investigate an execution:** inspect [logs](/docs/5.x/guides/execution-logs) or open a bounded [AI run investigation](/docs/5.x/dashboard/ai-assistant#investigate-one-execution).
+- **Operate several replicas:** inspect [nodes and cross-node cancellation](/docs/5.x/dashboard/clustering).
 - **Alert when work misses its deadline:** configure [job monitoring](/docs/5.x/integrations/monitoring).
 
 ## What does 5.x mean?

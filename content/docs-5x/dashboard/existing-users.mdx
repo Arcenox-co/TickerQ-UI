@@ -71,7 +71,7 @@ With ASP.NET Core Identity, keep using your existing `UserManager`, `SignInManag
 
 For a custom user table, keep password validation and account checks in your application. After validation, issue the application's cookie or token with the required identity and permissions, then use the same dashboard configuration above. A TickerQ database provider stores scheduling data; selecting EF Core, MongoDB, or Redis does not configure user authentication.
 
-If you enable [assistant conversation history](/docs/5.x/dashboard/ai-assistant#conversation-history), give each authenticated user a stable, unique identity name. The current dashboard history resolver prefers its authenticated username; a missing host name becomes the shared `host-user` identity. A subject claim alone does not override that fallback.
+If you enable [assistant conversation history](/docs/5.x/dashboard/ai-assistant#conversation-and-proposal-history), give each authenticated user a stable subject through `sub` or `ClaimTypes.NameIdentifier`. The persisted identity key also includes the issuer and authentication scheme. A custom `IAuthService` should return a stable, unique `AuthResult.UserId`; anonymous sessions and identities without a stable subject do not persist assistant history.
 
 For a concrete reference, the [database-backed host authentication sample](https://github.com/Arcenox-co/TickerQ/blob/000145760f7b59aba6814b83501fcc41a3731618/samples/DashboardHostJwtApp/Program.cs) uses ASP.NET Core Identity with SQLite, loads roles from the database, and gives its viewer read-only dashboard access. Its seeded credentials, signing key, token bridge, and schema creation are local demonstration settings; reuse your production identity configuration.
 

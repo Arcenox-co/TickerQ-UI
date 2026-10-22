@@ -5,6 +5,31 @@ description: "Create a fresh job chain for every cron occurrence."
 
 A cron schedule can own a chain template. Each scheduled occurrence, dashboard **Run now**, or bulk cron retry creates a separate time-ticker chain. The cron function is the root; its children follow the existing run conditions, retries, timeouts, result propagation, and per-function concurrency limits.
 
+## Build a recurring chain fluently
+
+Use the same sequential and grouped workflow builder as one-time chains, with the cron schedule attached to the root definition:
+
+```csharp
+var result = await cronTickerManager.AddChainAsync(
+    chain => chain
+        .WithExpression("0 0 8 * * *")
+        .WithDescription("Daily invoice workflow")
+        .SkipIfAlreadyRunning()
+        .StartWith<PrepareInvoicesJob>()
+        .Then<ChargeInvoicesJob>()
+        .Then<SendReceiptsJob>(),
+    cancellationToken);
+
+if (!result.IsSucceeded)
+    throw result.Exception;
+```
+
+Repeated `Then` calls form one linear path. Use `ThenMany` for durable parallel branches and keep its returned group builder to add `ThenAfterAll`, `ThenAfterAnyFailed`, `ThenAfterAnyFailedOrCancelled`, or `ThenAfterAllCompleted` outcomes. The group waits for every branch subtree to settle before evaluating those outcomes. See [one-time job chains](/docs/5.x/guides/job-chaining#run-several-branches-and-join-them) for a complete grouped example; only the schedule portion differs.
+
+The generic overloads resolve handlers registered with `MapTicker<T>()`. Request-bearing overloads validate and serialize each step's request against its registered contract before saving the template.
+
+## Build the stored template directly
+
 ```csharp
 using TickerQ.Utilities.Entities;
 using TickerQ.Utilities.Enums;
@@ -65,7 +90,7 @@ For recurring chains, this is a persisted policy shared by hosts using the same 
 
 Recurring chains default to `ChainDeleteBehavior.Restrict`, preserving unfinished descendants. Terminal jobs follow configured retention. The occurrence receipt can outlive its chain; after cleanup its root ID remains a historical reference, and repeating publication still does not recreate the deleted chain. Deleting an occurrence does not delete its published chain.
 
-Templates require at least one child and support 500 jobs total (including the root) and 20 child levels. Nodes cannot be shared between branches or form a cycle. Each `CronChainNode` defaults to `OnSuccess`; set its request, retries, timeout, and stale policy independently where needed. These limits also fit the dashboard traversal limits. See [one-time chain shapes](/docs/5.x/guides/job-chaining#shape-and-size) for the other creation paths.
+Templates require at least one child and support 500 jobs total (including the root) and 20 child levels. Nodes cannot be shared between branches or form a cycle. Each `CronChainNode` defaults to `OnSuccess`; set its request, retries, timeout, and stale policy independently where needed. These limits also fit the dashboard traversal limits. See [one-time chain shapes](/docs/5.x/guides/job-chaining#shape-storage-and-the-dashboard) for the other creation paths.
 
 ## Storage upgrade
 
@@ -79,4 +104,4 @@ Deploy compatible scheduler nodes together before enabling recurring chains: old
 
 Choose **Cron Tickers → Create recurring chain**, or open an existing cron and choose **Add chain / Edit chain**. Configure the schedule, overlap policy and job tree in the existing visual editor. **Remove chain** asks for confirmation and restores single-function execution for future runs.
 
-The repository's [license smoke sample](https://github.com/Arcenox-co/TickerQ/tree/000145760f7b59aba6814b83501fcc41a3731618/samples/TickerQ.Sample.LicenseSmoke) includes `--dashboard --example chains --port 5221`. It runs with one worker and launches a three-job chain every 20 seconds, using only in-memory demo work. Supply your license through `--license` or `TICKERQ_LICENSE_PATH`; never commit it.
+The repository's [license smoke sample](https://github.com/Arcenox-co/TickerQ/tree/main/samples/TickerQ.Sample.LicenseSmoke) includes `--dashboard --example chains --port 5221`. It runs with one worker and launches a three-job chain every 20 seconds, using only in-memory demo work. Supply your license through `--license` or `TICKERQ_LICENSE_PATH`; never commit it.

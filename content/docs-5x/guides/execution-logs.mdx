@@ -23,6 +23,7 @@ Execution tails also include structured `[scheduler]` entries by default:
 - Job/occurrence created after persistence accepts it.
 - Queued when the scheduler queues an execution; immediate runs can go directly to running.
 - Running at the start of each function attempt.
+- Progress checkpoints reported by `ReportProgressAsync`, including the bounded message.
 - Retry scheduled, including its delay and the previous failure message.
 - Completed, failed, cancelled, or skipped after the outcome is acknowledged, with duration and retry count.
 
@@ -38,6 +39,8 @@ still best-effort diagnostics: jobs from before capture was enabled, direct data
 edits, and bulk maintenance operations need not have a complete lifecycle trail.
 Custom providers using the legacy unacknowledged cron-update contract cannot emit a
 verified terminal entry; the dashboard can still show their saved failure reason.
+
+Progress logging does not replace the durable progress fields used by execution tables and chain cards. Both are generation-fenced, but log tails have their own memory/database retention and truncation limits. See [progress, retries, and test runs](/docs/5.x/guides/progress-retries-testing).
 
 New compressed tails retain lifecycle metadata. Existing version-1 tails remain
 readable; this change does not require an additional database schema migration.

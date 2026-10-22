@@ -9,6 +9,7 @@
     "../guides/scheduling",
     "../guides/managers",
     "../guides/job-lifecycle",
+    "../guides/progress-retries-testing",
     "---Chain jobs---",
     "../guides/job-chaining",
     "../guides/recurring-chains",

@@ -23,7 +23,11 @@ Treat the commercial 5.x line as an application upgrade. Updating a package refe
 | Cron overlap | Set `CronTickerEntity.SkipIfAlreadyRunning`; remove calls to the old function-context helper. |
 | Transactional scheduling | Use `StageAsync` on a scoped EF application context when jobs must commit with business data. `AddAsync` still persists independently. |
 | Chains | Add schema for recurring chains and deletion behavior; preserve existing graph ownership when migrating. |
+| Progress and in-place retry | Add progress columns on time/cron executions and chain retry checkpoint columns on time jobs. |
 | Dashboard | Configure authentication explicitly. Review signing keys, proxy trust, and cross-origin settings. |
+| Nodes | Add `TickerQNodes` and `TickerQControlCommands` before using node discovery or cross-node cancellation. |
+| Saved work | Add `TickerQDefinitions` before saving drafts or chain templates. |
+| AI history | `AddAssistantHistory()` now maps conversation, message, investigation, lease, and budget tables. Apply all five before automatic investigation. |
 | Integrations | The package and API names are `TickerQ.Integrations`, `AddIntegrations`, and `IntegrationSettings`. Rename existing preview storage without dropping encrypted settings. |
 | Execution logs | If database log storage is enabled, include its model at design time and apply its migration. |
 

@@ -1,14 +1,109 @@
 ---
 title: "One-time job chains"
-description: "Run dependent work and inspect each step independently."
+description: "Build durable sequential and parallel workflows, pass results, and retry from the failed step."
 ---
 
-Build a root time ticker with child jobs. A child's `RunCondition` determines whether it follows a successful, failed, or cancelled parent, or starts alongside the parent.
+A one-time chain is a durable graph of time tickers. Every executable step keeps its own status, retry policy, request, result, logs, and stable ID. If a later step fails, completed parents do not need to run again.
+
+## Build a sequential chain
+
+Use `ITimeTickerManager.AddChainAsync(...)` for a type-safe chain:
 
 ```csharp
-using TickerQ.Utilities.Entities;
-using TickerQ.Utilities.Enums;
+var scheduled = await timeTickerManager.AddChainAsync(
+    chain => chain
+        .WithDescription("Create and deliver an invoice")
+        .StartWith<PrepareInvoiceJob, InvoiceRequest>(request)
+        .Then<ChargeInvoiceJob>()
+        .Then<NotifyInvoiceJob>(),
+    cancellationToken);
 
+if (!scheduled.IsSucceeded)
+    throw scheduled.Exception;
+```
+
+`StartWith<TFunction, TRequest>(request)` validates the root request against the registered function contract. `Then<TFunction>()` advances the current linear path. Overloads accepting `TickerFunctionRef`, function names, typed requests, and per-step options are also available.
+
+Configure an individual step inside its callback:
+
+```csharp
+.Then<ChargeInvoiceJob>(step =>
+{
+    step.Description = "Charge the prepared invoice";
+    step.Retries = 2;
+    step.RetryIntervals = [5, 30];
+    step.TimeoutSeconds = 60;
+})
+```
+
+## Run several branches and join them
+
+`ThenMany` creates a durable group after the current step. Each `Add` starts one grouped branch; the returned branch can continue with `Then` or another `ThenMany`.
+
+```csharp
+var scheduled = await timeTickerManager.AddChainAsync(
+    chain =>
+    {
+        var group = chain
+            .WithDescription("Process order")
+            .StartWith<PrepareOrderJob, OrderRequest>(request)
+            .ThenMany(branches =>
+            {
+                branches.Add<ReserveInventoryJob>()
+                    .Then<WriteInventoryAuditJob>();
+
+                branches.Add<ChargePaymentJob>();
+            });
+
+        group.ThenAfterAll<CompleteOrderJob>();
+        group.ThenAfterAnyFailed<HandleOrderFailureJob>();
+        group.ThenAfterAnyFailedOrCancelled<CompensateOrderJob>();
+        group.ThenAfterAllCompleted<ReleaseOrderResourcesJob>();
+    },
+    cancellationToken);
+```
+
+The group waits for every branch subtree to settle before it evaluates its outcome jobs:
+
+| Continuation | Runs when… |
+| --- | --- |
+| `ThenAfterAll<T>()` | Every branch subtree succeeds |
+| `ThenAfterAnyFailed<T>()` | At least one branch subtree fails |
+| `ThenAfterAnyFailedOrCancelled<T>()` | A branch fails or is cancelled |
+| `ThenAfterAllCompleted<T>()` | Every branch settles, including skipped branches |
+
+Failure and cancellation outcomes do not race a sibling that is still running. You can attach several outcomes to one group by keeping the returned group builder. When branches end differently, aggregate precedence is Failed, Cancelled, Skipped, DueDone, then Done.
+
+The persisted group marker is structural. It invokes no user function. In the flowchart it is rendered as the group container and reports whether its branches have settled, while executable jobs remain normal cards inside the group.
+
+### Conditions on grouped jobs
+
+Grouped jobs normally start after the step before the group succeeds. Set `step.RunCondition` on a branch when it should enter the group after another parent outcome:
+
+```csharp
+.ThenMany(branches =>
+{
+    branches.Add<PublishSuccessJob>(step =>
+        step.RunCondition = RunCondition.OnSuccess);
+
+    branches.Add<RecordFailureJob>(step =>
+        step.RunCondition = RunCondition.OnFailure);
+})
+```
+
+Membership and entry condition are stored separately. The dashboard therefore shows the selected condition rather than exposing internal group enum values.
+
+## Pass output to the next step
+
+A successful parent can publish a typed result. Its direct child reads the committed result with `HasParentResult` and `GetParentResult(...)`; it remains separate from the child's explicit request payload. See [requests and results](/docs/5.x/guides/requests-results).
+
+Parallel branches receive the result from the executable step immediately before their group. Join continuations receive that same upstream result. TickerQ does not implicitly combine results from several branches because those results can have unrelated types.
+
+## Run conditions in entity graphs
+
+The entity API remains available when an application needs to build the stored graph directly:
+
+```csharp
 var result = await timeTickerManager.AddAsync(new TimeTickerEntity
 {
     Function = "PrepareReport",
@@ -31,48 +126,43 @@ var result = await timeTickerManager.AddAsync(new TimeTickerEntity
         }
     ]
 }, cancellationToken);
-
-if (!result.IsSucceeded)
-    throw result.Exception;
 ```
 
-Register all three functions before adding this chain. Leave a dependent child's `ExecutionTime` unset when it should run as part of its parent's continuation. A child with its own scheduled execution time is handled separately by the scheduler.
-
-## Run conditions
-
-Set a `RunCondition` explicitly on each child. A null `TimeTickerEntity.RunCondition` is mapped to `OnAnyCompletedStatus`, so it can run after a failed or cancelled parent as well as a successful one. `CronChainNode` instead defaults to `OnSuccess`. Choose `OnSuccess` explicitly when the next step requires successful output.
-
-
-| Condition | Runs when the parent… |
+| Condition | Runs when the direct parent… |
 | --- | --- |
 | `OnSuccess` | Reaches Done or DueDone |
 | `OnFailure` | Fails |
 | `OnCancelled` | Is cancelled |
 | `OnFailureOrCancelled` | Fails or is cancelled |
-| `OnAnyCompletedStatus` | Reaches a terminal status other than Skipped |
-| `InProgress` | Starts running; the child can run in parallel |
+| `OnAnyCompletedStatus` | Reaches a non-skipped terminal status |
+| `OnAnyTerminalStatus` | Reaches any terminal status, including Skipped |
+| `InProgress` | Starts running; the child may run alongside its parent |
 
-Children with matching conditions are siblings and may run together. Put one job inside the previous job's `Children` collection when order matters. A skipped conditional branch also skips its descendants; it does not run their failure or cleanup handlers. An `InProgress` child starts alongside its parent, and deferred branches wait for that concurrent part of the tree to finish.
+A skipped conditional branch skips its descendants. It does not run those descendants' failure handlers. Use `ThenMany` when parallel work needs an explicit durable join; `InProgress` remains useful for a direct concurrent child without group outcomes.
 
-## Shape and size
+## Retry without rebuilding the chain
+
+After the complete chain settles, retry a failed or cancelled step in place:
+
+```csharp
+var retried = await timeTickerManager.RetryFromAsync(
+    failedStepId,
+    cancellationToken);
+```
+
+The selected step and its affected downstream path run under a new generation. Completed ancestors are traversed without calling their functions again. Retrying a grouped branch re-evaluates group outcomes while preserving completed siblings; retrying the structural group reruns every grouped branch. The dashboard previews this impact before applying it. Read [progress, retries, and test runs](/docs/5.x/guides/progress-retries-testing) for the full operational contract.
+
+## Shape, storage, and the dashboard
 
 | Creation path | Boundary |
 | --- | --- |
+| Fluent one-time builder | Validated durable graph; use separate steps and groups |
 | Nested `TimeTickerEntity.Children` | Supports deeper trees; the manager rejects cycles |
-| `FluentChainTickerBuilder<T>` | Named methods provide five children and five grandchildren per child |
-| Recurring `CronChainTemplate` | At most 500 jobs including the root and 20 child levels |
-| Dashboard chain view | At most 500 jobs and 20 child levels; larger graphs are reported as unavailable |
+| Recurring chain template | At most 500 jobs including the root and 20 child levels |
+| Dashboard chain view | At most 500 jobs and 20 child levels |
 
-Use a separate entity instance for each step. Keep trees within the dashboard limits if operators need to inspect the complete graph there. Retention has a separate configurable `MaxNodesPerChain` limit.
+Keep graphs within the dashboard limits when operators need a complete visual history. Retention has a separate configurable `MaxNodesPerChain` limit.
 
-## Pass output to the next step
+The flowchart groups parallel branches, draws one join rail for their outcomes, and separates the job result color from the condition path color. Select a job for its request, parent input, committed output, error source frame, and logs. Aggregate badges distinguish **Running**, **Waiting**, successful completion, failures, cancellations, and skipped branches.
 
-A successful parent can publish a typed result. Its direct child reads it through `HasParentResult` and `GetParentResult(...)`; it is separate from the child's request payload. See [requests and results](/docs/5.x/guides/requests-results) for a complete example.
-
-## Operating a chain
-
-The branch icon opens the graph and each step's details and logs. The aggregate status shows progress across all descendants: a finished parent with active children is still **Running**, and pending work can show **Waiting**.
-
-`Restrict` protects unfinished descendants from deletion and automatically stops restricting once descendants are terminal, subject to normal ownership and retention checks. Read [chain deletion](/docs/5.x/guides/chain-deletion) before changing this policy.
-
-Use [recurring chains](/docs/5.x/guides/recurring-chains) when the whole sequence should be created anew on each cron occurrence. To stage a new complete chain with a business transaction, use [StageAsync](/docs/5.x/entity-framework/transactional-scheduling).
+`Restrict` protects unfinished descendants from deletion and releases automatically after every descendant becomes terminal. Read [chain deletion](/docs/5.x/guides/chain-deletion). Use [recurring chains](/docs/5.x/guides/recurring-chains) when the graph should be materialized for every cron occurrence, and [StageAsync](/docs/5.x/entity-framework/transactional-scheduling) when the graph must commit with business data.

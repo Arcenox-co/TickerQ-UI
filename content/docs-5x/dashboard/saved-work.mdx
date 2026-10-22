@@ -1,0 +1,51 @@
+---
+title: "Drafts, templates, and activation"
+description: "Save unfinished one-time work, reuse complete chain designs, and activate a reviewed draft exactly once."
+---
+
+The dashboard's **Saved work** area keeps configuration separately from scheduler execution rows. A saved definition contains a job or chain design; it has no execution status, lock, result, or log history.
+
+## Choose a draft or template
+
+| Saved item | Use it for | Scheduler behavior |
+| --- | --- | --- |
+| Time draft | An unfinished one-time job or chain | Cannot be acquired until you activate it |
+| Time-chain template | Reusing a complete one-time workflow design | Opens a new unsaved copy in the builder |
+| Cron-chain template | Reusing a recurring workflow design | Opens a new unsaved cron configuration |
+
+Single jobs are quick to recreate, so the dashboard does not offer a single-job template. A single time job can still be saved as a **draft** when it needs later review.
+
+## Save and activate a time draft
+
+When leaving the one-time builder, choose **Save draft** to retain the form without publishing a runnable ticker. The draft keeps its entered execution time and request data. Open it later from **Saved work**, review the complete graph, and choose **Activate draft**.
+
+Activation asks whether to keep or change the execution time. Confirming publishes the complete time-ticker graph once. The store takes a durable, versioned activation claim before it creates the root ticker, so two dashboard replicas cannot activate the same draft twice. After activation, use the returned job link to inspect the real execution.
+
+A draft is not an `Idle` job and does not appear in the time-ticker or execution tables before activation.
+
+## Save and edit a chain template
+
+Use **Save template** on a configured one-time or recurring chain. Choose whether request data should be included; omit it when the structure is reusable but the payload contains customer data or secrets.
+
+Templates preserve the graph shape, schedule settings relevant to their target, retry/timeout settings, conditions, and descriptions. Open a template in the chain builder, make changes, and save it back. Updates and deletes use the stored version so one operator cannot silently overwrite another operator's newer edit.
+
+Template names are unique inside one application namespace and scheduler target. Comparison ignores case, Unicode compatibility differences, and repeated whitespace. Draft display names do not have this uniqueness requirement. The Saved work list supports search and creation-date ordering.
+
+## Assistant-created drafts
+
+When Chat AI proposes a one-time job or one-time chain, the card uses **Save draft**. Saving does not schedule the job. The applied card exposes **Open draft**, where an operator can edit the request, execution time, conditions, and graph before activation.
+
+Recurring schedule proposals still use an explicit confirmation card because their result is a cron definition rather than a time draft. Read [AI assistant](/docs/5.x/dashboard/ai-assistant) for proposal history and authorization behavior.
+
+## Storage and provider behavior
+
+All built-in providers support saved definitions:
+
+- EF Core maps `TickerQDefinitions`; generate and apply an application-owned migration.
+- MongoDB provisions a saved-definition collection and indexes.
+- Redis stores definitions under the current application partition.
+- The in-memory provider loses saved work when the process exits.
+
+Definitions are scoped to the configured application namespace. Custom providers opt in through `ITickerDefinitionStore`. A provider without that capability can continue scheduling, but the Saved work feature is unavailable.
+
+Templates and drafts are not job history and are not removed by job-retention sweeps. Delete them explicitly when they are no longer useful.
