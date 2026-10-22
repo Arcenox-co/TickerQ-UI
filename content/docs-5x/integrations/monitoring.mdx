@@ -75,4 +75,4 @@ Monitoring runs inside your application. **If every replica is down, no checks o
 
 To verify a repeated-failure monitor, use a dedicated test function: enable a monitor with threshold three, complete three failed executions, then complete one successful execution. Check the incident and recovery in Monitoring and the delivery results in Activity. Allow the configured check interval and delivery retries. Previewing a template or sending a connection test does not exercise this state transition. If the function has retries, wait for final failure rather than counting each attempt.
 
-<DashboardScreenshot name="monitoring" alt="Demo monitors for repeated failures and long-running jobs" caption="Monitor states and recovery settings in the running demo." />
+<DashboardScreenshot name="monitoring" alt="Paused long-running export monitor with recovery notifications configured" caption="Monitor state, condition, destination, interval, and recovery behavior remain inspectable while paused." />

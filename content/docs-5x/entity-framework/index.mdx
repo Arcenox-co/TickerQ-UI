@@ -51,11 +51,11 @@ dotnet ef migrations add AddTickerQ --context AppDbContext
 dotnet ef database update --context AppDbContext
 ```
 
-Review the migration and apply it before scheduler startup. Use the same model-affecting options at design time and runtime, including execution-log persistence when enabled. `EnsureCreated` is not an upgrade mechanism for an existing database.
+Review the migration and apply it before scheduler startup. Use the same TickerQ package version and schema at design time and runtime. `EnsureCreated` is not an upgrade mechanism for an existing database.
 
 ### Current table inventory
 
-The current EF model maps **11 base tables**:
+The current EF model maps **17 tables**:
 
 | Area | Tables |
 | --- | --- |
@@ -63,13 +63,10 @@ The current EF model maps **11 base tables**:
 | Committed results | `TimeTickerResults`, `CronTickerOccurrenceResults` |
 | Runtime coordination | `TickerQStoreMetadata`, `NodeFinalizationOutbox`, `TickerQNodes`, `TickerQControlCommands` |
 | Dashboard definitions/settings | `TickerQDefinitions`, `IntegrationSettings` |
+| Execution logs | `ExecutionLogs` |
+| Assistant operations | `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, `AssistantInvestigationBudgets` |
 
-Optional model features add:
-
-- `ExecutionLogs` when database execution-log persistence is enabled;
-- five assistant tables when `AddAssistantHistory()` is enabled: `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`.
-
-The full configuration therefore maps **17 tables**. Drafts and templates share `TickerQDefinitions`; they do not create separate tables. Generate the model used by your application rather than copying an older fixed table list.
+All 17 mappings are present even when log persistence, AI chat history, or automatic investigation is disabled. Those options control runtime services and writes, not schema shape. This keeps migrations stable when a capability is enabled later. Drafts and templates share `TickerQDefinitions`; they do not create separate tables.
 
 ## Dedicated TickerQ context
 
@@ -107,7 +104,7 @@ modelBuilder.ApplyConfiguration(new IntegrationSettingsConfigurations("ticker"))
 modelBuilder.ApplyConfiguration(new TickerQDefinitionConfigurations("ticker"));
 ```
 
-Use the same schema as `store.SetSchema(...)` (default `ticker`), and replace the ticker entity types if you extend them. Keep the same mappings in design-time tooling. Add `ExecutionLogArchiveConfiguration` when [log persistence](/docs/5.x/guides/execution-logs#ef-core) is enabled. When [assistant history](/docs/5.x/dashboard/ai-assistant) is enabled, also add `AssistantConversationConfigurations`, `AssistantMessageConfigurations`, `AssistantInvestigationConfigurations`, `AssistantInvestigationLeaseConfigurations`, and `AssistantInvestigationBudgetConfigurations`.
+Use the same schema as `store.SetSchema(...)` (default `ticker`), and replace the ticker entity types if you extend them. Keep the complete current mapping in design-time tooling, including `ExecutionLogArchiveConfiguration`, `AssistantConversationConfigurations`, `AssistantMessageConfigurations`, `AssistantInvestigationConfigurations`, `AssistantInvestigationLeaseConfigurations`, and `AssistantInvestigationBudgetConfigurations`. Their tables remain part of the model when the related runtime feature is disabled.
 
 `IgnoreModelCustomizer` does not disable transactional scheduling. The DI registration still installs its save/commit interceptors; the context must include the mappings above.
 
@@ -128,8 +125,8 @@ For existing databases, replica rollout, stable cron identities, and schema owne
 | `SetSchema("ticker")` | Names the relational schema, where the database supports it |
 | `SetDbContextPoolSize(1024)` | Sets the dedicated TickerQ context pool size; does not resize your application's `AddDbContextPool` |
 | `AutoMigrateDatabase()` | Applies existing pending migrations before scheduler initialization |
-| `AddAssistantHistory(...)` | Opts in to EF-backed chat/proposal history, structured investigations, and the five assistant tables |
+| `AddAssistantHistory(...)` | Enables EF-backed chat/proposal history, structured investigations, coordination, and retention services; the tables are already part of the model |
 
-Execution logs and assistant history are optional model features. Integration settings, node finalization, cluster control, and saved definitions are part of the current base mapping even when their dashboard surfaces are not in use. Check the generated model instead of copying an older three-table migration.
+Execution-log persistence and assistant history are optional runtime features. Their tables, integration settings, node finalization, cluster control, and saved definitions are part of the current mapping even when their dashboard surfaces are not in use. Generate and review the current model instead of copying an older fixed table list.
 
 Concurrent scheduler startup uses stable code-defined cron identities, a unique seed index, and transactional reconciliation. TickerQ runs reconciliation through the context's execution strategy. Configure your EF provider's own transient retry policy when needed; TickerQ does not turn permanent database errors into successful startup. Replicas of the same application must also agree on their [namespace and reconciliation epoch](/docs/5.x/guides/configuration).

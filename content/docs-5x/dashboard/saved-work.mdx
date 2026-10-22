@@ -5,6 +5,8 @@ description: "Save unfinished one-time work, reuse complete chain designs, and a
 
 The dashboard's **Saved work** area keeps configuration separately from scheduler execution rows. A saved definition contains a job or chain design; it has no execution status, lock, result, or log history.
 
+<DashboardScreenshot name="saved-work" alt="Saved work page with a one-time draft and reusable time-chain templates" caption="Search and order drafts and templates without mixing them into execution history." />
+
 ## Choose a draft or template
 
 | Saved item | Use it for | Scheduler behavior |
@@ -28,6 +30,8 @@ A draft is not an `Idle` job and does not appear in the time-ticker or execution
 Use **Save template** on a configured one-time or recurring chain. Choose whether request data should be included; omit it when the structure is reusable but the payload contains customer data or secrets.
 
 Templates preserve the graph shape, schedule settings relevant to their target, retry/timeout settings, conditions, and descriptions. Open a template in the chain builder, make changes, and save it back. Updates and deletes use the stored version so one operator cannot silently overwrite another operator's newer edit.
+
+<DashboardScreenshot name="chain-builder" alt="Chain builder editing a grouped workflow with parallel branches and outcome steps" caption="Templates reopen as editable graph definitions; no job is created until the operator schedules or activates the result." />
 
 Template names are unique inside one application namespace and scheduler target. Comparison ignores case, Unicode compatibility differences, and repeated whitespace. Draft display names do not have this uniqueness requirement. The Saved work list supports search and creation-date ordering.
 

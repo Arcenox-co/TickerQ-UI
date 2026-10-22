@@ -150,7 +150,7 @@ The generated model must include:
 - The complete `NodeFinalizationOutbox` table and its current identity/due indexes whenever the current TickerQ EF model maps it.
 - The `TickerQNodes` heartbeat table and `TickerQControlCommands` durable control table.
 - The `TickerQDefinitions` table used by chain templates and non-executable time drafts, including its normalized unique `NameKey` index.
-- When `AddAssistantHistory()` is enabled, `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`.
+- `ExecutionLogs` and the five assistant tables: `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`. The current EF model includes them even when the corresponding runtime features are disabled.
 
 The repository's ApplicationDbContext, Console, and WebApi samples contain reviewed host-owned
 `ApplicationRuntimePartitioning` migrations and matching snapshots. Consumers must generate and
@@ -178,11 +178,11 @@ Template names are unique within an application namespace and scheduler target. 
 
 ### Add AI assistant investigation history
 
-`AddAssistantHistory()` maps five optional tables. `AssistantConversations` and `AssistantMessages` retain per-user chat and proposal history. `AssistantInvestigations` contains namespace-scoped structured diagnoses, review state, and detected recovery metadata.
+The current EF model always maps five assistant tables. `AddAssistantHistory()` enables the runtime services that write, query, coordinate, and retain their records. `AssistantConversations` and `AssistantMessages` retain per-user chat and proposal history. `AssistantInvestigations` contains namespace-scoped structured diagnoses, review state, and detected recovery metadata.
 
 `AssistantInvestigationLeases` coordinates one renewable model call per evidence fingerprint. `AssistantInvestigationBudgets` records the rolling namespace-wide hourly call allowance. Neither coordination table stores prompts, source excerpts, logs, or model responses.
 
-The unique namespace/execution index on investigations is required. Apply all five tables before enabling automatic investigations; startup rejects automatic mode when its durable investigation store or coordinator is unavailable. Creating these tables does not enable AI or background provider calls by itself. Read [AI assistant](/docs/5.x/dashboard/ai-assistant#automatic-investigations).
+The unique namespace/execution index on investigations is required. Apply all five tables before enabling assistant history or automatic investigations; startup rejects automatic mode when its durable investigation store or coordinator is unavailable. Creating these tables does not enable AI or background provider calls by itself. Read [AI assistant](/docs/5.x/dashboard/ai-assistant#automatic-investigations).
 
 ### Startup and data repair
 

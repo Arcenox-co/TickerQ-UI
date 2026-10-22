@@ -27,9 +27,9 @@ Treat the commercial 5.x line as an application upgrade. Updating a package refe
 | Dashboard | Configure authentication explicitly. Review signing keys, proxy trust, and cross-origin settings. |
 | Nodes | Add `TickerQNodes` and `TickerQControlCommands` before using node discovery or cross-node cancellation. |
 | Saved work | Add `TickerQDefinitions` before saving drafts or chain templates. |
-| AI history | `AddAssistantHistory()` now maps conversation, message, investigation, lease, and budget tables. Apply all five before automatic investigation. |
+| AI history | The EF model includes conversation, message, investigation, lease, and budget tables. `AddAssistantHistory()` enables their runtime services; apply the schema before assistant history or automatic investigation. |
 | Integrations | The package and API names are `TickerQ.Integrations`, `AddIntegrations`, and `IntegrationSettings`. Rename existing preview storage without dropping encrypted settings. |
-| Execution logs | If database log storage is enabled, include its model at design time and apply its migration. |
+| Execution logs | The EF model includes `ExecutionLogs`; apply the current schema before enabling database log storage. |
 
 ## Storage is application-owned
 

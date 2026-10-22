@@ -3,7 +3,7 @@ title: "Dashboard tour"
 description: "Explore each part of the 5.x dashboard with screenshots from the running demo."
 ---
 
-The dashboard brings scheduling, execution history, and runtime configuration into your application. This tour uses **real screenshots from the local 5.x demo hosts**, including the chains, database logs, integration monitoring, and simulated-error examples. Counts and timestamps are sample activity, not performance benchmarks. Workspace names and certificate identifiers are anonymized.
+The dashboard brings scheduling, execution history, and runtime configuration into your application. This tour uses **real screenshots from two local 5.x demo nodes** sharing one migrated SQLite store. The fixture includes time and cron jobs, grouped chains, database logs, saved work, cluster state, integrations, and AI investigations. Counts and timestamps are sample activity, not performance benchmarks. Workspace names and certificate identifiers are anonymized.
 
 Select any screenshot to open the full-size image. See [dashboard setup](/docs/5.x/dashboard) to add the dashboard to your host, and [authentication](/docs/5.x/dashboard/authentication) before exposing it outside local development.
 
@@ -20,7 +20,7 @@ Select any screenshot to open the full-size image. See [dashboard setup](/docs/5
 
 Start here for scheduler state, current workers, execution volume, and recent or upcoming jobs. Follow a job link to its details. The scheduler controls affect the host responding to this dashboard; they do not pause every replica.
 
-<DashboardScreenshot name="overview" alt="Overview showing scheduler state, job totals, execution volume, and scheduled work" caption="A running chains demo, with recent work and scheduler capacity in one view." />
+<DashboardScreenshot name="overview" alt="Overview showing scheduler state, active nodes, job totals, execution volume, and scheduled work" caption="The documentation demo combines recent work, scheduler capacity, and cluster state in one view." />
 
 ## Time tickers
 
@@ -28,7 +28,7 @@ Browse one-time jobs, search by function, and filter standalone jobs or chains. 
 
 The create flow can run a new function or chain as an ephemeral test before saving it. Use **Save draft** to retain unfinished one-time work without creating an `Idle` ticker.
 
-<DashboardScreenshot name="time-tickers" alt="Time tickers table showing standalone jobs and a five-step chain" caption="A chain's status summarizes all its steps, so a finished parent does not imply the whole workflow is done." />
+<DashboardScreenshot name="time-tickers" alt="Time tickers table showing waiting, completed, failed, and chained jobs" caption="Waiting is the dashboard label for persisted Idle work; chain badges summarize the whole workflow." />
 
 Learn about [time scheduling](/docs/5.x/guides/scheduling/time-ticker) and [cancellation](/docs/5.x/guides/job-lifecycle).
 
@@ -37,6 +37,14 @@ Learn about [time scheduling](/docs/5.x/guides/scheduling/time-ticker) and [canc
 Saved work separates non-executable drafts from reusable chain templates. Search and order saved definitions, open a draft to edit its inherited execution time, or update a template in place. Activating a draft asks you to keep or change its time and publishes the graph once through a durable activation claim.
 
 Read [drafts, templates, and activation](/docs/5.x/dashboard/saved-work).
+
+<DashboardScreenshot name="saved-work" alt="Saved work page showing one-time drafts and reusable workflow templates" caption="Drafts remain non-executable until activation; templates preserve reusable graph structure." />
+
+### Visual chain builder
+
+Create or edit a chain as a graph. A group starts its member jobs together, waits for their descendants to settle, and then evaluates outcome steps. Use **Test chain** for an ephemeral run, **Save draft** for unfinished one-time work, or **Save template** for a reusable chain definition.
+
+<DashboardScreenshot name="chain-builder" alt="Visual chain builder with a grouped parallel stage and all-terminal outcome jobs" caption="The builder uses the same group and outcome model displayed by the execution flowchart." />
 
 ## Cron tickers
 
@@ -49,6 +57,8 @@ View recurring definitions with both the cron expression and its human-readable 
 Open a cron ticker to see its individual runs. Select a run for details and logs, or select its chain badge to open that occurrence's workflow.
 
 <DashboardScreenshot name="cron-occurrences" alt="Recurring cron detail showing occurrence history and per-run chain progress" caption="Each recurring-chain occurrence creates a fresh set of jobs with its own progress and history." />
+
+<DashboardScreenshot name="cron-chain" alt="Flowchart for one occurrence of a recurring cron chain" caption="Opening a chain badge keeps the operator scoped to that exact cron occurrence." />
 
 See [recurring chains](/docs/5.x/guides/recurring-chains) and [overlap controls](/docs/5.x/guides/cron-overlap).
 
@@ -68,13 +78,13 @@ Progress counts all terminal steps, including skipped, failed, and cancelled ste
 
 Durable parallel groups appear as containers rather than fake function cards. Their branches stay inside the group, and a single merge rail leads to the success, failure, cancellation, or all-terminal outcomes. Edge colors describe the condition path; job cards keep the execution-status colors. Select a settled step to preview **Retry from this job**, or select the group to rerun all grouped branches.
 
-<DashboardScreenshot name="chain" alt="A recurring job chain showing connected preparation, processing, and completion steps" caption="The workflow view shows individual steps; the chain log panel brings their available log lines together." />
+<DashboardScreenshot name="chain" alt="A grouped job chain with parallel branches and success, failure, cancellation, and final outcomes" caption="The workflow view separates the group container from real jobs and brings all available chain logs into one panel." />
 
 ## Executions
 
 Use the execution list to investigate outcomes across job types. Filter the history, compare duration and retry counts, and open a run for more detail.
 
-<DashboardScreenshot name="executions" alt="Execution history from the integration demo with successful and failed test runs" caption="These deliberate failures and recoveries come from the local monitoring demo." />
+<DashboardScreenshot name="executions" alt="Execution history with successful, failed, cancelled, skipped, and waiting examples" caption="The documentation fixture includes deliberate failures and branch outcomes for inspection." />
 
 ### Job details and logs
 
@@ -82,7 +92,7 @@ The details panel shows the selected job's status, duration, durable progress, r
 
 Exception details prioritize the application frame and source line, while generated and TickerQ scheduler frames stay out of the primary trace. Failed and cancelled executions show **Investigate with AI** in the details header when the assistant is configured. Scheduler lifecycle messages sit alongside application log messages. A database log tail can remain available after a restart when persistence is configured.
 
-<DashboardScreenshot name="execution-logs" alt="Execution details panel with database log messages and a timeout cancellation" caption="A local timeout test: the log records creation, execution, sample progress, and cancellation when the function exits." />
+<DashboardScreenshot name="execution-logs" alt="Execution details with database-backed lifecycle, progress, and application failure logs" caption="The failure view highlights the application source frame while preserving lifecycle and retry evidence." />
 
 See [execution-log configuration and limits](/docs/5.x/guides/execution-logs).
 
@@ -90,25 +100,25 @@ See [execution-log configuration and limits](/docs/5.x/guides/execution-logs).
 
 Check the responding host's scheduler and log-storage health. Diagnostics distinguish a current problem from historical failure counts, and explain where to investigate next.
 
-<DashboardScreenshot name="diagnostics" alt="Diagnostics showing simulated overdue scan and database log write failures" caption="This is the simulated-error demo. The warnings illustrate what an operator sees when checks need attention." />
+<DashboardScreenshot name="diagnostics" alt="Diagnostics showing healthy scheduler, persistence, and execution-log checks" caption="Healthy checks provide a baseline; a failing check adds its current evidence and next action here." />
 
 ## Integrations
 
 The optional `TickerQ.Integrations` package adds connections, alert rules, monitoring, and delivery activity. Connection secrets are never displayed back in the dashboard.
 
-<DashboardScreenshot name="integrations" alt="Integrations connections tab with a configured Slack destination" caption="Reuse a saved connection across rules and monitors. Sending a test is an explicit action." />
+<DashboardScreenshot name="integrations" alt="Integrations connections tab with paused Slack and custom webhook destinations" caption="The documentation fixture keeps outbound connections paused. Sending a test remains an explicit action." />
 
 ### Alert rules
 
 Choose which events and functions should notify a destination. This separates the connection details from the conditions that trigger a message.
 
-<DashboardScreenshot name="alert-rules" alt="Alert rules tab showing function and event routing to Slack" caption="Route relevant events to the people who need them." />
+<DashboardScreenshot name="alert-rules" alt="Alert rules tab showing a paused production-failure rule" caption="Rules separate event and function matching from reusable destination credentials." />
 
 ### Monitoring
 
 Configure monitors for repeated failures, long-running executions, or completion deadlines. Each monitor shows its current state and can send a recovery message after a successful execution confirms that the condition has cleared. This is separate from alerts for individual failure events.
 
-<DashboardScreenshot name="monitoring" alt="Two demo monitors for consecutive failures and long-running execution with recovery alerts enabled" caption="The demo monitors inspect function executions and send their alerts through the Slack connection." />
+<DashboardScreenshot name="monitoring" alt="Monitoring tab showing a paused long-running export monitor and recovery setting" caption="The safe documentation fixture demonstrates monitor state without sending external notifications." />
 
 ### Message templates
 
@@ -162,12 +172,28 @@ Open **Clustering → Nodes** to compare replicas in the current application nam
 
 Read [nodes and cluster operations](/docs/5.x/dashboard/clustering).
 
+<DashboardScreenshot name="nodes" alt="Nodes page showing active replicas and an offline node in one application namespace" caption="Heartbeat state, capacity, queue pressure, version, and registered functions make replica differences visible." />
+
 ## AI Operations
 
 The optional assistant has Overview, Chat, and Investigations views. It can inspect runtime data, diagnose one failed or cancelled execution, retain review states, and propose supported actions for confirmation. Optional automatic investigation uses a shared namespace budget and coordination lease so replicas do not purchase the same diagnosis concurrently. Your host supplies the AI provider and decides whether source excerpts are available.
 
+<DashboardScreenshot name="assistant-overview" alt="AI Operations overview with unread diagnoses, recovery signals, and repeated failures" caption="Overview summarizes investigation activity and recent operational evidence." />
+
+<DashboardScreenshot name="assistant-investigations" alt="Investigations page grouping repeated diagnoses while retaining each execution" caption="Repeated failures can reuse one diagnosis without losing per-execution review state." />
+
 Open **AI → Chat AI**, select a suggested question, or type a request in the composer. Answers stream into the conversation. Proposed changes appear as action cards that you review and confirm or dismiss.
 
-<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a reviewable proposal card" caption="A reply and a proposed one-time job. Current one-time proposals save a non-executable draft before activation." />
+<DashboardScreenshot name="assistant-conversation" alt="Chat AI continuing from a saved failed-execution investigation" caption="Continue in chat keeps follow-up questions scoped to the selected execution and its current evidence." />
 
 See [AI assistant setup, history, source context, and automatic investigations](/docs/5.x/dashboard/ai-assistant).
+
+## Sign-in context
+
+The sign-in page shows the configured environment, application label, and namespace before credentials are entered. This helps operators distinguish development, staging, and production dashboards that use similar branding.
+
+<DashboardScreenshot name="login" alt="TickerQ sign-in page showing Development environment and application namespace" caption="Set an environment label so operators know which scheduler they are entering." />
+
+## Reproduce the screenshots
+
+The [`TickerQ.Docs.Demo`](https://github.com/Arcenox-co/TickerQ/tree/main/samples/TickerQ.Docs.Demo) sample is the source for this tour. It uses the current project references, a real EF Core migration, database execution logs, saved definitions, integrations, cluster state, and a deterministic local assistant client. Start two nodes against one SQLite database, sign in with the sample credentials, then call its `/demo/seed` endpoint to recreate the fixture. The sample README contains the exact commands and explains which records deliberately fail or remain paused.

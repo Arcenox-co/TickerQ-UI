@@ -8,7 +8,7 @@ Capture is enabled by default; database persistence is **off by default**. Conso
 host startup logs, and structured logger scopes are not captured. Normal host logging
 filters also apply. The default minimum captured level is `Information`.
 
-<DashboardScreenshot name="execution-logs" alt="Job details showing persisted log lines and a timeout cancellation" caption="A database-backed log tail from a local timeout test." />
+<DashboardScreenshot name="execution-logs" alt="Job details showing persisted lifecycle, progress, and application failure logs" caption="A database-backed log tail with application source context and retry evidence." />
 
 ## Find the relevant setup
 
@@ -80,11 +80,11 @@ Choose and verify this ordering before rollout. `PersistToDatabase` enables the 
 
 ### EF Core
 
-When enabled, TickerQ's DbContext/model customizer maps an `ExecutionLogs` table in the
-configured TickerQ schema. **Generate, review and apply an EF migration before enabling
-the feature in production.** Use the same log configuration at design time so the
-migration includes the new table and indexes. An existing database is not upgraded by
-`EnsureCreated`. TickerQ does not silently create this table in a production database.
+TickerQ's current DbContext/model customizer always maps an `ExecutionLogs` table in the
+configured TickerQ schema. **Generate, review and apply the current EF migration before
+enabling database persistence in production.** The runtime option controls writes rather
+than model shape. An existing database is not upgraded by `EnsureCreated`; TickerQ does
+not silently create this table in a production database.
 
 If you configure your application model manually, include this mapping in both the
 runtime and design-time model:

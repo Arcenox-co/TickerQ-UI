@@ -5,7 +5,7 @@ description: "Use Chat AI to investigate jobs, inspect logs, and review proposed
 
 Use the assistant to investigate scheduler data, review saved diagnoses, and prepare changes for human approval. It uses the same dashboard authentication and authorization as other views. It is an optional feature of `TickerQ.Dashboard`; there is no separate AI package.
 
-<DashboardScreenshot name="assistant-conversation" alt="Chat AI conversation with an assistant reply and a reviewable job proposal card" caption="A local assistant conversation with a reviewable proposal. Current one-time proposals are saved as non-executable drafts before they can be activated." />
+<DashboardScreenshot name="assistant-overview" alt="AI Operations overview with unread investigations, diagnoses, recovery signals, and recent failures" caption="The overview summarizes operational AI activity without choosing an investigation for the operator." />
 
 ## AI Operations workspace
 
@@ -19,6 +19,8 @@ The **AI Operations** page has three views:
 
 Opening an investigation marks it read. Resolving it records an operator review state; it does not change the underlying execution. Repeated investigations for the same function are grouped visually, newest first, while each execution remains individually selectable and deletable.
 
+<DashboardScreenshot name="assistant-investigations" alt="Grouped AI investigations with review state, repeated diagnosis count, and source evidence" caption="Repeated failures are grouped by function while every execution keeps its own review state and evidence." />
+
 ## Use Chat AI
 
 1. Open **AI → Chat AI** in the dashboard sidebar.
@@ -27,6 +29,8 @@ Opening an investigation marks it read. Resolving it records an operator review 
 4. If the assistant proposes a change, review the action card before applying it. Asking a question does not apply a proposed change.
 
 The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. The model label below **Chat AI** comes from the host configuration; provider selection and credentials are configured on the server.
+
+<DashboardScreenshot name="assistant-conversation" alt="Chat AI continuing from a saved failed-execution investigation" caption="Continue in chat keeps the conversation scoped to the selected execution and can refresh live evidence for follow-up questions." />
 
 Already using the interface? See [supported requests](#inspect-data-and-propose-changes), [action cards](#confirm-operational-changes), [run investigations](#investigate-one-execution), and [conversation history](#conversation-and-proposal-history). Setting it up for the first time? [Configure a chat client](#configure-a-chat-client).
 
@@ -135,10 +139,14 @@ store.AddAssistantHistory(history =>
     history.MaxMessagesPerConversation = 80;
     history.MaxInvestigationsPerNamespace = 500;
     history.InvestigationRetention = TimeSpan.FromDays(30);
+    history.ReadInvestigationRetention = TimeSpan.FromDays(14);
+    history.ResolvedInvestigationRetention = TimeSpan.FromDays(7);
 });
 ```
 
-Enable the option in the design-time model too, and generate/apply an application migration for five optional tables: `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`. Without this opt-in, EF maps none of them. Assistant storage is separate from execution-log persistence.
+The current EF model includes `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets` even before this runtime option is enabled. Generate and apply the current application migration once; `AddAssistantHistory()` then enables persistence, coordination, and cleanup without changing schema shape. Assistant storage remains separate from execution-log persistence.
+
+`InvestigationRetention` is the fallback lifetime measured from creation. `ReadInvestigationRetention` and `ResolvedInvestigationRetention` are optional state-specific lifetimes measured from the time an operator enters that state. Leave either value unset or non-positive to use the fallback. Cleanup is bounded and does not call the model.
 
 Conversation history is private to a stable authenticated identity. Host authentication must provide `sub` or `ClaimTypes.NameIdentifier`; the key also includes the issuer and authentication scheme. Dashboard-issued cookie and bearer sessions share their issuer-scoped subject. A custom `IAuthService` should return a stable `AuthResult.UserId`. Anonymous sessions and identities without a stable subject can chat but do not persist history.
 
