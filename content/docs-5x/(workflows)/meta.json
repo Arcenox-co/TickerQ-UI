@@ -1,0 +1,9 @@
+{
+  "title": "Workflows",
+  "icon": "Workflow",
+  "pages": [
+    "../guides/job-chaining",
+    "../guides/recurring-chains",
+    "../guides/chain-deletion"
+  ]
+}

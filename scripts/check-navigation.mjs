@@ -48,7 +48,15 @@ export function verifyCommercialNavigation() {
     { name: 'Changelog', url: '/docs/5.x/changelog' },
   ], 'Guide, product introduction, and Changelog must remain visible above the task groups');
   const groups = tree.children.filter(node => node.type === 'folder').map(node => node.name);
-  assert.deepEqual(groups, ['Getting started', 'Jobs and workflows', 'Storage', 'Dashboard', 'Operations', 'Integrations']);
+  assert.deepEqual(groups, [
+    'Getting started',
+    'Jobs and schedules',
+    'Workflows',
+    'Storage',
+    'Dashboard',
+    'Configuration and operations',
+    'Integrations',
+  ]);
   return { pages: urls.length, groups: groups.length };
 }
 

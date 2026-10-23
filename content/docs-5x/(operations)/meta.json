@@ -1,17 +1,19 @@
 {
-  "title": "Operations",
+  "title": "Configuration and operations",
   "icon": "Activity",
   "pages": [
-    "---Configure workers---",
+    "---Configure runtime---",
     "../guides/configuration",
     "../guides/scheduler",
-    "---Observe and maintain---",
+    "../dashboard/clustering",
+    "---Deploy---",
+    "../guides/native-aot",
+    "---Observe---",
     "../guides/execution-logs",
-    "../guides/retention",
     "../opentelemetry/index",
-    "---Deploy and troubleshoot---",
+    "../guides/retention",
+    "---Reliability---",
     "../guides/reliability",
-    "../guides/troubleshooting",
-    "../guides/storage-upgrade"
+    "../guides/troubleshooting"
   ]
 }
