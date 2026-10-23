@@ -64,6 +64,14 @@ For Native AOT, function request/result metadata is configured separately throug
 
 `InstanceName` isolates Redis keys. [Application namespace](/docs/5.x/guides/configuration) isolates the runtime's data and ownership within the configured store. Keep both stable across the replicas of one application. Changing either is not a migration of existing work.
 
+## SignalR Redis is a separate role
+
+`options.AddStackExchangeRedis(...)` configures TickerQ's operational persistence, caching, and coordination. It does not configure the dashboard's SignalR transport. Likewise, a SignalR Redis backplane does not make Redis a TickerQ job provider.
+
+For a dashboard deployed on multiple application replicas, install `Microsoft.AspNetCore.SignalR.StackExchangeRedis` in the host and configure it with `dashboard.ConfigureSignalR(signalR => signalR.AddStackExchangeRedis(...))`. Give the backplane a channel prefix distinct for the application and configure load-balancer session affinity. The complete example is in [dashboard SignalR configuration](/docs/5.x/dashboard#signalr-in-multi-replica-deployments).
+
+The two roles may use the same Redis deployment when its capacity, availability, and isolation are suitable, but keep their prefixes and operational expectations explicit. A backplane outage can lose live dashboard hints while scheduler persistence remains healthy; the dashboard's REST data remains authoritative.
+
 ## Deployment boundaries
 
 Scheduler processes require standalone Redis, including normal primary/replica topologies. Redis Cluster scheduler activation and multi-key scheduler mutations are unsupported and fail closed. Limited queue-only Cluster producers have different constraints; see the [Redis storage reference](/docs/5.x/guides/storage-upgrade#redis).

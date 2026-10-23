@@ -81,7 +81,7 @@ For a same-origin web application, an existing authenticated cookie is the simpl
 
 A Bearer token accepted by your API alone is not enough to authenticate a normal browser page navigation or the runtime configuration script. Host mode does not automatically import an arbitrary token from your application's JavaScript storage. Configure a host browser session or a deliberately implemented token bridge that authenticates those requests too.
 
-If your host uses JWTs for SignalR, handle its token transport in the host's JWT events. Restrict query-string token acceptance to the actual dashboard hub path, `/tickerq/dashboard/tickerq-notification-hub` by default, and keep tokens out of request logs. Follow Microsoft's [SignalR authentication guidance](https://learn.microsoft.com/en-us/aspnet/core/signalr/authn-and-authz?view=aspnetcore-10.0). TickerQ checks the configured authentication scheme when a hub connection opens.
+If your host uses JWTs for SignalR, handle its token transport in the host's JWT events. Browser WebSocket and Server-Sent Events connections can carry the token as `access_token`; restrict query-string acceptance to the actual dashboard hub path, `/tickerq/dashboard/tickerq-notification-hub` by default, and redact it from request logs. Follow Microsoft's [SignalR authentication guidance](https://learn.microsoft.com/en-us/aspnet/core/signalr/authn-and-authz?view=aspnetcore-10.0). TickerQ checks the configured authentication scheme when a hub connection opens.
 
 ## Custom database checks
 

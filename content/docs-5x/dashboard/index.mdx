@@ -56,6 +56,7 @@ The chain badge summarizes the root and all descendants. It shows **Running** wh
 | Learn the views and controls | [Dashboard tour](/docs/5.x/dashboard/tour) |
 | Save an unfinished chain or reusable design | [Drafts and templates](/docs/5.x/dashboard/saved-work) |
 | Discover replicas and route cancellation | [Nodes and cluster operations](/docs/5.x/dashboard/clustering) |
+| Scale live updates across dashboard replicas | [SignalR in multi-replica deployments](#signalr-in-multi-replica-deployments) |
 | Ask questions and review proposed actions | [AI assistant](/docs/5.x/dashboard/ai-assistant) |
 
 ## Optional capabilities
@@ -78,5 +79,29 @@ dashboard.SetGroupName("tickerq"); // Optional OpenAPI endpoint group.
 ```
 
 `SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetEnvironmentName` adds a visible deployment label to the dashboard and sign-in page; it does not change the scheduler namespace. `SetLogoUrl` accepts an absolute URL or browser-reachable path. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. `SetGroupName` changes only the OpenAPI group assigned to dashboard endpoints. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
+
+## SignalR in multi-replica deployments
+
+The dashboard uses SignalR messages as cache-invalidation hints. REST endpoints remain authoritative. A single application process needs no additional SignalR configuration. With multiple dashboard replicas, the default hub can reach only browsers connected to the process that sent the message, so configure a backplane when updates must appear immediately across nodes.
+
+Install `Microsoft.AspNetCore.SignalR.StackExchangeRedis` in the host application, then configure it through the dashboard registration:
+
+```csharp
+options.AddDashboard(dashboard =>
+{
+    dashboard.ConfigureSignalR(signalR =>
+        signalR.AddStackExchangeRedis(
+            builder.Configuration.GetConnectionString("SignalRRedis")!,
+            redis => redis.Configuration.ChannelPrefix =
+                StackExchange.Redis.RedisChannel.Literal(
+                    "tickerq:orders-production")));
+});
+```
+
+This backplane is separate from TickerQ's optional Redis operational/cache provider. `options.AddStackExchangeRedis(...)` configures TickerQ storage and coordination; `dashboard.ConfigureSignalR(...)` configures dashboard message delivery. Neither implicitly enables the other.
+
+Use a unique channel prefix when applications share Redis. Because the dashboard retains WebSocket, Server-Sent Events, and long-polling fallback, Redis deployments also need load-balancer session affinity. Azure-hosted applications can configure `AddAzureSignalR(...)` through the same hook instead. A 30-second consistency refresh repairs missed hints for active views, but it does not provide immediate cross-replica delivery.
+
+At the reverse proxy, preserve the dashboard base path, pass WebSocket upgrade headers, disable buffering for Server-Sent Events, and set the upstream read timeout above the SignalR keep-alive interval. See [authentication and deployment](/docs/5.x/dashboard/authentication#signalr-and-reverse-proxies) and [live-update troubleshooting](/docs/5.x/guides/troubleshooting#dashboard-live-updates-are-delayed).
 
 Set integration `DashboardUrl` to the externally reachable dashboard URL if alert messages should link back here. The URL is for message links; it does not enable dashboard hosting or authentication.

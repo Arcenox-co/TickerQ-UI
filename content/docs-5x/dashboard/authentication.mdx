@@ -87,6 +87,22 @@ dashboard.AllowOrigins("https://ops.example.com");
 
 `SetBackendDomain` selects the API domain; it does not grant CORS access. Origins must be absolute HTTP(S) origins with no extra path, query, or fragment. Cross-origin access is denied by default. `SetCorsPolicy(...)` supports custom policies; retain a deliberate credentialed-origin boundary.
 
+## SignalR and reverse proxies
+
+The hub is mounted beneath the dashboard base path at `tickerq-notification-hub`. The SPA reads that route from runtime configuration, so a custom `SetBasePath(...)` or host `UsePathBase(...)` remains aligned as long as the proxy preserves the public prefix.
+
+Browsers cannot attach a normal `Authorization` header to the WebSocket or Server-Sent Events APIs. SignalR therefore uses `access_token` in the query string for those transports. TickerQ accepts that query credential only on the exact hub route. Use HTTPS and redact `access_token` from ingress, proxy, tracing, and request logs.
+
+Configure the proxy to:
+
+- forward WebSocket `Upgrade` and `Connection` headers;
+- disable response buffering for Server-Sent Events;
+- keep the upstream read timeout longer than SignalR's keep-alive interval;
+- retain session affinity when multiple application replicas use a Redis backplane; and
+- allow the exact browser origin when the dashboard and API use different origins.
+
+Multi-replica message delivery also needs a SignalR backplane. See [dashboard SignalR configuration](/docs/5.x/dashboard#signalr-in-multi-replica-deployments). Microsoft documents the platform requirements in its [SignalR hosting and scaling guidance](https://learn.microsoft.com/en-us/aspnet/core/signalr/scale?view=aspnetcore-10.0).
+
 ## Local anonymous access
 
 ```csharp

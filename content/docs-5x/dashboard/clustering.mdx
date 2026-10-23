@@ -57,6 +57,17 @@ The built-in EF Core, MongoDB, and Redis providers support separate-process disc
 
 EF Core requires `TickerQNodes` and `TickerQControlCommands` in the application-owned migration. See the [storage upgrade guide](/docs/5.x/guides/storage-upgrade#add-node-discovery-and-control-tables).
 
+## Scheduler clustering versus dashboard live updates
+
+The operational provider coordinates job ownership, node discovery, and cross-node cancellation. It does not automatically distribute SignalR messages between dashboard processes. These are separate channels:
+
+| Channel | Purpose | Multi-replica requirement |
+| --- | --- | --- |
+| Operational store | Job state, ownership, node heartbeats, and control commands | Use one supported store and application namespace across the intended replicas |
+| SignalR | Browser hints that refresh dashboard data | Configure a backplane for immediate delivery across dashboard replicas |
+
+Without a SignalR backplane, scheduling and cancellation still use the shared operational store correctly. A browser connected to another replica can receive a live hint late and is repaired by the bounded consistency refresh. Configure Redis or Azure SignalR through [`ConfigureSignalR(...)`](/docs/5.x/dashboard#signalr-in-multi-replica-deployments) when immediate cluster-wide dashboard updates matter.
+
 ## Show the deployment environment
 
 Set a dashboard-only environment label so operators can distinguish Development, Staging, and Production before signing in or running an action:
