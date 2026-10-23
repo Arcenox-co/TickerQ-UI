@@ -39,7 +39,7 @@ Schedule the chain once for a particular order, or attach a template to a cron t
 
 ## Choose how to write your functions
 
-Use `[TickerFunction]` on a method for source-generated registration and dispatch. Alternatively, implement `ITickerFunction` in a class and register it with `builder.Services.MapTicker<TFunction>()`, or register a delegate. These styles use the same scheduling managers.
+Implement `ITickerFunction` in a class and register it with `builder.Services.MapTicker<TFunction>()` for the default, type-safe path. Use `[TickerFunction]` on a method when you prefer source-generated method dispatch and attribute-declared request/result metadata, or register a delegate for a small startup handler. These styles use the same scheduling managers.
 
 The [function registration guide](/docs/5.x/guides/function-registration) explains the choices, typed requests, and stable function names.
 

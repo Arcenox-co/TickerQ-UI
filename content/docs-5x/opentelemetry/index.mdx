@@ -75,8 +75,6 @@ The core meter defines these instruments:
 | `tickerq.logs.last_successful_flush`, `tickerq.fallback.last_success` | Unix seconds of the last success; 0 before the first success |
 | `tickerq.fallback.failures` | Failed overdue-work scans |
 
-Current package limitation: `AddOpenTelemetryInstrumentation()` emits the enqueue activity but does not increment `tickerq.jobs.enqueued`. The core `EnableActivitySource()` implementation does increment it. Do not rely on that counter with the optional instrumentation package until this is corrected.
-
 Job counters and durations use the `tickerq.function` tag; completion/duration also carry `tickerq.success`. Attach service, environment, and instance identity through your host's OpenTelemetry resource configuration so multiple applications or replicas can be distinguished.
 
 The meter can be inspected locally with `dotnet-counters monitor --process-id PID --counters TickerQ` when the diagnostic tool is installed. Metrics are emitted by running processes, not reconstructed from database history. Label instances and aggregate deliberately in your collector; node-local values are not cluster totals.

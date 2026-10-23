@@ -14,6 +14,8 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | Stop pending work before its handler runs | Time `CancelAsync` |
 | Ask a running handler to stop | `RequestCancellationAsync` on the owning host |
 | Repeat work immediately | `RunNowAsync`, then inspect its persisted outcome |
+| Retry a settled chain from one step | Time `RetryFromAsync` |
+| Re-run one existing cron occurrence | Cron `RerunOccurrenceAsync` |
 | Remove old history automatically | [Job retention](/docs/5.x/guides/retention) |
 
 ## Time ticker operations
@@ -26,6 +28,7 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | `UpdateAsync(entity, ct)` | Update an eligible job; this is not a direct status setter |
 | `ReplaceChainAsync(rootId, newRoot, ct)` | Validate and replace an eligible complete graph atomically, preserving the original if replacement fails |
 | `RunNowAsync(rootId, ct)` | Acquire an eligible root for execution now; does not reset an entire chain |
+| `RetryFromAsync(id, ct)` | Reuse the existing chain identity, preserve completed ancestors and unaffected group branches, and reset the selected/affected downstream path |
 | `CancelAsync(id, ct)` | Cancel an Idle/Queued job and its pending descendants; preserve records |
 | `RequestCancellationAsync(id, ct)` | Signal one running execution on the current host |
 | `SetDeleteBehaviorAsync(rootId, behavior, ct)` | Change the root's chain-deletion policy |
@@ -42,6 +45,7 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | `UpdateAsync(entity, ct)` | Update the schedule definition |
 | `SetEnabledAsync(cronId, enabled, ct)` | Pause/resume future scheduling; running work continues |
 | `RunNowAsync(cronId, ct)` | Create a fresh manual occurrence; return its occurrence ID |
+| `RerunOccurrenceAsync(occurrenceId, ct)` | Re-run the existing occurrence in place; standalone runs keep the occurrence ID and recurring chains retry their existing graph |
 | `RequestCancellationAsync(occurrenceId, ct)` | Signal that occurrence on this host; do not pass its definition ID |
 | `DeleteAsync(cronId, ct)` | Delete an eligible definition; this is not an occurrence cancellation operation |
 

@@ -16,6 +16,76 @@ Install the matching `TickerQ` package using the [version guidance](/docs/5.x/ge
 
 ## Register and schedule work
 
+Choose how you want to declare functions. `ITickerFunction` is shown first throughout the 5.x guide because it gives class-based dependency injection and type-safe scheduling. The attribute path is fully supported when method-based source generation fits your application better.
+
+<Tabs items={["ITickerFunction", "[TickerFunction] attribute"]}>
+  <Tab value="ITickerFunction">
+
+Replace `Program.cs` with:
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces;
+using TickerQ.Utilities.Interfaces.Managers;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("tickerq.tqlicense");
+    options.UseApplicationNamespace("tickerq-demo");
+    options.UseReconciliationEpoch(1);
+});
+
+builder.Services.MapTicker<HelloJob>();
+builder.Services.MapTicker<EveryMinuteJob>()
+    .WithCron("* * * * *");
+
+var app = builder.Build();
+app.UseTickerQ();
+
+// Local demo endpoint. Protect scheduling endpoints in your real application.
+app.MapPost("/jobs/hello", async (
+    ITimeTickerManager<TimeTickerEntity> manager,
+    CancellationToken cancellationToken) =>
+{
+    var result = await manager.AddAsync<HelloJob>(
+        DateTime.UtcNow.AddSeconds(5), cancellationToken);
+
+    if (!result.IsSucceeded)
+        return Results.Problem("Could not schedule the job.");
+
+    return Results.Accepted(value: new { result.Result.Id });
+});
+
+app.Run();
+
+public sealed class HelloJob(ILogger<HelloJob> logger) : ITickerFunction
+{
+    public Task ExecuteAsync(TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Hello from job {JobId}", context.Id);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class EveryMinuteJob(ILogger<EveryMinuteJob> logger) : ITickerFunction
+{
+    public Task ExecuteAsync(TickerFunctionContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Minute job scheduled for {ScheduledFor}", context.ScheduledFor);
+        return Task.CompletedTask;
+    }
+}
+```
+
+  </Tab>
+  <Tab value="[TickerFunction] attribute">
+
 Replace `Program.cs` with:
 
 ```csharp
@@ -75,6 +145,9 @@ public class DemoJobs(ILogger<DemoJobs> logger)
 }
 ```
 
+  </Tab>
+</Tabs>
+
 Run locally and schedule a job:
 
 ```sh
@@ -87,7 +160,7 @@ From another terminal:
 curl -X POST http://127.0.0.1:5100/jobs/hello
 ```
 
-The endpoint returns after scheduling. The `Hello` function runs approximately five seconds later; `EveryMinute` runs at the next minute boundary. A missing or invalid certificate blocks execution—check the host logs if the application starts but jobs do not run.
+The endpoint returns after scheduling. `HelloJob` (or `Hello` in the attribute tab) runs approximately five seconds later; `EveryMinuteJob` (or `EveryMinute`) runs at the next minute boundary. A missing or invalid certificate blocks execution—check the host logs if the application starts but jobs do not run.
 
 ## Next steps
 

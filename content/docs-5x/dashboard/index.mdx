@@ -71,10 +71,12 @@ Configure these inside the same `AddDashboard` callback:
 dashboard.SetBasePath("/operations/jobs");
 dashboard.SetTitle("Orders — background jobs");
 dashboard.SetEnvironmentName(builder.Environment.EnvironmentName);
+dashboard.SetLogoUrl("/images/orders-logo.svg");
 dashboard.SetTimeZone(TimeZoneInfo.Utc);
 dashboard.SetReadOnly(context => !context.User.IsInRole("SchedulerAdmin"));
+dashboard.SetGroupName("tickerq"); // Optional OpenAPI endpoint group.
 ```
 
-`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetEnvironmentName` adds a visible deployment label to the dashboard and sign-in page; it does not change the scheduler namespace. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
+`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetEnvironmentName` adds a visible deployment label to the dashboard and sign-in page; it does not change the scheduler namespace. `SetLogoUrl` accepts an absolute URL or browser-reachable path. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. `SetGroupName` changes only the OpenAPI group assigned to dashboard endpoints. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
 
 Set integration `DashboardUrl` to the externally reachable dashboard URL if alert messages should link back here. The URL is for message links; it does not enable dashboard hosting or authentication.

@@ -31,6 +31,7 @@ Use UTC for `ExecutionTime`. Omitting it on a new root requests execution as soo
 | `StageAsync` | Stage a new job or complete chain with your EF business changes |
 | `UpdateAsync` | Update an eligible existing job |
 | `RunNowAsync` | Request a run of an eligible root job |
+| `RetryFromAsync` | Retry a selected settled chain step and its affected downstream path in place |
 | `CancelAsync` | Cancel pending Idle/Queued work and its pending descendants |
 | `RequestCancellationAsync` | Signal an execution running on this host |
 | `DeleteAsync` | Permanently remove an eligible job/chain |

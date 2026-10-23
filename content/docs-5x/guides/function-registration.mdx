@@ -1,19 +1,19 @@
 ---
 title: "Function registration"
-description: "Choose attributes, typed classes, or delegates, and keep scheduled function identities stable."
+description: "Choose typed classes, attributes, or delegates, and keep scheduled function identities stable."
 ---
 
 TickerQ supports three registration styles. Use the one that fits your application; all three register functions for the same time and cron managers.
 
 | Style | Best fit | Registration |
 | --- | --- | --- |
-| `[TickerFunction]` | Job methods with generated dispatch and request/result metadata | Annotate a method; the source generator discovers it |
 | `ITickerFunction` | One class per job with explicit DI registration | `builder.Services.MapTicker<TFunction>()` |
+| `[TickerFunction]` | Job methods with generated dispatch and request/result metadata | Annotate a method; the source generator discovers it |
 | Delegate | A small handler registered during startup | `builder.Services.MapTicker("Name", handler)` |
 
 Register functions before `builder.Build()` and `app.UseTickerQ()`. These examples extend the [quick start](/docs/5.x/getting-started/quick-start); keep its TickerQ registration and runtime identity.
 
-## Register a job class
+## ITickerFunction (default)
 
 ```csharp
 using TickerQ.DependencyInjection;
@@ -46,6 +46,29 @@ if (!result.IsSucceeded)
 ```
 
 For a typed request, implement `ITickerFunction<TRequest>`, register with `MapTicker<TFunction, TRequest>()`, then call `AddAsync<TFunction, TRequest>(executionTime, request, cancellationToken)`. Cron managers have the equivalent overload with a cron expression instead of an execution time. Use entity-based creation when setting retries, timeouts, overlap, or chain templates.
+
+## [TickerFunction] attribute
+
+Use an annotated method when you prefer to keep several functions in one class or want the generator to declare request and result metadata from the method signature and attribute:
+
+```csharp
+using TickerQ.Utilities.Base;
+
+public class MaintenanceJobs(ILogger<MaintenanceJobs> logger)
+{
+    [TickerFunction("Maintenance.Cleanup", maxConcurrency: 1)]
+    public Task CleanupAsync(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Cleanup job {JobId}", context.Id);
+        return Task.CompletedTask;
+    }
+}
+```
+
+The source generator registers `Maintenance.Cleanup`; do not also call `MapTicker` for that same function. Use an explicit, stable attribute name because persisted jobs and schedules refer to it.
 
 ## Return output from a job class
 

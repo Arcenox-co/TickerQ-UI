@@ -7,6 +7,32 @@ A cron ticker is a schedule definition. Each run has a separate occurrence with 
 
 ## Code-defined schedule
 
+<Tabs items={["ITickerFunction", "[TickerFunction] attribute"]}>
+  <Tab value="ITickerFunction">
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+builder.Services.MapTicker<DailyInvoicesJob>()
+    .WithCron("0 8 * * *");
+
+public sealed class DailyInvoicesJob : ITickerFunction
+{
+    public Task ExecuteAsync(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        // Runs at 08:00 in the configured scheduler time zone.
+        return Task.CompletedTask;
+    }
+}
+```
+
+  </Tab>
+  <Tab value="[TickerFunction] attribute">
+
 ```csharp
 [TickerFunction("Invoices.Daily", "0 8 * * *")]
 public Task DailyAsync(TickerFunctionContext context, CancellationToken cancellationToken)
@@ -16,7 +42,10 @@ public Task DailyAsync(TickerFunctionContext context, CancellationToken cancella
 }
 ```
 
-Configuration references such as `%CronSettings:Schedule%` are also supported in the attribute. Both five-part and six-part expressions are supported; six-part expressions include seconds first. Use the dashboard's expression preview to check the intended next run.
+  </Tab>
+</Tabs>
+
+Configuration references such as `%CronSettings:Schedule%` are supported in the attribute and `WithCron`. Both five-part and six-part expressions are supported; six-part expressions include seconds first. Use the dashboard's expression preview to check the intended next run.
 
 Code-defined schedules are reconciled during startup activation. If you change an expression or its configuration value, advance the deployment reconciliation epoch; restarting with an already-activated epoch does not replay reconciliation. Keep function identity and deployment configuration consistent across replicas. Do not also insert the same code-defined schedule through the manager on every startup.
 
@@ -44,6 +73,7 @@ if (!result.IsSucceeded)
 
 - `SetEnabledAsync(cronId, false)` pauses future scheduling; it does not stop a running occurrence or its published chain.
 - `RunNowAsync(cronId)` creates a new manual occurrence without changing the expression or its next scheduled slot.
+- `RerunOccurrenceAsync(occurrenceId)` revives an existing occurrence in place. A standalone occurrence keeps its ID; a recurring chain retries its existing durable graph.
 - `RequestCancellationAsync(occurrenceId)` targets the running occurrence on the current host. Pass the occurrence ID, not the cron definition ID.
 
 For a sequence of jobs on each run, add a [recurring chain template](/docs/5.x/guides/recurring-chains). For overlap rules and their host/cluster boundaries, see [cron overlap](/docs/5.x/guides/cron-overlap).

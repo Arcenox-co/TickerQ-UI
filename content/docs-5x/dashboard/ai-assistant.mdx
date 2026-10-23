@@ -179,6 +179,8 @@ var revision = Environment.GetEnvironmentVariable("GIT_COMMIT_SHA")
 dashboard.AddAssistant(assistant => assistant
     .UseChatClient(chatClient)
     .ConfigureRunInvestigator(investigator => investigator
+        .WithMaxLogLines(40)
+        .WithMaxChainSteps(40)
         .UseLocalSourceContext(builder.Environment.ContentRootPath, source => source
             .WithRepository("Orders API")
             .WithRevision(revision)
@@ -191,7 +193,7 @@ dashboard.AddAssistant(assistant => assistant
 
 The local provider never searches the checkout. Paths must be relative to the configured root and cannot traverse outside it. Function mappings take precedence over filename mappings, which avoids ambiguity when several projects contain `Program.cs`.
 
-For a private repository, register an application-owned `IExecutionSourceContextProvider`. The adapter receives the safe function, exception type, method, filename, and line; it can use host-owned GitHub/GitLab credentials, SourceLink artifacts, or an internal source service to return a small excerpt from an immutable revision. TickerQ does not need the repository token, does not clone a repository, and never exposes repository credentials to the browser.
+`WithMaxLogLines` and `WithMaxChainSteps` bound the corresponding evidence collections from 1 to 100 items each. For a private repository, register an application-owned `IExecutionSourceContextProvider` through `UseSourceContextProvider(...)`. The adapter receives the safe function, exception type, method, filename, and line; it can use host-owned GitHub/GitLab credentials, SourceLink artifacts, or an internal source service to return a small excerpt from an immutable revision. TickerQ does not need the repository token, does not clone a repository, and never exposes repository credentials to the browser.
 
 ## Automatic investigations
 

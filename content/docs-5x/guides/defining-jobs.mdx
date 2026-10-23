@@ -5,6 +5,32 @@ description: "Use stable function names, dependency injection, and typed request
 
 A function describes the work. A time ticker or cron ticker describes when that work should run. Multiple jobs can call the same registered function.
 
+<Tabs items={["ITickerFunction", "[TickerFunction] attribute"]}>
+  <Tab value="ITickerFunction">
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+builder.Services.MapTicker<GenerateInvoicesJob>()
+    .WithMaxConcurrency(1);
+
+public sealed class GenerateInvoicesJob(ILogger<GenerateInvoicesJob> logger) : ITickerFunction
+{
+    public async Task ExecuteAsync(
+        TickerFunctionContext context,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Generating invoices for job {JobId}", context.Id);
+        await Task.Delay(100, cancellationToken); // Replace with your async work.
+    }
+}
+```
+
+  </Tab>
+  <Tab value="[TickerFunction] attribute">
+
 ```csharp
 using TickerQ.Utilities.Base;
 
@@ -21,13 +47,51 @@ public class InvoiceJobs(ILogger<InvoiceJobs> logger)
 }
 ```
 
-Keep function names stable: persisted schedules refer to them. The source generator discovers annotated methods and creates the dispatch code; constructor dependencies are supplied through DI. Pass the provided cancellation token to asynchronous operations.
+  </Tab>
+</Tabs>
+
+Keep function names stable: persisted schedules refer to them. `MapTicker<GenerateInvoicesJob>()` uses the class name by default; rename it deliberately or register it through a named `MapTickerGroup` when you need an explicit mapped identity. For attributes, the source generator creates the dispatch code from the explicit name. Constructor dependencies are supplied through DI in both forms. Pass the provided cancellation token to asynchronous operations.
 
 For explicit class or delegate registration, see [function registration](/docs/5.x/guides/function-registration).
 
 ## Typed requests
 
-Use `TickerFunctionContext<TRequest>` to access a typed request. Serialize the corresponding scheduling payload with `TickerHelper.CreateTickerRequest(...)`.
+Use `TickerFunctionContext<TRequest>` to access a typed request. The generic manager overload validates and serializes the request for an `ITickerFunction<TRequest>` registration. When scheduling an attribute function through an entity, serialize the payload with `TickerHelper.CreateTickerRequest(...)`.
+
+<Tabs items={["ITickerFunction<TRequest>", "[TickerFunction] attribute"]}>
+  <Tab value="ITickerFunction<TRequest>">
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+public record InvoiceRequest(Guid OrderId);
+
+builder.Services.MapTicker<InvoiceOrderJob, InvoiceRequest>();
+
+public sealed class InvoiceOrderJob(ILogger<InvoiceOrderJob> logger)
+    : ITickerFunction<InvoiceRequest>
+{
+    public Task ExecuteAsync(
+        TickerFunctionContext<InvoiceRequest> context,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        logger.LogInformation("Invoice order {OrderId}", context.Request.OrderId);
+        return Task.CompletedTask;
+    }
+}
+
+// Inside a service with the time ticker manager:
+// await manager.AddAsync<InvoiceOrderJob, InvoiceRequest>(
+//     DateTime.UtcNow,
+//     new InvoiceRequest(orderId),
+//     cancellationToken);
+```
+
+  </Tab>
+  <Tab value="[TickerFunction] attribute">
 
 ```csharp
 using TickerQ.Utilities;
@@ -55,6 +119,9 @@ public class OrderJobs(ILogger<OrderJobs> logger)
 //     Request = TickerHelper.CreateTickerRequest(new InvoiceRequest(orderId))
 // }, cancellationToken);
 ```
+
+  </Tab>
+</Tabs>
 
 Treat request changes as a contract migration. Changing a stored payload's shape can prevent an older job from executing; inspect contract-drift diagnostics instead of silently assuming it was processed.
 
