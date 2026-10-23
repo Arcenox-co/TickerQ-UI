@@ -13,6 +13,7 @@ Start with **License**, **About → Functions**, and **System → Diagnostics** 
 | A cron missed a run | [Occurrence checks](#a-cron-run-is-missing-or-skipped) |
 | A chain is still waiting | [Chain state](#a-chain-says-waiting-after-its-root-finished) |
 | Cancellation or logs are confusing | [Cancellation](#cancellation-was-accepted-but-work-continues) · [Log capture](#logs-are-missing-or-disappear-after-restart) |
+| Lists load but live updates are delayed | [Dashboard live updates](#dashboard-live-updates-are-delayed) |
 | Alerts, startup, or permissions fail | [Integrations](#an-integration-did-not-send-an-alert) · [Storage](#a-migration-or-activation-fails) · [Access](#login-succeeds-but-dashboard-access-or-controls-are-wrong) |
 
 ## A job is not running
@@ -73,7 +74,19 @@ Check that host authentication is registered before `AddTickerQ` and its middlew
 
 If API calls authenticate but the browser has the wrong controls, verify that normal navigation and the runtime configuration script also receive the host session. Basic/custom API authentication does not automatically populate a role-bearing `HttpContext.User`. Check role-claim mapping, refresh the session after database role changes, and reload the page to refresh its privately cached configuration.
 
-An integration **Management access required** message can mean missing management permission or read-only mode. HTTP 403 on writes can also come from the license gate. If job lists load but live changes do not, inspect SignalR authentication and the proxy's WebSocket routing. See [existing users](/docs/5.x/dashboard/existing-users) and [roles and permissions](/docs/5.x/dashboard/authorization).
+An integration **Management access required** message can mean missing management permission or read-only mode. HTTP 403 on writes can also come from the license gate. See [existing users](/docs/5.x/dashboard/existing-users) and [roles and permissions](/docs/5.x/dashboard/authorization).
+
+## Dashboard live updates are delayed
+
+The REST API is the source of truth; SignalR tells active views which queries to refresh. If data appears after a manual reload but not immediately, inspect the browser network panel for the hub negotiation and connection beneath the configured dashboard base path.
+
+1. Confirm the hub authenticates with the same browser session as the API. WebSocket and Server-Sent Events token transport can use the `access_token` query parameter on the exact hub route.
+2. Verify the proxy preserves the base path, passes WebSocket upgrade headers, disables buffering for Server-Sent Events, and keeps a sufficiently long upstream read timeout.
+3. For a split origin, add the exact UI origin through `AllowOrigins(...)`; `SetBackendDomain(...)` alone does not grant CORS access.
+4. With multiple dashboard replicas, configure a Redis backplane or Azure SignalR through `ConfigureSignalR(...)`. Redis-backed SignalR also needs session affinity.
+5. Check host warnings for an unavailable backplane. Live hints are best effort and are not buffered during a Redis outage.
+
+Active views perform a bounded consistency refresh approximately every 30 seconds, and reconnecting clients restore cron group subscriptions. That recovery explains a delayed update but does not replace a backplane when immediate cross-replica visibility is required. See [dashboard SignalR configuration](/docs/5.x/dashboard#signalr-in-multi-replica-deployments).
 
 ## Prepare a useful issue report
 

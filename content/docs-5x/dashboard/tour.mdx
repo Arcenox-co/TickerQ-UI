@@ -160,9 +160,9 @@ About shows the host's effective configuration. Its sections separate general in
 
 ## Live updates and ownership
 
-The dashboard uses SignalR notifications to refresh affected data. It reconnects and restores cron subscriptions after a disconnect. Active chains also refresh approximately every two seconds, and a visible active log tail refreshes approximately every 1.5 seconds; these browser refreshes are separate from scheduler timing.
+The dashboard uses SignalR notifications to refresh affected data. It reconnects and restores cron subscriptions after a disconnect. Active queries receive a consistency refresh approximately every 30 seconds to repair missed hints. Active chains also refresh approximately every two seconds, and a visible active log tail refreshes approximately every 1.5 seconds; these browser refreshes are separate from scheduler timing.
 
-If a view stops updating, check the browser's hub connection, authentication, and reverse-proxy support for the dashboard hub route. Host status refreshes every five seconds, but that does not mean every table has a universal polling fallback.
+If a view stops updating, check the browser's hub connection, authentication, reverse-proxy support, and—in a multi-replica deployment—the configured SignalR backplane. The consistency refresh provides eventual repair; it does not provide immediate cross-replica delivery. See [dashboard SignalR configuration](/docs/5.x/dashboard#signalr-in-multi-replica-deployments).
 
 A job's **Node** field displays the configured node name. Its tooltip shows the full execution-owner identifier, including the process ID and instance suffix. The owner identifies the process that acquired the job; it is not the application's namespace or a count of workers. Scheduler controls and Diagnostics refer to the responding application instance.
 
