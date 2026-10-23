@@ -189,7 +189,23 @@ Do not add `[TickerFunction]` to these mapped methods. The current `MapTicker` b
 
 ## Serialization and contract changes
 
-Inside `AddTickerQ`, `options.WithJsonContext(InvoiceJsonContext.Default)` supplies generated request serialization metadata. An explicit request overload is also available:
+In a normal managed .NET application, request and result DTOs do **not** require a generated `JsonSerializerContext`; TickerQ can use reflection-based JSON metadata. `WithJsonContext` becomes required when publishing with Native AOT or when the application disables reflection-based JSON metadata.
+
+| Runtime mode | What to configure |
+| --- | --- |
+| Managed .NET with reflection JSON enabled | Nothing additional; a generated context remains optional |
+| Native AOT or reflection JSON disabled | Include every request and declared result type and pass the context to `WithJsonContext` |
+
+```csharp
+builder.Services.AddTickerQ(options =>
+{
+    options.WithJsonContext(InvoiceJsonContext.Default);
+});
+```
+
+TickerQ resolves typed registrations during startup. In a reflection-free application, an omitted type produces a clear `No JsonTypeInfo was available` startup failure instead of failing when the first job runs. If your application owns several contexts, combine them with `JsonTypeInfoResolver.Combine(...)`. The complete setup and supported package boundary are in [Native AOT](/docs/5.x/guides/native-aot).
+
+An explicit request overload is also available:
 
 ```csharp
 var payload = TickerHelper.CreateTickerRequest(
@@ -214,6 +230,6 @@ var payload = TickerHelper.CreateTickerRequest(
     new InvoiceRequest(orderId), "Invoices.Create");
 ```
 
-Use this after the function registry has been initialized. The explicit `JsonTypeInfo<T>` overload is useful when you already own the serialization context. Include all required request and result types in generated metadata, and verify your published application with trimming enabled.
+Use this after the function registry has been initialized. The explicit `JsonTypeInfo<T>` overload is useful when you already own the serialization context. Include all required request and result types in generated metadata, and verify your published application with trimming enabled. The source generator creates dispatch and contract registrations; it does not replace the application's `System.Text.Json` context for arbitrary DTOs.
 
-Core generated dispatch does not make every optional component AOT-compatible. In particular, the dashboard assistant's tool-invocation path uses reflection and is not trim/AOT-clean. Check the selected database and AI provider too; successful compilation of an ordinary .NET build is not an AOT compatibility test.
+Core generated dispatch does not make every optional component AOT-compatible. The current verified providers and exclusions are listed in the [Native AOT guide](/docs/5.x/guides/native-aot); successful compilation of an ordinary .NET build is not an AOT compatibility test.

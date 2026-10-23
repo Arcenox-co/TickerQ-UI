@@ -4,6 +4,8 @@
   "pages": [
     "../entity-framework",
     "../mongodb/index",
-    "../redis/index"
+    "../redis/index",
+    "---Upgrade storage---",
+    "../guides/storage-upgrade"
   ]
 }

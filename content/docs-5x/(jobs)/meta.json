@@ -1,19 +1,16 @@
 {
-  "title": "Jobs and workflows",
-  "icon": "Workflow",
+  "title": "Jobs and schedules",
+  "icon": "CalendarClock",
   "pages": [
-    "---Define and schedule---",
+    "---Define functions---",
     "../guides/defining-jobs",
     "../guides/function-registration",
     "../guides/requests-results",
-    "../guides/scheduling",
     "../guides/managers",
+    "---Schedule and execute---",
+    "../guides/scheduling",
     "../guides/job-lifecycle",
     "../guides/progress-retries-testing",
-    "---Chain jobs---",
-    "../guides/job-chaining",
-    "../guides/recurring-chains",
-    "../guides/cron-overlap",
-    "../guides/chain-deletion"
+    "../guides/cron-overlap"
   ]
 }

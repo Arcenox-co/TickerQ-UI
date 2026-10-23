@@ -114,6 +114,7 @@ An overload also supplies the execution's `IServiceProvider`; resolve scoped dep
 
 - Use a unique, stable function name. Do not register the same function through both attributes and `MapTicker`.
 - Keep registrations consistent across worker replicas of one namespace. A producer also needs the function/request contracts used to validate its scheduling calls.
+- Normal managed .NET applications resolve typed request metadata automatically. Native AOT applications must register every request and declared result type through `WithJsonContext`; follow the [Native AOT guide](/docs/5.x/guides/native-aot).
 - Confirm the resulting registry in **About → Functions**. A registered function is not proof that a cron definition is enabled or that a job has been created.
 - For attributes and typed payloads, continue with [defining jobs](/docs/5.x/guides/defining-jobs) and [requests and results](/docs/5.x/guides/requests-results).
 

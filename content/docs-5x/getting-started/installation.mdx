@@ -31,7 +31,7 @@ Choose one authoritative operational store. With no durable provider, TickerQ us
 
 `TickerQ` includes its source generator in the NuGet package and depends on `TickerQ.Utilities` for shared contracts. A normal package installation does not require a separate source-generator package reference. Keep any explicitly referenced TickerQ packages on the same full version.
 
-The optional packages use the same `AddTickerQ(options => ...)` registration: `AddDashboard`, `AddOperationalStore` (EF Core or MongoDB), `AddStackExchangeRedis`, and `AddIntegrations`. Follow the selected package's guide for its exact configuration. [Function registration](/docs/5.x/guides/function-registration) describes the core's Native AOT support and the separate limitations of optional components.
+The optional packages use the same `AddTickerQ(options => ...)` registration: `AddDashboard`, `AddOperationalStore` (EF Core or MongoDB), `AddStackExchangeRedis`, and `AddIntegrations`. Follow the selected package's guide for its exact configuration. The [Native AOT guide](/docs/5.x/guides/native-aot) describes reflection-free request metadata and the separate limitations of optional components.
 
 ## Choose a store
 
