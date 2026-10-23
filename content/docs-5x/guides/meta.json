@@ -5,6 +5,7 @@
     "defining-jobs",
     "function-registration",
     "requests-results",
+    "native-aot",
     "scheduling",
     "managers",
     "job-lifecycle",

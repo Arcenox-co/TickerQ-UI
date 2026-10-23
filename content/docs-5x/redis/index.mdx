@@ -60,6 +60,8 @@ Use managers or the dashboard to change schedules so the cache can be invalidate
 | `NodeHeartbeatInterval` | Redis node renewal/recovery interval; defaults to one minute and must be positive |
 | `JsonSerializerContext` | Supplies generated JSON metadata for custom ticker types and trimming-aware serialization |
 
+For Native AOT, function request/result metadata is configured separately through TickerQ's `WithJsonContext`. The Redis setting covers provider serialization. You can supply the same generated context to both when it contains every required type; see [Native AOT](/docs/5.x/guides/native-aot).
+
 `InstanceName` isolates Redis keys. [Application namespace](/docs/5.x/guides/configuration) isolates the runtime's data and ownership within the configured store. Keep both stable across the replicas of one application. Changing either is not a migration of existing work.
 
 ## Deployment boundaries

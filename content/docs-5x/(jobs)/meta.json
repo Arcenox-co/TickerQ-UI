@@ -6,6 +6,7 @@
     "../guides/defining-jobs",
     "../guides/function-registration",
     "../guides/requests-results",
+    "../guides/native-aot",
     "../guides/scheduling",
     "../guides/managers",
     "../guides/job-lifecycle",

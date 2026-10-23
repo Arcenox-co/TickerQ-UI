@@ -1,0 +1,114 @@
+---
+title: "Native AOT"
+description: "Publish TickerQ without reflection-based JSON metadata and understand the supported package boundary."
+---
+
+TickerQ's core scheduler, in-memory store, dashboard, Redis operational provider, integrations, and OpenTelemetry instrumentation can run in a Native AOT application. A normal managed .NET application does not need any AOT-specific JSON configuration.
+
+## Managed .NET or Native AOT
+
+| Application | Generated JSON context |
+| --- | --- |
+| Normal managed .NET with reflection serialization enabled | Optional; TickerQ resolves typed requests through reflection metadata |
+| Native AOT, or an application that disables reflection JSON metadata | Required for every request and declared result type |
+| Requestless functions | No application request type to register |
+
+Leaving out `JsonSerializerContext` does not break an ordinary non-AOT application. Under Native AOT, TickerQ validates typed registrations during startup. A missing type fails clearly with `No JsonTypeInfo was available` before a job executes.
+
+## Configure a reflection-free host
+
+Enable Native AOT and disable reflection JSON defaults in the application project:
+
+```xml
+<PropertyGroup>
+  <PublishAot>true</PublishAot>
+  <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+</PropertyGroup>
+```
+
+Use the slim ASP.NET host and give TickerQ a generated context:
+
+```csharp
+using System.Text.Json.Serialization;
+
+var builder = WebApplication.CreateSlimBuilder(args);
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseApplicationNamespace("orders-production");
+    options.UseReconciliationEpoch(1);
+    options.WithJsonContext(JobJsonContext.Default);
+    options.AddDashboard(dashboard =>
+        dashboard.AllowAnonymousDashboard().SetReadOnly());
+});
+
+public sealed record OrderRequest(string OrderId);
+public sealed record OrderResult(string OrderId, bool Processed);
+
+[JsonSerializable(typeof(OrderRequest))]
+[JsonSerializable(typeof(OrderResult))]
+internal partial class JobJsonContext : JsonSerializerContext;
+```
+
+Include types used by both registration styles:
+
+- `ITickerFunction<TRequest>` request types;
+- typed `[TickerFunction]` request types;
+- types declared through `[TickerFunction(ResultType = typeof(...))]`; and
+- types passed to reflection-free `SetResult` or `GetParentResult` overloads.
+
+The TickerQ source generator registers functions, dispatch code, and contracts. It does not make arbitrary application DTOs available to `System.Text.Json`; the application context supplies that serializer metadata.
+
+## Combine existing contexts
+
+An application can combine multiple source-generated contexts:
+
+```csharp
+using System.Text.Json.Serialization.Metadata;
+
+options.WithJsonContext(JsonTypeInfoResolver.Combine(
+    OrdersJsonContext.Default,
+    BillingJsonContext.Default));
+```
+
+Keep the serializer profile consistent on every producer and worker sharing a namespace. Do not configure different naming policies or converters for the same stored contract.
+
+## Requests and results
+
+TickerQ uses the function-specific `JsonTypeInfo` when validating and binding stored requests. For explicit results, use the metadata overloads in trimmed or native applications:
+
+```csharp
+context.SetResult(result, JobJsonContext.Default.OrderResult);
+
+var parentResult = context.GetParentResult(
+    JobJsonContext.Default.OrderResult);
+```
+
+The convenience `SetResult(value)` and `GetParentResult<T>()` overloads use reflection metadata and are not Native-AOT-safe. See [requests and results](/docs/5.x/guides/requests-results) for request creation, committed results, and chain behavior.
+
+## Redis
+
+When Redis is the operational provider, also provide generated metadata to Redis so it can serialize custom ticker and result types without reflection:
+
+```csharp
+options.AddStackExchangeRedis(redis =>
+{
+    redis.Configuration = connectionString;
+    redis.JsonSerializerContext = JobJsonContext.Default;
+});
+```
+
+`WithJsonContext` configures function request/result serialization. Redis's `JsonSerializerContext` configures the Redis provider's stored types. They serve separate boundaries even when they use the same generated context.
+
+## Current support boundary
+
+The verified Native AOT path covers:
+
+- in-memory scheduling, typed requests, time chains, cron occurrences, cancellation, and dashboard reads;
+- Redis scheduling, typed payloads, chains, point reads, and paginated dashboard queries;
+- encrypted integration settings and the scheduler integration event path; and
+- OpenTelemetry enqueue, execution, and completion activities.
+
+The AI assistant is unavailable in Native AOT because its runtime tool discovery is dynamic. `TickerQ.EntityFrameworkCore` and `TickerQ.MongoDB` currently remain managed-runtime providers: EF runtime model construction and MongoDB driver serializer construction are not reflection-free. Query portability across relational providers does not change that AOT boundary.
+
+Publish and run the native executable in CI for every target runtime identifier. A successful ordinary build does not validate trimming or Native AOT behavior.

@@ -123,7 +123,7 @@ public class OrderJobs(ILogger<OrderJobs> logger)
   </Tab>
 </Tabs>
 
-Treat request changes as a contract migration. Changing a stored payload's shape can prevent an older job from executing; inspect contract-drift diagnostics instead of silently assuming it was processed.
+Treat request changes as a contract migration. Changing a stored payload's shape can prevent an older job from executing; inspect contract-drift diagnostics instead of silently assuming it was processed. These request classes need no `JsonSerializerContext` in a normal managed application. Native AOT or explicitly reflection-free JSON requires generated metadata for every typed request; see [Native AOT](/docs/5.x/guides/native-aot).
 
 For returned values, committed parent results, compression, and generated JSON metadata, see [requests and results](/docs/5.x/guides/requests-results).
 
