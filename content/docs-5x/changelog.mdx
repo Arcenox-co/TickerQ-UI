@@ -13,7 +13,7 @@ Follow the latest features, improvements, and fixes across the `10.5.x`, `9.5.x`
 The current 5.x source documentation includes:
 
 - type-safe `AddChainAsync` builders with `ThenMany` durable groups and outcome joins;
-- [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) declares code-owned cron schedules with keys, retries, and timeouts, reconciled once per epoch without duplicates; `[TickerFunction]` and `WithCron(...)` no longer accept a cron expression;
+- [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) declares code-owned cron schedules with the recurring-chain builder (time zone, schedule policy, request, retries, and chain steps), validated like `AddChainAsync` and reconciled once per epoch without duplicates; `[TickerFunction]` and `WithCron(...)` no longer accept a cron expression;
 - schedule policies: reusable [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for time tickers, cron tickers, and chain roots, plus per-schedule [late-start and cron catch-up rules](/docs/5.x/guides/schedule-policies/late-starts) that replace the removed `SkipStaleCronOccurrencesOnStartup(...)` option;
 - recurring chains, parent-result propagation, progress reporting, and retry from a selected chain step or group;
 - ephemeral create-form test runs, saved one-time drafts, and reusable time/cron chain templates;

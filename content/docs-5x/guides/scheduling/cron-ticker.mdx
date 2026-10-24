@@ -16,9 +16,7 @@ builder.Services.AddTickerQ(options =>
     options.UseApplicationNamespace("billing-api");
     options.UseReconciliationEpoch(1);
     options.SeedCronTickers(crons => crons
-        .Add("DailyInvoicesJob", "0 0 8 * * *", cron => cron
-            .WithRetries(2, 300, 900)
-            .WithTimeout(TimeSpan.FromMinutes(10)))
+        .Add("DailyInvoicesJob", "0 0 8 * * *")
         .Add("SendRemindersJob", "%Billing:RemindersCron%"));
 });
 ```
@@ -68,11 +66,51 @@ options.SeedCronTickers((crons, services) =>
 });
 ```
 
-| Setting | Meaning |
+### Seed with the chain builder
+
+`Add("Function", "<cron>")` seeds a plain cron. For anything more, pass the same builder that
+[`AddChainAsync`](/docs/5.x/guides/recurring-chains) uses. A single `StartWith(...)` is a plain cron;
+`Then`, `ThenMany`, and the outcome steps make it a recurring chain:
+
+```csharp
+options.SeedCronTickers(crons => crons
+    .Add(cron => cron
+        .WithExpression("0 0 8 * * 1-5")
+        .InTimeZone("Europe/Berlin")
+        .UsingPolicy("Business hours")
+        .SkipIfAlreadyRunning()
+        .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(30)))
+        .StartWith("Invoices.Prepare", new PrepareInvoicesRequest("daily"), step =>
+        {
+            step.Retries = 2;
+            step.RetryIntervals = [300, 900];
+            step.TimeoutSeconds = 600;
+        })
+        .ThenMany(branches =>
+        {
+            branches.Add("Invoices.Email");
+            branches.Add("Invoices.Archive");
+        })
+        .ThenAfterAll("Invoices.Notify"))
+    .Add("Invoices.Prepare:month-end", cron => cron
+        .WithExpression("0 0 22 28 * *")
+        .StartWith("Invoices.Prepare", new PrepareInvoicesRequest("month-end"))));
+```
+
+| Need | Builder call |
 | --- | --- |
-| `WithKey("...")` | Stable identity of the cron. Defaults to the function name. Set it to run one function on several schedules. |
-| `WithRetries(retries, intervals)` | Retry attempts for a failed run, and the seconds between them. |
-| `WithTimeout(TimeSpan)` | Cancels a run that takes longer. |
+| Time zone | `InTimeZone("Europe/Berlin")`; without it, the scheduler time zone applies |
+| [Schedule policy](/docs/5.x/guides/schedule-policies/business-calendars) | `UsingPolicy("Business hours")` |
+| Request payload | `StartWith("Function", request)` or `StartWith<TFunction, TRequest>(request)` |
+| Retries and timeout | The step options: `Retries`, `RetryIntervals`, `TimeoutSeconds`, `OnStale` |
+| Late starts and catch-up | `WhenMissed(...)` and `CatchUp(...)`; see [late starts](/docs/5.x/guides/schedule-policies/late-starts) |
+| Overlap | `SkipIfAlreadyRunning()` |
+| Description | `WithDescription("...")` |
+| Created disabled | `Enabled(false)` |
+| Chain steps | `Then`, `ThenMany`, `ThenAfterAll`, `ThenAfterAnyFailed`, and the other outcome steps |
+
+The key of a seeded cron defaults to the root function's name. Use `Add("key", cron => ...)` to run
+one function on several schedules, as the month-end entry above does.
 
 ### How seeding avoids duplicates
 
@@ -81,8 +119,11 @@ activates. A restart with the same epoch skips seeding, and replicas share one a
 
 - Each cron is stored once per key. A unique index on the application namespace and key prevents a
   second row, even when many replicas start together.
-- A changed expression, retry setting, or timeout updates the existing row in place. Occurrences
-  already queued under the old definition are skipped.
+- A changed expression, time zone, policy, request, chain, retry setting, timeout, or late-start,
+  catch-up, or overlap rule updates the existing row in place. Occurrences already queued under the
+  old definition are skipped. A changed description only updates the row.
+- `Enabled(false)` applies only when the cron is first created, so enabling or disabling it in the
+  dashboard survives later reconciliations.
 - A cron you remove from the list is disabled and marked retired after the grace period. It is not
   deleted, and declaring the same key again restores it.
 - Crons created through the manager or the dashboard are never touched by seeding.
@@ -91,12 +132,21 @@ Advance the epoch when you change the list, an expression, or its configuration 
 dashboard marks seeded crons **From code**. Edits made there to a seeded cron are replaced by the
 declared values when the next epoch activates.
 
-Startup fails with a clear message when a seed names an unregistered function, uses a placeholder
-with no configuration value, or has an invalid expression. A function whose request is required
-cannot be seeded, because seeds carry no request payload; create that schedule with the manager.
+### Validation
 
-Seeded crons use the scheduler time zone. For an explicit time zone, a [schedule policy](/docs/5.x/guides/schedule-policies/business-calendars),
-or a request payload, create the schedule with the manager.
+Every seeded cron is validated with the same rules as `AddChainAsync` before anything is written.
+Startup stops with the seed's key in the message when:
+
+- a step names a function that is not registered, or its request does not match the function's
+  contract, including a missing request for a function that requires one;
+- the time zone is unknown;
+- the schedule policy does not exist, or it never allows the expression;
+- a `%Section:Key%` placeholder has no configuration value, or the expression is invalid;
+- two seeds have the same key.
+
+Schedule policies from `UseSchedulePolicySeeder` are seeded before crons, so a seeded cron can use a
+seeded policy. A policy must exist by the time crons are reconciled; one that is created later, for
+example in the dashboard, is not available to that startup.
 
 ### Moving from attribute schedules
 
@@ -148,7 +198,7 @@ if (!result.IsSucceeded)
 
 For a sequence of jobs on each run, add a [recurring chain template](/docs/5.x/guides/recurring-chains). For overlap rules and their host/cluster boundaries, see [cron overlap](/docs/5.x/guides/cron-overlap).
 
-Each definition's `TimeZoneId` interprets its cron expression. Set it with `CronSchedule.InTimeZone(...)`, the recurring-chain builder's `InTimeZone(...)`, or the entity property; when it is null, the scheduler time zone applies. Seeded crons use the scheduler time zone. Changing the dashboard's display time zone only changes how timestamps are displayed.
+Each definition's `TimeZoneId` interprets its cron expression. Set it with `CronSchedule.InTimeZone(...)`, the recurring-chain builder's `InTimeZone(...)`, or the entity property; when it is null, the scheduler time zone applies. A seeded cron sets it with `InTimeZone(...)` on the builder. Changing the dashboard's display time zone only changes how timestamps are displayed.
 
 ## Time zones, calendars, and catch-up
 

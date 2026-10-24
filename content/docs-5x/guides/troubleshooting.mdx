@@ -174,10 +174,12 @@ Startup stops with one of these messages from `SeedCronTickers`:
 
 | Message | Fix |
 | --- | --- |
-| `...targets function '...', which is not registered` | Check the function name in `[TickerFunction("...")]` or the `MapTicker` registration. A function mapped in a group is named `Group.ClassName`. |
+| `...is invalid: Cannot find TickerFunction with name ...` | Check the function name in `[TickerFunction("...")]` or the `MapTicker` registration. A function mapped in a group is named `Group.ClassName`. |
+| `...is invalid: Schedule policy '...' does not exist` | Create the policy in `UseSchedulePolicySeeder`, which runs before cron seeding, or fix the name in `UsingPolicy(...)`. |
+| `...has no allowed future occurrence` | The schedule policy never allows the expression, for example a 07:00 cron under an 08:00–18:00 policy. Change the expression or the policy. |
 | `...uses configuration key '...', which has no value` | Add the key to configuration on every replica, or use a literal expression. |
 | `...has an invalid cron expression` | Use a five-part or six-part expression; six-part expressions put seconds first. |
-| `A cron ticker with key '...' is already seeded` | Give the second schedule of the same function its own `WithKey("...")`. |
+| `A cron ticker with key '...' is already seeded` | Give the second schedule of the same function its own key with `Add("key", cron => ...)`. |
 
 A compile error that mentions `SeedCronTickers` means a cron expression is still passed to `[TickerFunction]` or `WithCron(...)`. Move it to `SeedCronTickers`; see [moving from attribute schedules](/docs/5.x/guides/scheduling/cron-ticker#moving-from-attribute-schedules).
 

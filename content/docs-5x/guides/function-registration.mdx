@@ -130,11 +130,11 @@ builder.Services.MapTicker<CleanupJob>()
 ```
 
 The seeded schedule is created once during startup reconciliation and never duplicated by restarts
-or replicas. Its time zone is always the [scheduler time zone](/docs/5.x/guides/scheduler#time-zones),
-not the browser's display zone. When one schedule needs a different zone, a schedule policy, or a
-request payload, create a dynamic definition through the cron manager instead. See
-[seed cron tickers](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) for retries,
-timeouts, keys, and how removed schedules are retired.
+or replicas. This shorthand uses the [scheduler time zone](/docs/5.x/guides/scheduler#time-zones),
+not the browser's display zone. When a schedule needs its own zone, a schedule policy, a request
+payload, or chain steps, seed it with the [chain builder](/docs/5.x/guides/scheduling/cron-ticker#seed-with-the-chain-builder).
+See [seed cron tickers](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) for retries,
+keys, validation, and how removed schedules are retired.
 
 `[TickerFunction]` and `WithCron(...)` no longer accept a cron expression; passing one is a compile
 error.
