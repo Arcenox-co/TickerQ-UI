@@ -37,11 +37,11 @@ builder.Services.AddTickerQ(options =>
     options.UseLicense("tickerq.tqlicense");
     options.UseApplicationNamespace("tickerq-demo");
     options.UseReconciliationEpoch(1);
+    options.SeedCronTickers(crons => crons.Add("EveryMinuteJob", "* * * * *"));
 });
 
 builder.Services.MapTicker<HelloJob>();
-builder.Services.MapTicker<EveryMinuteJob>()
-    .WithCron("* * * * *");
+builder.Services.MapTicker<EveryMinuteJob>();
 
 var app = builder.Build();
 app.UseTickerQ();
@@ -101,6 +101,7 @@ builder.Services.AddTickerQ(options =>
     options.UseLicense("tickerq.tqlicense");
     options.UseApplicationNamespace("tickerq-demo");
     options.UseReconciliationEpoch(1);
+    options.SeedCronTickers(crons => crons.Add("EveryMinute", "* * * * *"));
 });
 
 var app = builder.Build();
@@ -135,7 +136,7 @@ public class DemoJobs(ILogger<DemoJobs> logger)
         return Task.CompletedTask;
     }
 
-    [TickerFunction("EveryMinute", "* * * * *")]
+    [TickerFunction("EveryMinute")]
     public Task EveryMinuteAsync(TickerFunctionContext context, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -160,7 +161,7 @@ From another terminal:
 curl -X POST http://127.0.0.1:5100/jobs/hello
 ```
 
-The endpoint returns after scheduling. `HelloJob` (or `Hello` in the attribute tab) runs approximately five seconds later; `EveryMinuteJob` (or `EveryMinute`) runs at the next minute boundary. A missing or invalid certificate blocks execution—check the host logs if the application starts but jobs do not run.
+The endpoint returns after scheduling. `HelloJob` (or `Hello` in the attribute tab) runs approximately five seconds later; `EveryMinuteJob` (or `EveryMinute`) runs at the next minute boundary. `SeedCronTickers` declares that recurring schedule once: restarts and extra replicas never create a second copy. See [seed cron tickers](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers). A missing or invalid certificate blocks execution—check the host logs if the application starts but jobs do not run.
 
 ## Next steps
 

@@ -137,4 +137,6 @@ options.UseTickerSeeder(async (ITimeTickerManager<TimeTickerEntity> manager, Can
 
 Register `Catalog.Import` before startup. Built-in durable providers converge concurrent first-time seeding on one identity. `AddOnceAsync` is scoped to stored records: if deletion or retention removes that record, the identifier can be created again. It is not a permanent business deduplication ledger. Seeder callbacks run as part of initialization; changed startup inputs require a new reconciliation epoch.
 
+To seed recurring schedules, use [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) rather than a cron seeder. Cron manager `AddAsync` has no key, so a cron seeder adds another copy each time a new epoch activates; `SeedCronTickers` keeps one row per key and retires schedules you remove.
+
 On a scheduler host, manager mutations wait until startup activation completes. Do not await them before `app.Run()`, because activation only starts with the host and the call would never return. Put startup work in `UseTickerSeeder`, or run it after the application has started. See [a manager call never returns](/docs/5.x/guides/troubleshooting#a-manager-call-never-returns).

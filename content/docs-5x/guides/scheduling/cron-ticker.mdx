@@ -1,30 +1,40 @@
 ---
 title: "Cron tickers"
-description: "Define recurring schedules in code or manage them dynamically."
+description: "Seed recurring schedules from code or manage them dynamically."
 ---
 
 A cron ticker is a schedule definition. Each run has a separate occurrence with its own status, timestamps, logs, and ID.
 
-## Code-defined schedule
+## Seed cron tickers
+
+Declare the recurring schedules your application owns with `SeedCronTickers`. Register the function
+as usual, then add its schedule to the list:
+
+```csharp
+builder.Services.AddTickerQ(options =>
+{
+    options.UseApplicationNamespace("billing-api");
+    options.UseReconciliationEpoch(1);
+    options.SeedCronTickers(crons => crons
+        .Add("DailyInvoicesJob", "0 0 8 * * *", cron => cron
+            .WithRetries(2, 300, 900)
+            .WithTimeout(TimeSpan.FromMinutes(10)))
+        .Add("SendRemindersJob", "%Billing:RemindersCron%"));
+});
+```
 
 <Tabs items={["ITickerFunction", "[TickerFunction] attribute"]}>
   <Tab value="ITickerFunction">
 
 ```csharp
-using TickerQ.DependencyInjection;
-using TickerQ.Utilities.Base;
-using TickerQ.Utilities.Interfaces;
-
-builder.Services.MapTicker<DailyInvoicesJob>()
-    .WithCron("0 8 * * *");
+// A mapped ITickerFunction is named after its class: "DailyInvoicesJob".
+builder.Services.MapTicker<DailyInvoicesJob>();
 
 public sealed class DailyInvoicesJob : ITickerFunction
 {
-    public Task ExecuteAsync(
-        TickerFunctionContext context,
-        CancellationToken cancellationToken)
+    public Task ExecuteAsync(TickerFunctionContext context, CancellationToken cancellationToken)
     {
-        // Runs at 08:00 in the configured scheduler time zone.
+        // Runs at 08:00 in the scheduler time zone.
         return Task.CompletedTask;
     }
 }
@@ -34,10 +44,10 @@ public sealed class DailyInvoicesJob : ITickerFunction
   <Tab value="[TickerFunction] attribute">
 
 ```csharp
-[TickerFunction("Invoices.Daily", "0 8 * * *")]
+[TickerFunction("DailyInvoicesJob")]
 public Task DailyAsync(TickerFunctionContext context, CancellationToken cancellationToken)
 {
-    // Runs at 08:00 in the configured scheduler time zone.
+    // Runs at 08:00 in the scheduler time zone.
     return Task.CompletedTask;
 }
 ```
@@ -45,9 +55,67 @@ public Task DailyAsync(TickerFunctionContext context, CancellationToken cancella
   </Tab>
 </Tabs>
 
-Configuration references such as `%CronSettings:Schedule%` are supported in the attribute and `WithCron`. Both five-part and six-part expressions are supported; six-part expressions include seconds first. Use the dashboard's expression preview to check the intended next run.
+Each entry names a registered function and a cron expression. Five-part and six-part expressions are
+supported; six-part expressions put seconds first. A `%Section:Key%` placeholder is read from
+configuration at startup. To compute expressions from services, use the overload that also receives
+the application's `IServiceProvider`:
 
-Code-defined schedules are reconciled during startup activation. If you change an expression or its configuration value, advance the deployment reconciliation epoch; restarting with an already-activated epoch does not replay reconciliation. Keep function identity and deployment configuration consistent across replicas. Do not also insert the same code-defined schedule through the manager on every startup.
+```csharp
+options.SeedCronTickers((crons, services) =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    crons.Add("Reports.Export", configuration["Reports:ExportCron"]!);
+});
+```
+
+| Setting | Meaning |
+| --- | --- |
+| `WithKey("...")` | Stable identity of the cron. Defaults to the function name. Set it to run one function on several schedules. |
+| `WithRetries(retries, intervals)` | Retry attempts for a failed run, and the seconds between them. |
+| `WithTimeout(TimeSpan)` | Cancels a run that takes longer. |
+
+### How seeding avoids duplicates
+
+Seeded crons are reconciled as one list when a new [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch)
+activates. A restart with the same epoch skips seeding, and replicas share one activation.
+
+- Each cron is stored once per key. A unique index on the application namespace and key prevents a
+  second row, even when many replicas start together.
+- A changed expression, retry setting, or timeout updates the existing row in place. Occurrences
+  already queued under the old definition are skipped.
+- A cron you remove from the list is disabled and marked retired after the grace period. It is not
+  deleted, and declaring the same key again restores it.
+- Crons created through the manager or the dashboard are never touched by seeding.
+
+Advance the epoch when you change the list, an expression, or its configuration value. The
+dashboard marks seeded crons **From code**. Edits made there to a seeded cron are replaced by the
+declared values when the next epoch activates.
+
+Startup fails with a clear message when a seed names an unregistered function, uses a placeholder
+with no configuration value, or has an invalid expression. A function whose request is required
+cannot be seeded, because seeds carry no request payload; create that schedule with the manager.
+
+Seeded crons use the scheduler time zone. For an explicit time zone, a [schedule policy](/docs/5.x/guides/schedule-policies/business-calendars),
+or a request payload, create the schedule with the manager.
+
+### Moving from attribute schedules
+
+`[TickerFunction]` and the code-first `WithCron(...)` no longer declare schedules. A cron argument on
+either is a compile error. Remove it and add the schedule to `SeedCronTickers` with the same function
+name:
+
+```csharp
+// Before
+[TickerFunction("Invoices.Daily", "0 8 * * *")]
+
+// After
+[TickerFunction("Invoices.Daily")]
+options.SeedCronTickers(crons => crons.Add("Invoices.Daily", "0 8 * * *"));
+```
+
+The default key is the function name, the identity attribute schedules already used, so the existing
+row keeps its history, occurrences, and dashboard state. Advance the reconciliation epoch in the
+same deployment.
 
 ## Dynamic schedule
 
@@ -80,7 +148,7 @@ if (!result.IsSucceeded)
 
 For a sequence of jobs on each run, add a [recurring chain template](/docs/5.x/guides/recurring-chains). For overlap rules and their host/cluster boundaries, see [cron overlap](/docs/5.x/guides/cron-overlap).
 
-Each definition's `TimeZoneId` interprets its cron expression. Set it with `CronSchedule.InTimeZone(...)`, the recurring-chain builder's `InTimeZone(...)`, or the entity property; when it is null, the scheduler time zone applies. Attribute and `WithCron` schedules use the scheduler time zone. Changing the dashboard's display time zone only changes how timestamps are displayed.
+Each definition's `TimeZoneId` interprets its cron expression. Set it with `CronSchedule.InTimeZone(...)`, the recurring-chain builder's `InTimeZone(...)`, or the entity property; when it is null, the scheduler time zone applies. Seeded crons use the scheduler time zone. Changing the dashboard's display time zone only changes how timestamps are displayed.
 
 ## Time zones, calendars, and catch-up
 
@@ -110,7 +178,7 @@ recovery boundaries.
 
 ## Choose code or a dynamic definition
 
-Use an attribute or `WithCron` for a schedule owned by the deployed application. Use the manager or dashboard for schedules that operators create and change at runtime. Two definitions may call the same function; function-name equality does not deduplicate dynamic schedules. Save the returned definition ID and update that record.
+Use `SeedCronTickers` for a schedule owned by the deployed application. Use the manager or dashboard for schedules that operators create and change at runtime. Two definitions may call the same function; function-name equality does not deduplicate dynamic schedules. Save the returned definition ID and update that record.
 
 A cron expression schedules future occurrences; it is not an unlimited backlog of every calendar
 slot missed during downtime. Recovery handles existing overdue occurrences. `RunLatest` is an

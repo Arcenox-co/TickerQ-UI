@@ -23,7 +23,7 @@ When you need separate workers, your web application can save jobs to a shared p
 | **Cron ticker** | A recurring definition with a cron expression | Prepare invoices every morning at 07:00 |
 | **Cron occurrence** | One scheduled or manually triggered run of that definition | This morning's invoice run |
 
-Registering a function makes it available to the scheduler; it does not create a one-time job. Use the time manager to schedule individual jobs, or the cron manager to create recurring schedules. A cron-bearing attribute or `WithCron` registration can also define a recurring schedule in code.
+Registering a function makes it available to the scheduler; it does not create a one-time job. Use the time manager to schedule individual jobs, or the cron manager to create recurring schedules. `SeedCronTickers` declares the recurring schedules your application owns in code.
 
 See [time tickers](/docs/5.x/guides/scheduling/time-ticker) and [cron tickers](/docs/5.x/guides/scheduling/cron-ticker) for scheduling examples.
 

@@ -82,7 +82,7 @@ Detailed logging covers acquisition, queue publication, recovery, restart, and r
 ## Startup choices
 
 - Late work is decided per schedule, not by a startup option. Use `WhenMissed(MissedExecutionPolicy.SkipAfter(...))` on a schedule that should not run late, and `CatchUp(CronCatchUpMode.RunLatest)` on a cron that should run its latest slot missed during downtime. See [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts). The former `SkipStaleCronOccurrencesOnStartup(...)` option was removed.
-- `IgnoreSeedDefinedCronTickers()` disables automatic creation/reconciliation of attribute and `WithCron` schedules. Dynamic manager-created schedules remain separate.
+- `IgnoreSeedDefinedCronTickers()` skips reconciling the crons declared with [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers). Dynamic manager-created schedules remain separate.
 - `DisableBackgroundServices()` creates a producer that queues jobs without processing them locally. Use the worker's namespace and persistent store. See [producer and worker deployments](/docs/5.x/guides/configuration#separate-producers-and-workers).
 - `app.UseTickerQ(TickerQStartMode.Manual)` registers the scheduler but keeps it from processing work when the host starts. Start it later through `ITickerQHostScheduler`, described below.
 

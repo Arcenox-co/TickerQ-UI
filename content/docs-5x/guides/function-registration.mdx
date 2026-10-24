@@ -116,19 +116,33 @@ Follow the [CleanupJob → CleanupSummaryJob example](/docs/5.x/guides/requests-
 
 ## Register a recurring function
 
+Registering a function does not schedule it. Declare its recurring schedule with `SeedCronTickers`:
+
 ```csharp
+builder.Services.AddTickerQ(options =>
+{
+    // Keep your existing namespace, epoch, and storage configuration.
+    options.SeedCronTickers(crons => crons.Add("CleanupJob", "0 2 * * *"));
+});
+
 builder.Services.MapTicker<CleanupJob>()
-    .WithCron("0 2 * * *")
     .WithMaxConcurrency(1);
 ```
 
-This is an alternative registration for the same class: use it instead of the earlier `MapTicker<CleanupJob>()` call. `WithCron` creates a code-defined schedule during startup reconciliation. Its time zone is always the [scheduler time zone](/docs/5.x/guides/scheduler#time-zones), not the browser's display zone. A code-defined schedule has no per-schedule zone; when one schedule needs a different zone, create a dynamic definition with `CronSchedule.InTimeZone(...)` or `CronTickerEntity.TimeZoneId`. It supplies no request payload; create a dynamic schedule through the cron manager when a function requires one.
+The seeded schedule is created once during startup reconciliation and never duplicated by restarts
+or replicas. Its time zone is always the [scheduler time zone](/docs/5.x/guides/scheduler#time-zones),
+not the browser's display zone. When one schedule needs a different zone, a schedule policy, or a
+request payload, create a dynamic definition through the cron manager instead. See
+[seed cron tickers](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) for retries,
+timeouts, keys, and how removed schedules are retired.
 
-To keep the expression in configuration, pass a `%Section:Key%` placeholder to `WithCron` or to the `[TickerFunction]` cron argument:
+`[TickerFunction]` and `WithCron(...)` no longer accept a cron expression; passing one is a compile
+error.
+
+To keep the expression in configuration, pass a `%Section:Key%` placeholder:
 
 ```csharp
-builder.Services.MapTicker<CleanupJob>()
-    .WithCron("%CronSettings:Cleanup%");
+options.SeedCronTickers(crons => crons.Add("CleanupJob", "%CronSettings:Cleanup%"));
 ```
 
 ```json
@@ -139,7 +153,9 @@ builder.Services.MapTicker<CleanupJob>()
 }
 ```
 
-At startup, TickerQ reads `CronSettings:Cleanup` from `IConfiguration` and uses that value as the expression. A placeholder is not validated when it is registered, so make sure the key exists with a valid expression on every replica.
+At startup, TickerQ reads `CronSettings:Cleanup` from `IConfiguration` and uses that value as the
+expression. Startup fails when the key has no value or the value is not a valid expression, so the
+key must exist on every replica.
 
 ## Group related functions
 

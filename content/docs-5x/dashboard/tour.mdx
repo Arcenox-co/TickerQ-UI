@@ -48,7 +48,7 @@ Create or edit a chain as a graph. A group starts its member jobs together, wait
 
 ## Cron tickers
 
-View recurring definitions with both the cron expression and its human-readable meaning. Check the next run, enable or disable a schedule, and open its occurrence history. A chain badge identifies recurring workflows.
+View recurring definitions with both the cron expression and its human-readable meaning. Check the next run, enable or disable a schedule, and open its occurrence history. A chain badge identifies recurring workflows, and a **From code** badge marks schedules declared with [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers). Edits to a **From code** schedule are replaced by the declared values when the next reconciliation epoch activates.
 
 <DashboardScreenshot name="cron-tickers" alt="Cron definitions with readable expressions, recurring chain badge, last status, and next run" caption="Schedules and their run history are separate: changing a definition affects future runs." />
 
