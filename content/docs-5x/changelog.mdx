@@ -19,6 +19,8 @@ The current 5.x source documentation includes:
 - node discovery, capacity visibility, and store-routed cooperative cancellation across replicas;
 - production SignalR guidance and `ConfigureSignalR(...)` support for Redis or managed backplanes, with reconnect recovery and bounded consistency refreshes;
 - The AI assistant (**AI → Chat AI**) with persistent proposal cards, structured run investigations, optional source excerpts, automatic diagnosis deduplication, and a shared multi-node model-call budget;
+- `TickerQ.EntityFrameworkCore` no longer depends on `FlexLabs.EntityFrameworkCore.Upsert`; applications that call `Upsert(...)` themselves need their own package reference;
+- EF Core support for MariaDB, CockroachDB, YugabyteDB, and Oracle Database alongside SQLite, SQL Server, PostgreSQL, and MySQL, each verified by a relational conformance suite; see [supported databases](/docs/5.x/entity-framework#supported-databases);
 - additive EF mappings for progress/retry state, cluster control, saved definitions, execution logs, and assistant operations; the related runtime features remain opt-in.
 
 Check the release entry and published NuGet version before relying on a documented feature in a deployed package. Preview source and preview packages can move ahead of the latest stable release.

@@ -38,7 +38,7 @@ The optional packages use the same `AddTickerQ(options => ...)` registration: `A
 | Store | Suitable use | Main requirement |
 | --- | --- | --- |
 | In-memory | Local development and disposable work | Process-local; no restart durability or shared queue |
-| [EF Core](/docs/5.x/entity-framework) | Relational job storage, including jobs committed with business changes | Application-owned migrations and a supported provider: SQLite, SQL Server, PostgreSQL, or MySQL |
+| [EF Core](/docs/5.x/entity-framework) | Relational job storage, including jobs committed with business changes | Application-owned migrations and a [supported database](/docs/5.x/entity-framework#supported-databases): SQLite, SQL Server, PostgreSQL, MySQL, MariaDB, CockroachDB, YugabyteDB, or Oracle |
 | [MongoDB](/docs/5.x/mongodb) | MongoDB operational storage | Replica set or mongos for scheduler transactions |
 | [Redis](/docs/5.x/redis) | Redis as the operational store, or caching alongside EF | Standalone or primary/replica Redis for schedulers; Cluster, Sentinel, and proxy endpoints fail closed. Configure durability when Redis holds jobs |
 
