@@ -16,41 +16,39 @@ without a calendar.
 
 ## Define and seed a policy
 
-Use `UseSchedulePolicySeeder` for policies owned by the deployed application. `UpsertAsync` makes
-reconciliation idempotent. Policy seeding runs before time- and cron-ticker seeders, so those
-seeders can reference the policy safely.
+Declare the policies owned by the deployed application with `SeedSchedulePolicies`. Each is created
+or updated by name before cron and time tickers are seeded, so seeds can reference it safely.
 
 ```csharp
 using TickerQ.Utilities.Models;
 
 builder.Services.AddTickerQ(options => options
     .UseApplicationNamespace("orders-production")
-    .UseReconciliationEpoch(1)
-    .UseSchedulePolicySeeder(async (policies, cancellationToken) =>
-    {
-        await policies.UpsertAsync(
-            SchedulePolicy.Create("EU business hours")
-                .WithDescription("Weekdays from 09:00 to 17:00")
-                .InTimeZone("Europe/Tirane")
-                .AllowWeekdays(
-                    DayOfWeek.Monday,
-                    DayOfWeek.Tuesday,
-                    DayOfWeek.Wednesday,
-                    DayOfWeek.Thursday,
-                    DayOfWeek.Friday)
-                .AllowBetween(new TimeOnly(9, 0), new TimeOnly(17, 0))
-                .ExcludeAnnualDate(1, 1)
-                .ExcludeAnnualDate(12, 25)
-                .ExcludeDate(new DateOnly(2027, 1, 2))
-                .Build(),
-            cancellationToken);
-    }));
+    .SeedSchedulePolicies(policies => policies
+        .Add(SchedulePolicy.Create("EU business hours")
+            .WithDescription("Weekdays from 09:00 to 17:00")
+            .InTimeZone("Europe/Tirane")
+            .AllowWeekdays(
+                DayOfWeek.Monday,
+                DayOfWeek.Tuesday,
+                DayOfWeek.Wednesday,
+                DayOfWeek.Thursday,
+                DayOfWeek.Friday)
+            .AllowBetween(new TimeOnly(9, 0), new TimeOnly(17, 0))
+            .ExcludeAnnualDate(1, 1)
+            .ExcludeAnnualDate(12, 25)
+            .ExcludeDate(new DateOnly(2027, 1, 2)))));
 ```
 
-The seeder runs only while a new [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch)
-activates. A restart with the same, already-activated epoch skips every seeder, so a changed policy
-definition is not applied. Advance `UseReconciliationEpoch(...)` when you change a seeded policy in
-code.
+Seeding runs when startup reconciles, not on every restart. A changed declaration changes the
+[startup fingerprint](/docs/5.x/guides/configuration#reconciliation-epoch), so the next deployment
+applies it automatically. Declare a policy before policies that `Require` or `ExceptWhen` it. Seeding
+creates and updates policies but never deletes one; remove an unused policy in the dashboard. An edit
+made in the dashboard to a seeded policy is replaced the next time startup reconciles.
+
+`UseSchedulePolicySeeder(async (policies, cancellationToken) => ...)` remains for policies that need
+code, such as definitions loaded from another system. It runs after `SeedSchedulePolicies`. Its body is
+not part of the startup fingerprint, so changing only the callback does not trigger reconciliation.
 
 ## How a policy evaluates an instant
 
@@ -203,13 +201,10 @@ public sealed class PublicHolidayProvider : IScheduleDateProvider
 
 builder.Services.AddTickerQ(options => options
     .UseApplicationNamespace("orders-production")
-    .UseReconciliationEpoch(1)
     .AddScheduleDateProvider<PublicHolidayProvider>()
-    .UseSchedulePolicySeeder((policies, cancellationToken) =>
-        policies.UpsertAsync(
-            SchedulePolicy.Create("Company calendar")
-                .ExcludeDatesFrom("Public holidays")
-                .Build(), cancellationToken)));
+    .SeedSchedulePolicies(policies => policies
+        .Add(SchedulePolicy.Create("Company calendar")
+            .ExcludeDatesFrom("Public holidays"))));
 ```
 
 `GetReason` is optional. Without it, the reason is "Excluded by" followed by the provider name.

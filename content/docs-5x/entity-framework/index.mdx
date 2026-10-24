@@ -31,7 +31,6 @@ builder.Services.AddTickerQ(options =>
 {
     options.UseLicense("tickerq.tqlicense");
     options.UseApplicationNamespace("orders-production");
-    options.UseReconciliationEpoch(1);
     options.AddOperationalStore(store =>
         store.UseApplicationDbContext<AppDbContext>(ConfigurationType.UseModelCustomizer));
 });

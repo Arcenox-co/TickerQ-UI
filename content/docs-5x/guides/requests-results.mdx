@@ -216,7 +216,7 @@ var payload = TickerHelper.CreateTickerRequest(
 
 `ConfigureRequestJsonOptions(...)` customizes request serialization. `UseGZipCompression()` opts into request compression; it does not enable execution-log persistence. Keep serialization configuration consistent across producers and workers.
 
-Treat a change to a stored request's required fields or types as a deployment change. Inspect pending jobs before rollout, update the [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch) when contracts change, and investigate contract-drift diagnostics. Do not disable validation merely to run an incompatible payload.
+Treat a change to a stored request's required fields or types as a deployment change. Inspect pending jobs before rollout and investigate contract-drift diagnostics. A changed contract changes the [startup fingerprint](/docs/5.x/guides/configuration#reconciliation-epoch), so hosts still running the old contract stop acquiring work as soon as the new deployment activates. Do not disable validation merely to run an incompatible payload.
 
 A missing parent result and a result containing JSON `null` are different. `HasParentResult` tests presence; it does not guarantee a non-null deserialized value. `GetParentResult` throws when no result was published and rejects unsupported envelope versions. Handle nullable business results explicitly.
 

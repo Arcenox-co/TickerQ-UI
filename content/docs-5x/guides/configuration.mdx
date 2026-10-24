@@ -3,14 +3,13 @@ title: "Application namespace and workers"
 description: "Separate applications sharing a store while allowing replicas of the same application to cooperate."
 ---
 
-Scheduler hosts require both a stable application namespace and an explicit positive reconciliation epoch. Configure the namespace once on `AddTickerQ`. You do not put it on every time ticker or cron ticker.
+Scheduler hosts require a stable application namespace. Configure it once on `AddTickerQ`. You do not put it on every time ticker or cron ticker. TickerQ manages the [reconciliation epoch](#reconciliation-epoch) itself.
 
 ```csharp
 builder.Services.AddTickerQ(options =>
 {
     options.UseLicense("licenses/tickerq.tqlicense");
     options.UseApplicationNamespace("orders-production");
-    options.UseReconciliationEpoch(1);
     options.ConfigureScheduler(scheduler =>
     {
         scheduler.NodeIdentifier = "orders-worker";
@@ -24,29 +23,23 @@ builder.Services.AddTickerQ(options =>
 
 ## Schedule policy startup configuration
 
-Register application-owned date providers and reconcile code-owned policies inside the same
+Register application-owned date providers and declare code-owned policies inside the same
 `AddTickerQ` configuration:
 
 ```csharp
 builder.Services.AddTickerQ(options => options
     .UseApplicationNamespace("orders-production")
-    .UseReconciliationEpoch(1)
     .AddScheduleDateProvider<PublicHolidayProvider>()
-    .UseSchedulePolicySeeder(async (policies, cancellationToken) =>
-    {
-        await policies.UpsertAsync(
-            SchedulePolicy.Create("Orders operating calendar")
-                .InTimeZone("Europe/Tirane")
-                .ExcludeDatesFrom("Public holidays")
-                .Build(),
-            cancellationToken);
-    }));
+    .SeedSchedulePolicies(policies => policies
+        .Add(SchedulePolicy.Create("Orders operating calendar")
+            .InTimeZone("Europe/Tirane")
+            .ExcludeDatesFrom("Public holidays"))));
 ```
 
-Policy seeding runs before time- and cron-ticker seeders, so those seeders can safely reference a
-reconciled policy. All seeders, including `UseSchedulePolicySeeder`, run only while a new
-[reconciliation epoch](#reconciliation-epoch) activates. A restart with the same, already-activated
-epoch skips them, so advance the epoch when you change a seeded policy in code. Every scheduler replica needs the same date-provider names and behavior. Keep
+Policies are seeded before cron and time tickers, so seeds can safely reference them. Seeding runs
+when startup reconciles, not on every restart. A changed declaration changes the
+[startup fingerprint](#reconciliation-epoch), so the next deployment applies it automatically.
+Every scheduler replica needs the same date-provider names and behavior. Keep
 provider evaluation local and deterministic; do not call remote calendar APIs from
 `IScheduleDateProvider.IsExcluded`.
 
@@ -91,9 +84,43 @@ The same function name can appear in different application namespaces without al
 
 ## Reconciliation epoch
 
-`UseReconciliationEpoch(1)` identifies the deployment generation authorized to reconcile code-defined schedules and run this namespace. It is a positive, monotonically advancing number stored with activation metadata.
+Startup reconciliation (repairing chains and applying seeded policies, crons, and time tickers) runs
+once per deployment, not on every restart. TickerQ tracks deployments with a reconciliation epoch, a
+number stored with the namespace's activation record. You do not configure it.
 
-All replicas in one deployment use the same epoch. Keep it stable across ordinary restarts. Advance it when code-defined schedules, request contracts, seed inputs, or reconciliation behavior change. A restart with the same already-activated epoch skips startup reconciliation; it does not compare and apply a changed manifest. An old binary using a lower epoch cannot simply resume ownership afterward. It is not a per-job counter or a timestamp to regenerate on startup.
+At startup each scheduler computes a **fingerprint** of its startup inputs:
+
+- the TickerQ version;
+- every registered function, with its request and result contracts;
+- the declarations from `SeedSchedulePolicies`, `SeedCronTickers`, and `SeedTimeTickers`.
+
+It then compares the fingerprint with the activation record:
+
+| Fingerprint | What the host does |
+| --- | --- |
+| Same as the active deployment | Joins it. Restarts and extra replicas skip reconciliation. |
+| Never seen | Claims the next epoch, reconciles, and activates it. Hosts still on the previous epoch stop acquiring work at that moment, so old and new code never process jobs side by side. |
+| Seen before (an earlier deployment) | Starts fenced: the application runs, but it acquires no work. It takes over, and reconciles its own inputs, once no node has run the current epoch for 30 seconds. A stopping node reports this immediately. |
+
+So a deploy that only changes code inside functions keeps running without interruption, while a
+deploy that changes a request type, a function list, or a seed moves the whole namespace to the new
+code at once. A rollback restores the earlier deployment's seeds once the newer nodes have stopped. Deploying a
+build again after rolling back from it works the same way: its fingerprint is already known, so it
+takes over once the other build's nodes have stopped.
+An invalid seed declaration fails startup before any epoch is claimed, so the running deployment keeps
+working.
+
+The `UseSchedulePolicySeeder` and `UseTickerSeeder` callbacks are code, so they are not part of the
+fingerprint. They run whenever an epoch is claimed. Prefer the declarative `Seed...` methods for
+definitions the application owns.
+
+### Manual epochs
+
+`UseReconciliationEpoch(n)` takes manual control, for example when a release process already numbers
+deployments. Every replica of one deployment then uses the same positive `n`. Keep it stable across
+restarts and increase it whenever startup inputs change: a restart with an already-activated epoch skips
+reconciliation, and logs a warning when its inputs differ. A host configured with a lower epoch than the
+store's fails closed.
 
 ## Existing data
 
@@ -110,6 +137,6 @@ options.DisableBackgroundServices();
 // Add the same operational store used by the worker.
 ```
 
-The worker keeps background services enabled and configures the deployment's reconciliation epoch. The producer can use `AddAsync` to save jobs, or EF `StageAsync` when it shares the application's business context. Use a persistent provider: two in-memory processes do not share a queue. `RunNowAsync` requires a running local dispatcher, so it is not a producer-only dispatch mechanism.
+The worker keeps background services enabled and takes part in the [reconciliation epoch](#reconciliation-epoch). The producer can use `AddAsync` to save jobs, or EF `StageAsync` when it shares the application's business context. Use a persistent provider: two in-memory processes do not share a queue. `RunNowAsync` requires a running local dispatcher, so it is not a producer-only dispatch mechanism.
 
 Queue-only processes do not perform scheduler activation. Their lack of an epoch does not remove the need for compatible schemas and contracts. Avoid the namespace-less legacy-global mode for new applications.

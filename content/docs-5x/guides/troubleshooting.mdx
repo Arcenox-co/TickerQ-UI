@@ -107,13 +107,13 @@ Restore the previous value to bring the data back. TickerQ has no namespace rena
 
 ### Two applications sharing a namespace interfere
 
-Symptoms include jobs failing with `Ticker function '<function>' was not found in the registered functions…`, one application's code-defined crons being retired after the other deploys, and one application failing startup with an [epoch error](#startup-fails-because-a-newer-epoch-is-already-recorded).
+Symptoms include jobs failing with `Ticker function '<function>' was not found in the registered functions…`, one application's code-defined crons being retired after the other deploys, and one application [processing no jobs](#a-host-starts-but-processes-no-jobs) after the other starts.
 
 All schedulers in a namespace cooperate as replicas of one application:
 
 - Any scheduler in the namespace can acquire any due job in it. Acquisition does not filter by the functions that process has registered.
 - Each scheduler reconciles code-defined crons against every seeded row owned by the namespace. Crons seeded by the other application are missing from its manifest, so it requests their retirement.
-- They share one activation epoch record.
+- They share one activation epoch record. Their startup fingerprints differ, so each start of one application claims a new epoch and fences the other.
 
 Give every independently deployed application, and every environment sharing a store, its own namespace. Replicas of the same application share one namespace.
 
@@ -142,15 +142,26 @@ Several replicas may share `NodeIdentifier`; each process still gets a unique ex
 
 Scheduler startup runs through checkpoints `01-bootstrap-complete` to `07-provider-startup-actions-complete`, then commits the epoch as `Activated` and opens the local gate. Until then the process does not acquire work. These checks run only when the license permits execution; fix a license problem first. The full order is in [startup and data repair](/docs/5.x/guides/storage-upgrade#startup-and-data-repair).
 
-### Startup requires a reconciliation epoch
+### A host starts but processes no jobs
+
+The application and dashboard work, but this host never picks up jobs, and its log contains:
 
 ```text
-Scheduler startup requires an explicit positive UseReconciliationEpoch value.
+This host's startup inputs belong to an earlier deployment than reconciliation epoch 8. It stays fenced and processes no jobs until it is replaced, or until no node runs epoch 8 any more.
 ```
 
-The scheduler host did not call `UseReconciliationEpoch(...)`. It is thrown when the host starts, not during registration. Add `options.UseReconciliationEpoch(1)` and use the same value on every replica of the deployment. Passing zero or a negative value fails immediately with `The reconciliation epoch must be positive.` See [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
+The host runs older code than the active deployment: its functions, request contracts, seeds, or TickerQ
+version match an earlier deployment. This is expected for an old replica that restarts during a rolling
+deploy, and it stops old and new code from processing jobs side by side. Replace the host with the
+current build. If you are rolling back on purpose, stop the newer hosts: once no node has reported the
+current epoch for 30 seconds, the older host takes over and reconciles its own seeds. See
+[reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
+
+A custom persistence provider that cannot record startup fingerprints fails with `The persistence provider cannot record startup manifests, so TickerQ cannot manage the reconciliation epoch automatically.` Configure [`UseReconciliationEpoch(...)`](/docs/5.x/guides/configuration#manual-epochs) for that provider.
 
 ### Startup fails because a newer epoch is already recorded
+
+This error only occurs with a [manual epoch](/docs/5.x/guides/configuration#manual-epochs).
 
 ```text
 Reconciliation activation begin returned 'epoch=7, phase=Activated, checkpoint=07-provider-startup-actions-complete'; expected exact epoch=6, phase=Activating. Startup remains fail-closed.
@@ -162,30 +173,35 @@ Start with an epoch at least as high as the recorded one. Use the same number to
 
 ### Code or seeder changes were not applied after a deploy
 
-No error appears, but a changed `SeedCronTickers` expression keeps its old value, a removed seeded cron is still active, or a change to `UseSchedulePolicySeeder` or `UseTickerSeeder` is missing.
+No error appears, but a seeded definition keeps its old value, a removed seeded cron is still active, or a seeder's work is missing. Check, in order:
 
-When startup finds its exact epoch already `Activated`, it opens the local gate and skips every fenced startup mutation: chain repair, code-defined cron reconciliation, finalization, the schedule policy seeder, and the time and cron seeders. Equal epoch numbers are not treated as proof of equal manifests. Increase the epoch for every deployment whose definitions or seed inputs change.
+- **Only a callback changed.** `UseSchedulePolicySeeder` and `UseTickerSeeder` are code, so a change inside them does not change the startup fingerprint and does not trigger reconciliation. Move the definitions to `SeedSchedulePolicies`, `SeedCronTickers`, or `SeedTimeTickers`.
+- **A manual epoch is configured.** With `UseReconciliationEpoch(n)`, a restart with an already-activated epoch skips reconciliation. The log says `TickerQ startup inputs (functions, request contracts, or seeds) changed since reconciliation epoch n was activated`. Increase the epoch, or remove the call.
+- **The time ticker already existed.** `SeedTimeTickers` never changes a stored ticker. Use a new key to run the work again.
+- **The cron is in its retirement grace.** A removed seeded cron stays enabled until the [retirement grace](/docs/5.x/guides/storage-upgrade#retirement-grace) ends. TickerQ then retires it within about five minutes, without a deploy.
 
-Seeders never run on a process that calls `DisableBackgroundServices()`. Retiring a removed code-defined cron also needs a later reconciliation after its grace period; see [retirement grace](/docs/5.x/guides/storage-upgrade#retirement-grace).
+Seeders never run on a process that calls `DisableBackgroundServices()`.
 
-### Startup fails on a seeded cron ticker
+### Startup fails on a seeded cron or time ticker
 
 Startup stops with one of these messages from `SeedCronTickers`:
 
 | Message | Fix |
 | --- | --- |
 | `...is invalid: Cannot find TickerFunction with name ...` | Check the function name in `[TickerFunction("...")]` or the `MapTicker` registration. A function mapped in a group is named `Group.ClassName`. |
-| `...is invalid: Schedule policy '...' does not exist` | Create the policy in `UseSchedulePolicySeeder`, which runs before cron seeding, or fix the name in `UsingPolicy(...)`. |
+| `...is invalid: Schedule policy '...' does not exist` | Declare the policy with `SeedSchedulePolicies`, which runs before cron seeding, or fix the name in `UsingPolicy(...)`. |
 | `...has no allowed future occurrence` | The schedule policy never allows the expression, for example a 07:00 cron under an 08:00–18:00 policy. Change the expression or the policy. |
 | `...uses configuration key '...', which has no value` | Add the key to configuration on every replica, or use a literal expression. |
 | `...has an invalid cron expression` | Use a five-part or six-part expression; six-part expressions put seconds first. |
 | `A cron ticker with key '...' is already seeded` | Give the second schedule of the same function its own key with `Add("key", cron => ...)`. |
 
+`SeedTimeTickers` uses the same messages, starting with `Seeded time ticker '<key>'`. A blocked run time also fails there when the policy uses `BlockedOccurrenceBehavior.Reject`; choose `MoveForward` or `Skip`, or change the run time.
+
 A compile error that mentions `SeedCronTickers` means a cron expression is still passed to `[TickerFunction]` or `WithCron(...)`. Move it to `SeedCronTickers`; see [moving from attribute schedules](/docs/5.x/guides/scheduling/cron-ticker#moving-from-attribute-schedules).
 
 ### Older replicas stop processing during a rolling deploy
 
-Once a replica begins a higher epoch, the built-in providers deny acquisition and runnable writes from replicas still configured with the older epoch. Those replicas stop picking up work, and inserts made through them are denied. With EF Core the messages include:
+When a deploy changes startup inputs, its first replica begins a higher epoch. From then on the built-in providers deny acquisition and runnable writes from replicas still on the older epoch. Those replicas stop picking up work, and inserts made through them are denied. With EF Core the messages include:
 
 ```text
 TimeTicker '<id>' was not inserted because the store did not admit the write. This host's reconciliation epoch may have been superseded by a newer deployment, or legacy runtime partition adoption may be in progress.
@@ -546,4 +562,4 @@ Active views perform a bounded consistency refresh approximately every 30 second
 
 ## Prepare a useful issue report
 
-Include the full TickerQ package versions, .NET/EF/provider versions, topology, number of replicas, each process's application namespace and reconciliation epoch, relevant sanitized configuration, job/occurrence IDs, timestamps with time zone, the first TickerQ exception in the host log, and a minimal reproduction. Explain the expected behavior and the persisted outcome. Omit certificates, API keys, connection strings, and webhook credentials.
+Include the full TickerQ package versions, .NET/EF/provider versions, topology, number of replicas, each process's application namespace and reconciliation epoch (shown in the startup log), relevant sanitized configuration, job/occurrence IDs, timestamps with time zone, the first TickerQ exception in the host log, and a minimal reproduction. Explain the expected behavior and the persisted outcome. Omit certificates, API keys, connection strings, and webhook credentials.

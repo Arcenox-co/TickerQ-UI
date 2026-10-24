@@ -15,7 +15,6 @@ builder.Services.AddTickerQ(options =>
 {
     options.UseLicense("tickerq.tqlicense");
     options.UseApplicationNamespace("orders-production");
-    options.UseReconciliationEpoch(1);
     options.AddOperationalStore(store => store.UseTickerQMongoClient(
         connectionString: builder.Configuration.GetConnectionString("TickerQMongo")!,
         databaseName: "orders"));

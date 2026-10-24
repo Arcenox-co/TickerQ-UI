@@ -14,7 +14,6 @@ as usual, then add its schedule to the list:
 builder.Services.AddTickerQ(options =>
 {
     options.UseApplicationNamespace("billing-api");
-    options.UseReconciliationEpoch(1);
     options.SeedCronTickers(crons => crons
         .Add("DailyInvoicesJob", "0 0 8 * * *")
         .Add("SendRemindersJob", "%Billing:RemindersCron%"));
@@ -114,8 +113,9 @@ one function on several schedules, as the month-end entry above does.
 
 ### How seeding avoids duplicates
 
-Seeded crons are reconciled as one list when a new [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch)
-activates. A restart with the same epoch skips seeding, and replicas share one activation.
+Seeded crons are reconciled as one list when a deployment changes them. TickerQ fingerprints the
+declarations, so the first host of a deployment with changed seeds reconciles, while restarts and
+other replicas skip seeding. See [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
 
 - Each cron is stored once per key. A unique index on the application namespace and key prevents a
   second row, even when many replicas start together.
@@ -144,8 +144,8 @@ Startup stops with the seed's key in the message when:
 - a `%Section:Key%` placeholder has no configuration value, or the expression is invalid;
 - two seeds have the same key.
 
-Schedule policies from `UseSchedulePolicySeeder` are seeded before crons, so a seeded cron can use a
-seeded policy. A policy must exist by the time crons are reconciled; one that is created later, for
+Schedule policies from `SeedSchedulePolicies` and `UseSchedulePolicySeeder` are seeded before crons,
+so a seeded cron can use a seeded policy. A policy must exist by the time crons are reconciled; one that is created later, for
 example in the dashboard, is not available to that startup.
 
 ### Moving from attribute schedules
@@ -164,8 +164,8 @@ options.SeedCronTickers(crons => crons.Add("Invoices.Daily", "0 8 * * *"));
 ```
 
 The default key is the function name, the identity attribute schedules already used, so the existing
-row keeps its history, occurrences, and dashboard state. Advance the reconciliation epoch in the
-same deployment.
+row keeps its history, occurrences, and dashboard state. The deployment reconciles the new
+declarations automatically.
 
 ## Dynamic schedule
 

@@ -13,7 +13,6 @@ TickerQ replicas cooperate through the configured operational store. The dashboa
 builder.Services.AddTickerQ(options =>
 {
     options.UseApplicationNamespace("orders-production");
-    options.UseReconciliationEpoch(12);
 
     options.ConfigureScheduler(scheduler =>
     {

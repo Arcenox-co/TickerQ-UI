@@ -80,7 +80,7 @@ Inject `ISchedulePolicyManager` to manage namespace-scoped calendar definitions:
 | `FindNextAllowedAsync(name, instant, ct)` | Find the next allowed instant |
 | `PreviewCronAsync(...)` | Preview allowed and blocked cron candidates without creating occurrences |
 
-Use `UseSchedulePolicySeeder(...)` with `UpsertAsync` for code-owned definitions. Use
+Declare code-owned definitions with [`SeedSchedulePolicies(...)`](/docs/5.x/guides/schedule-policies/business-calendars). Use
 `CreateAsync`/`UpdateAsync` for operator-owned policies created through application code. The
 dashboard uses the same manager contract and passes the displayed revision as `expectedVersion`.
 
@@ -121,6 +121,8 @@ Time and cron `RunNowAsync`, `RetryFromAsync`, and `RerunOccurrenceAsync` dispat
 
 ## Seed one-time work
 
+Declare startup work with [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work), which creates one ticker per key. Use a seeder callback only when the work depends on logic the declaration builder cannot express:
+
 ```csharp
 options.UseTickerSeeder(async (ITimeTickerManager<TimeTickerEntity> manager, CancellationToken ct) =>
 {
@@ -135,8 +137,8 @@ options.UseTickerSeeder(async (ITimeTickerManager<TimeTickerEntity> manager, Can
 });
 ```
 
-Register `Catalog.Import` before startup. Built-in durable providers converge concurrent first-time seeding on one identity. `AddOnceAsync` is scoped to stored records: if deletion or retention removes that record, the identifier can be created again. It is not a permanent business deduplication ledger. Seeder callbacks run as part of initialization; changed startup inputs require a new reconciliation epoch.
+Register `Catalog.Import` before startup. Built-in durable providers converge concurrent first-time seeding on one identity. `AddOnceAsync` is scoped to stored records: if deletion or retention removes that record, the identifier can be created again. It is not a permanent business deduplication ledger. Seeder callbacks run whenever startup reconciles, which happens when a deployment's startup inputs change; changing only the callback does not trigger it. `AddAsync` and `AddChainAsync` have no key, so a seeder that calls them adds another job each time.
 
-To seed recurring schedules, use [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) rather than a cron seeder. Cron manager `AddAsync` has no key, so a cron seeder adds another copy each time a new epoch activates; `SeedCronTickers` keeps one row per key and retires schedules you remove.
+To seed recurring schedules, use [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) rather than a cron seeder. Cron manager `AddAsync` has no key, so a cron seeder adds another copy each time startup reconciles; `SeedCronTickers` keeps one row per key and retires schedules you remove.
 
 On a scheduler host, manager mutations wait until startup activation completes. Do not await them before `app.Run()`, because activation only starts with the host and the call would never return. Put startup work in `UseTickerSeeder`, or run it after the application has started. See [a manager call never returns](/docs/5.x/guides/troubleshooting#a-manager-call-never-returns).

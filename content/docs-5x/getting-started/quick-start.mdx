@@ -36,7 +36,6 @@ builder.Services.AddTickerQ(options =>
 {
     options.UseLicense("tickerq.tqlicense");
     options.UseApplicationNamespace("tickerq-demo");
-    options.UseReconciliationEpoch(1);
     options.SeedCronTickers(crons => crons.Add("EveryMinuteJob", "* * * * *"));
 });
 
@@ -100,7 +99,6 @@ builder.Services.AddTickerQ(options =>
 {
     options.UseLicense("tickerq.tqlicense");
     options.UseApplicationNamespace("tickerq-demo");
-    options.UseReconciliationEpoch(1);
     options.SeedCronTickers(crons => crons.Add("EveryMinute", "* * * * *"));
 });
 

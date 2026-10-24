@@ -22,6 +22,54 @@ var jobId = result.Result.Id;
 
 Use UTC for `ExecutionTime`. Omitting it on a new root requests execution as soon as it can be admitted; it does not leave the job unscheduled. The function must already be registered. A successful add means the provider accepted the job; it does not mean the function has run.
 
+## Seed one-time work
+
+Declare startup work the application owns with `SeedTimeTickers`. It takes the same builder as
+`AddChainAsync`, so a seed can set a run time, schedule policy, request, retries, and chain steps:
+
+```csharp
+builder.Services.AddTickerQ(options =>
+{
+    options.UseApplicationNamespace("billing");
+
+    options.SeedTimeTickers(tickers => tickers
+        .Add("Cache.Warm")
+        .Add("catalog-import-v1", ticker => ticker
+            .RunAt(new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc))
+            .UsingPolicy("Business hours")
+            .WhenBlocked(BlockedOccurrenceBehavior.MoveForward)
+            .StartWith("Catalog.Import", step => step.Retries = 3)
+            .Then("Search.RebuildIndex")));
+});
+```
+
+`Add("Cache.Warm")` runs the function once, as soon as the scheduler starts. Pass a `DateTime` as the
+second argument to choose the time. The key is the root function name unless you pass one, as with
+`catalog-import-v1`. Use the `SeedTimeTickers((tickers, services) => ...)` overload to read values from
+application services.
+
+### How seeding avoids duplicates
+
+Seeding runs when startup reconciles, which a deployment with new keys does automatically (see
+[reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch)), after schedule policies
+and seeded crons. Each key creates one ticker through the same identity as
+`AddOnceAsync`:
+
+- a key that already has a ticker is left untouched, even if its declaration changed;
+- restarts, later deployments, and replicas starting together create one ticker per key;
+- a key created earlier with `AddOnceAsync` counts as the same seed.
+
+To run the work again, change the key, for example to `catalog-import-v2`. The old ticker is kept.
+Like `AddOnceAsync`, a key only protects while its ticker is stored: if
+[retention](/docs/5.x/guides/retention) or a delete removes it, the next epoch creates it again.
+
+### Validation
+
+New seeds are checked with the same rules as `AddChainAsync` before any of them is written: registered
+functions, request payloads, chain shape, late-start settings, and an existing schedule policy that
+admits the run time. Any error stops startup with `Seeded time ticker '<key>' is invalid: ...`, and
+no seed from that list is created. Keys that already have a ticker are not checked again.
+
 ## Business calendars and late starts
 
 Use the typed `TimeSchedule` overload when a job must respect a named operating calendar or has a
@@ -52,7 +100,7 @@ for calendar creation, composition, date providers, and dashboard controls, and
 | --- | --- |
 | `AddAsync` | Persist a new job independently |
 | `AddChainAsync` | Build and persist a [one-time chain](/docs/5.x/guides/job-chaining) fluently |
-| `AddOnceAsync` | Create once for a stable initialization identifier |
+| `AddOnceAsync` | Create once for a stable initialization identifier; startup work usually uses [`SeedTimeTickers`](#seed-one-time-work) instead |
 | `StageAsync` | Stage a new job or complete chain with your EF business changes |
 | `UpdateAsync` | Update an eligible existing job |
 | `RunNowAsync` | Request a run of an eligible root job |

@@ -25,8 +25,8 @@ Provider references: [EF Core](#entity-framework-core) · [MongoDB](#mongodb) ·
 
 Replace `UseDefinedCronApplicationNamespace(...)` with `UseApplicationNamespace(...)` in application
 configuration. This API rename reflects its scope across both time tickers and cron schedules. Keep
-the same namespace value and reconciliation epoch: the rename itself does not change storage keys,
-require a database migration, or move existing jobs.
+the same namespace value: the rename itself does not change storage keys, require a database
+migration, or move existing jobs.
 
 ## Add schedule policy storage
 
@@ -64,8 +64,8 @@ Provider notes:
 
 - **MongoDB** provisions the unique namespace/name index during normal index initialization.
 - **Redis** stores policies under namespace-scoped keys and needs no schema step.
-- **In-memory** policies are process-local and are lost on restart; seed them with
-  `UseSchedulePolicySeeder(...)`.
+- **In-memory** policies are process-local and are lost on restart; declare them with
+  `SeedSchedulePolicies(...)`.
 - **Custom providers** must implement `ISchedulePolicyStore` to support policy operations and must
   explicitly support cron catch-up before `RunLatest` is accepted.
 
@@ -114,31 +114,27 @@ The upgrade is designed around these invariants:
 > cannot observe or honor its epoch fence. Before activating this protocol for the first time, drain
 > or quiesce **all** pre-protocol scheduler writers. There is no additive column, transaction, or
 > compatibility shim that can make an unaware old process respect the new gate. After the fleet has
-> adopted the protocol, later rollouts use the durable epoch/checkpoint boundary. Configure the same
-> positive reconciliation epoch on every node in one deployment, and increase it for every deployment
-> whose startup reconciliation manifest or semantics can differ.
+> adopted the protocol, later rollouts use the durable epoch/checkpoint boundary. TickerQ advances the
+> epoch automatically for every deployment whose startup inputs differ; see
+> [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
 
 1. Back up the durable store and record the currently deployed application migration.
 2. Stop schema changes from older releases while the migration is being installed.
 3. Upgrade every TickerQ package to the same version. Then generate and review an application-owned EF migration, or validate MongoDB/Redis operational prerequisites.
 4. Deploy the additive schema everywhere before deploying upgraded scheduler binaries.
-5. Configure `UseReconciliationEpoch(N)` with a positive deployment-controlled value. Keep `N` stable
-   across replicas and restarts of the identical deployment; increase it before changing code-defined
-   schedules, seed identity/contract metadata, repair rules, or finalization semantics.
-   Every scheduler also requires a stable `UseApplicationNamespace(...)`; a scheduler
-   without one is invalid. Namespaced queue-only producers are admitted without activation. A
+5. Configure a stable `UseApplicationNamespace(...)` on every scheduler; a scheduler without one is
+   invalid. The reconciliation epoch is managed automatically. Namespaced queue-only producers are admitted without activation. A
    namespace-less queue-only producer explicitly targets the legacy-global compatibility partition.
 6. Start one upgraded scheduler node and wait for the provider-specific bootstrap, data reconciliation, and finalization phases it implements.
 7. For EF Core, verify the reported schema/data version and chain-repair postcondition. For MongoDB, verify index/bootstrap completion and transaction topology. For Redis, verify repair checkpoints separately; Redis does not currently expose provider-neutral store-version readiness.
-8. Roll out the remaining scheduler nodes with that exact epoch. A node configured with a lower epoch
-   fails closed when it observes a higher durable epoch and cannot reconcile or open its local gate.
+8. Roll out the remaining scheduler nodes. They join the epoch the first node activated.
 9. Keep the cron retirement grace period longer than the maximum rolling-deployment window.
 
-When a restart observes the exact target epoch already `Activated`, TickerQ opens only that process's
-local gate and skips all fenced startup mutations. It does not assume that equal epoch numbers prove
-equal manifests. Therefore **never reuse an epoch for changed reconciliation inputs**. An epoch bump
-atomically moves the store back to `Activating`, reruns reconciliation under the new fence, and publishes
-the exact new epoch as `Activated` before any local scheduler, retention loop, or Redis heartbeat proceeds.
+When a restart finds its own startup fingerprint already `Activated`, TickerQ opens only that process's
+local gate and skips all fenced startup mutations. A claim atomically moves the store back to
+`Activating`, reruns reconciliation under the new fence, and publishes the new epoch as `Activated`
+before any local scheduler, retention loop, or Redis heartbeat proceeds. With a
+[manual epoch](/docs/5.x/guides/configuration#manual-epochs), never reuse an epoch for changed inputs.
 
 Retirement grace does not apply to a code-defined cron whose current request contract requires a payload but whose seed has no payload. An upgraded node retires that blocked definition immediately and quarantines its unleased pending occurrences as durable `Skipped` evidence while removing them from runnable indexes. Before rollout, inventory code-defined crons on required-payload functions and explicitly migrate or remove those schedules.
 
@@ -215,10 +211,12 @@ The generated model must include:
   - nullable `ProgressPercent`, `ProgressMessage` (maximum 500 characters), and `ProgressUpdatedAt`;
   - `IX_CronOccurrence_DefinitionRevision_Status` on `ApplicationNamespaceKey` + `CronTickerId` + `DefinitionRevision` + `Status`.
 - The singleton `TickerQStoreMetadata` row, including schema/data versions, optimistic-concurrency
-  `Version`, durable `ActivationEpoch`, `ActivationPhase`, and nullable `ActivationCheckpoint`.
+  `Version`, durable `ActivationEpoch`, `ActivationPhase`, nullable `ActivationCheckpoint`, nullable
+  `ActivationManifest` (maximum 48 characters), and nullable `ActivationManifestHistory` (maximum
+  1,568 characters) for automatic epochs.
   Its `Id` column must allow 80 characters, including the full runtime activation key.
 - The complete `NodeFinalizationOutbox` table and its current identity/due indexes whenever the current TickerQ EF model maps it.
-- The `TickerQNodes` heartbeat table and `TickerQControlCommands` durable control table.
+- The `TickerQNodes` heartbeat table, including the `ActivationEpoch` each node executes against, and the `TickerQControlCommands` durable control table.
 - The `TickerQDefinitions` table used by chain templates and non-executable time drafts, including its normalized unique `NameKey` index.
 - The `SchedulePolicies` table and the schedule-policy, missed-execution, and catch-up columns on
   `TimeTickers` and `CronTickers`; see [schedule policy storage](#add-schedule-policy-storage).
@@ -324,14 +322,13 @@ A code-defined cron receives a deterministic ownership key derived from an appli
 services.AddTickerQ(options =>
 {
     options.UseApplicationNamespace("billing-api");
-    options.UseReconciliationEpoch(1);
     // provider/dashboard configuration...
 });
 ```
 
 The value is persisted in `SeedOwnerNamespace`; use the same value on every node of one application and a different value for every independently deployed application sharing the store. Do not derive it from a host name, replica ID, deployment slot, or other value that changes between restarts. A definition's stable ID defaults to its function name, so its resulting `SeedKey` and deterministic ID remain stable across expression and request-contract changes.
 
-Scheduler hosts must configure both `UseApplicationNamespace(...)` and an explicit positive `UseReconciliationEpoch(...)`; startup fails closed when either is omitted. Dashboard/manager-only processes that disable scheduler background services do not participate in activation. Keep the namespace stable for the lifetime of the application. Keep the epoch stable across replicas and restarts of an identical deployment, and increment it before deploying changes to definitions, contracts, repair semantics, or finalization behavior.
+Scheduler hosts must configure `UseApplicationNamespace(...)`; startup fails closed when it is omitted. Dashboard/manager-only processes that disable scheduler background services do not participate in activation. Keep the namespace stable for the lifetime of the application. The reconciliation epoch is managed automatically; see [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
 
 On the first v2 reconciliation, exactly one legacy code-owned row for a definition may be adopted in place when it has no owner and its key is null, the function/stable-definition ID, or the pre-v2 `namespace:stableDefinitionId` form. Adoption rewrites ownership to the bounded v2 key while preserving the row's primary key and occurrence references. **Unclaimed legacy rows are not adopted automatically.** Reconciliation fails closed before writes when no explicit owner is configured, candidates are duplicated, the local manifest has multiple possible definitions for that function, or another namespaced owner already conflicts. Resolve ownership explicitly before retrying; do not delete historical rows merely to bypass the diagnostic.
 
@@ -345,7 +342,6 @@ that uses the store so startup order cannot change the result:
 services.AddTickerQ(options =>
 {
     options.UseApplicationNamespace("orders-api");
-    options.UseReconciliationEpoch(2);
 
     options.MapLegacyDefinedCronOwnership("ProcessOrders", "orders-api");
     options.MapLegacyDefinedCronOwnership("SendInvoice", "billing-api");
@@ -383,7 +379,7 @@ The following survive retirement and expression/contract changes:
 - terminal occurrences;
 - persisted results and historical snapshots.
 
-The default grace is **24 hours**. It is evaluated during reconciliation, not by a background retirement timer. After the grace expires, plan a later reconciliation under a new deployment epoch to finalize retirement; restarting the already-activated epoch skips reconciliation and does not finalize it merely because time has passed.
+The default grace is **24 hours**. It is evaluated during reconciliation. Every scheduler checks for retirements whose grace has ended every five minutes; when it finds one, it claims a new epoch with the same startup inputs and reconciles, and the other replicas follow within seconds. No deploy is needed. With a [manual epoch](/docs/5.x/guides/configuration#manual-epochs), retirement completes at the next reconciliation after the grace instead.
 
 Set the grace period longer than the longest expected rolling deployment. Immediate finalization is suitable only for an explicitly controlled single-node or fully quiesced deployment.
 
@@ -413,7 +409,7 @@ The partial unique index includes only rows whose `SeedKey` is a BSON string, so
 
 ## Redis
 
-Redis stores entities and discoverability indexes separately. Upgraded standalone Redis deployments persist each application's reconciliation epoch in a scoped metadata hash named `tq:{<partition>}:reconciliation:activation:scope:<partition>`. Both `<partition>` values are the application's runtime partition key, `tq:runtime:v1:` followed by a 64-character SHA-256 hash derived from the application namespace; the braces are a literal Redis hash tag. Begin/checkpoint/commit are one-key Lua/CAS transitions; admission, recovery, release, and maintenance scripts use that same scoped hash, and the final commit is the publication boundary after all awaited definition mutations and repair checkpoints complete.
+Redis stores entities and discoverability indexes separately. Upgraded standalone Redis deployments persist each application's reconciliation epoch in a scoped metadata hash named `tq:{<partition>}:reconciliation:activation:scope:<partition>`. Both `<partition>` values are the application's runtime partition key, `tq:runtime:v1:` followed by a 64-character SHA-256 hash derived from the application namespace; the braces are a literal Redis hash tag. The startup fingerprint and its history are kept in a sibling `…:manifest` hash. Begin/checkpoint/commit are single-script Lua/CAS transitions; admission, recovery, release, and maintenance scripts use that same scoped hash, and the final commit is the publication boundary after all awaited definition mutations and repair checkpoints complete.
 
 Operational requirements:
 
