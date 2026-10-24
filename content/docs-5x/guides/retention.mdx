@@ -20,6 +20,8 @@ options.ConfigureJobRetention(retention =>
 
 A null window retains that status indefinitely. Age is evaluated from the terminal job's `ExecutedAt`, not its creation time; Done and DueDone share the succeeded window. Windows and batch settings must be positive. Retention removes eligible terminal time jobs/chains and cron occurrences; it does not delete cron schedule definitions.
 
+Retention runs as a scheduler background service. It is registered only when a retention window is configured and background services are enabled, and its first sweep waits for scheduler activation. A host configured with `DisableBackgroundServices()`, such as a dashboard-only or queue-only process, never deletes history; configure retention on the scheduler hosts.
+
 ## Chains and active work
 
 Ownership, active execution, and [chain deletion rules](/docs/5.x/guides/chain-deletion) still apply. `Restrict` preserves a chain while any descendant is unfinished. Completing the final child makes the chain eligible for normal checks; it does not immediately delete history.
@@ -32,7 +34,9 @@ Ownership, active execution, and [chain deletion rules](/docs/5.x/guides/chain-d
 | `MaxBatchesPerSweep` | 10 provider calls across both streams | 1–1,000 |
 | `MaxNodesPerChain` | 1,000 jobs | 1–10,000 |
 
-A batch counts a time chain as an aggregate, so deleting 500 aggregates can remove more than 500 job rows. The maximum chain size examined by retention defaults to 1,000 nodes. Oversized or unsafe graphs stay intact. Redis retention currently retains nontrivial chains; plan explicit maintenance when relying on that provider for large chain histories.
+A batch counts a time chain as an aggregate, so deleting 500 aggregates can remove more than 500 job rows. The maximum chain size examined by retention defaults to 1,000 nodes. A chain is deleted whole, with its results, only when every node is terminal, past its status window, and not leased; oversized or unsafe graphs stay intact. This applies to EF Core, MongoDB, Redis, and in-memory storage.
+
+MongoDB deletes each time chain and each cron-occurrence batch inside a transaction and never falls back to a non-atomic delete. Without transaction support (a standalone server), retention deletes nothing: time jobs and chains are kept on every sweep, and the cron-occurrence stream logs a warning.
 
 ## Logs and monitoring
 

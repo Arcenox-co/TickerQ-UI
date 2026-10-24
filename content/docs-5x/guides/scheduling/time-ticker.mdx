@@ -42,24 +42,26 @@ still waiting after its scheduled time. Without `WhenMissed`, durable work runs 
 worker becomes available.
 
 Apply these settings to the root when building a chain. A skipped or expired root settles the
-complete graph without invoking child functions. See [schedule policies](/docs/5.x/guides/schedule-policies)
-for calendar creation, composition, date providers, revision behavior, and dashboard controls.
+complete graph without invoking child functions. See [business calendars](/docs/5.x/guides/schedule-policies/business-calendars)
+for calendar creation, composition, date providers, and dashboard controls, and
+[late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts) for `WhenMissed`.
 
 ## Choose the right operation
 
 | Operation | Purpose |
 | --- | --- |
 | `AddAsync` | Persist a new job independently |
+| `AddChainAsync` | Build and persist a [one-time chain](/docs/5.x/guides/job-chaining) fluently |
 | `AddOnceAsync` | Create once for a stable initialization identifier |
 | `StageAsync` | Stage a new job or complete chain with your EF business changes |
 | `UpdateAsync` | Update an eligible existing job |
 | `RunNowAsync` | Request a run of an eligible root job |
 | `RetryFromAsync` | Retry a selected settled chain step and its affected downstream path in place |
 | `CancelAsync` | Cancel pending Idle/Queued work and its pending descendants |
-| `RequestCancellationAsync` | Signal an execution running on this host |
+| `RequestCancellationAsync` | Signal a running execution on this host or, through cluster control, on its owning node |
 | `DeleteAsync` | Permanently remove an eligible job/chain |
 
-Inspect `IsSucceeded`, `Exception`, and `AffectedRows` where available. An accepted request or zero affected rows must not be treated as proof that a running function stopped. Cancellation is explained in [job lifecycle](/docs/5.x/guides/job-lifecycle).
+Inspect `IsSucceeded`, `Exception`, and `AffectedRows` where available. An accepted request or zero affected rows must not be treated as proof that a running function stopped. `RunNowAsync` and `RetryFromAsync` require a running, licensed scheduler on the calling host. Cancellation is explained in [job lifecycle](/docs/5.x/guides/job-lifecycle).
 
 The [manager reference](/docs/5.x/guides/managers) also covers batches, atomic chain replacement, startup seeding, and typed creation.
 
@@ -69,5 +71,6 @@ For atomic scheduling with business data, use [EF transactional scheduling](/doc
 
 - [Requests and results](/docs/5.x/guides/requests-results) for typed input and output.
 - [One-time chains](/docs/5.x/guides/job-chaining) for dependent steps.
-- [Schedule policies](/docs/5.x/guides/schedule-policies) for operating calendars and late-start rules.
+- [Business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for operating calendars.
+- [Late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts) for late-start rules.
 - [History and retention](/docs/5.x/guides/retention) for automatic cleanup.

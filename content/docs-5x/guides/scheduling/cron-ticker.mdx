@@ -74,11 +74,13 @@ if (!result.IsSucceeded)
 - `SetEnabledAsync(cronId, false)` pauses future scheduling; it does not stop a running occurrence or its published chain.
 - `RunNowAsync(cronId)` creates a new manual occurrence without changing the expression or its next scheduled slot.
 - `RerunOccurrenceAsync(occurrenceId)` revives an existing occurrence in place. A standalone occurrence keeps its ID; a recurring chain retries its existing durable graph.
-- `RequestCancellationAsync(occurrenceId)` targets the running occurrence on the current host. Pass the occurrence ID, not the cron definition ID.
+- `RequestCancellationAsync(occurrenceId)` signals the running occurrence on the current host or sends a cancellation command to the node that owns it. Pass the occurrence ID, not the cron definition ID. See [cross-node cancellation](/docs/5.x/dashboard/clustering#cross-node-cancellation).
+
+`RunNowAsync` and `RerunOccurrenceAsync` dispatch from the calling host. They fail when that host's scheduler is not running and licensed, for example on a host configured with `DisableBackgroundServices()`.
 
 For a sequence of jobs on each run, add a [recurring chain template](/docs/5.x/guides/recurring-chains). For overlap rules and their host/cluster boundaries, see [cron overlap](/docs/5.x/guides/cron-overlap).
 
-The scheduler time zone interprets cron expressions. Changing the dashboard's display time zone only changes how timestamps are displayed.
+Each definition's `TimeZoneId` interprets its cron expression. Set it with `CronSchedule.InTimeZone(...)`, the recurring-chain builder's `InTimeZone(...)`, or the entity property; when it is null, the scheduler time zone applies. Attribute and `WithCron` schedules use the scheduler time zone. Changing the dashboard's display time zone only changes how timestamps are displayed.
 
 ## Time zones, calendars, and catch-up
 
@@ -102,7 +104,7 @@ slot missed while no scheduler was available, provided that slot is still inside
 `SkipAfter` window. The default catch-up mode is `Skip`.
 
 These settings also belong on the root of a recurring-chain builder. Read
-[schedule policies](/docs/5.x/guides/schedule-policies) for the complete behavior and
+[business calendars](/docs/5.x/guides/schedule-policies/business-calendars) and [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts) for the complete behavior and
 [runtime reliability](/docs/5.x/guides/reliability#late-start-and-cron-catch-up) for failure and
 recovery boundaries.
 

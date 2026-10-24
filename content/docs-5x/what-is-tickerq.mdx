@@ -27,6 +27,8 @@ Registering a function makes it available to the scheduler; it does not create a
 
 See [time tickers](/docs/5.x/guides/scheduling/time-ticker) and [cron tickers](/docs/5.x/guides/scheduling/cron-ticker) for scheduling examples.
 
+A **schedule policy** keeps calendar rules out of your handlers. A [business calendar](/docs/5.x/guides/schedule-policies/business-calendars) decides when work may start, such as weekdays during business hours outside public holidays. A [late-start rule](/docs/5.x/guides/schedule-policies/late-starts) decides whether work that starts late should still run, and whether a cron recovers its latest slot missed during downtime.
+
 ## From one job to a workflow
 
 Consider an invoice workflow:

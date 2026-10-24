@@ -50,6 +50,10 @@ Every update is fenced to the execution's current acquisition generation. A late
 
 These are real executions. Application side effects, logs, results, monitoring, and retention behave normally.
 
+The host that receives the request dispatches the work, so its scheduler must be running and licensed. On a host configured with `DisableBackgroundServices()`, these operations fail. See [on-demand manager operations](/docs/5.x/guides/managers#run-retry-and-cancel-on-demand).
+
+Automatic retries after a failed attempt are configured separately with `Retries` and `RetryIntervals`. The `RetryPolicy.Fixed(...)` and `RetryPolicy.Exponential(...)` helpers build those intervals; see [retries and timeouts](/docs/5.x/guides/job-lifecycle#retries-and-timeouts).
+
 ## Retry a chain from the middle
 
 After a chain has settled, select a step and choose **Retry from this job**. TickerQ clears that step and the affected downstream path, then runs the path under a new acquisition generation. Completed ancestors are traversal points and are not invoked again.
@@ -62,6 +66,8 @@ var retried = await timeTickerManager.RetryFromAsync(
 if (!retried.IsSucceeded)
     throw retried.Exception;
 ```
+
+`RetryFromAsync` accepts any step of a settled chain, not only a failed or cancelled one. The chain is settled when every job is terminal and none is still owned or leased. A successful call returns the chain's root entity. Chains with more than 1,000 jobs, or a selected step more than 50 levels deep (counting the root), are rejected.
 
 The confirmation dialog previews the affected jobs before the retry starts. For a job inside a durable group, completed sibling branches keep their recorded outcomes while the group outcome is evaluated again. Selecting the group itself uses **Retry this group**: every grouped branch and its descendants run again, followed by the matching group outcomes.
 

@@ -3,7 +3,7 @@ title: "Recurring chains"
 description: "Create a fresh job chain for every cron occurrence."
 ---
 
-A cron schedule can own a chain template. Each scheduled occurrence, dashboard **Run now**, or bulk cron retry creates a separate time-ticker chain. The cron function is the root; its children follow the existing run conditions, retries, timeouts, result propagation, and per-function concurrency limits.
+A cron schedule can own a chain template. Each scheduled occurrence or **Run now** creates a separate time-ticker chain. Re-running an existing occurrence, including a dashboard bulk cron retry, retries that occurrence's existing chain in place instead of creating another one. The cron function is the root; its children follow the existing run conditions, retries, timeouts, result propagation, and per-function concurrency limits.
 
 ## Build a recurring chain fluently
 
@@ -25,6 +25,17 @@ if (!result.IsSucceeded)
 ```
 
 Repeated `Then` calls form one linear path. Use `ThenMany` for durable parallel branches and keep its returned group builder to add `ThenAfterAll`, `ThenAfterAnyFailed`, `ThenAfterAnyFailedOrCancelled`, or `ThenAfterAllCompleted` outcomes. The group waits for every branch subtree to settle before evaluating those outcomes. See [one-time job chains](/docs/5.x/guides/job-chaining#run-several-branches-and-join-them) for a complete grouped example; only the schedule portion differs.
+
+Schedule-level settings go on the builder before `StartWith`:
+
+| Method | Effect |
+| --- | --- |
+| `WithExpression(expression)` | Required cron expression |
+| `WithDescription(text)` | Definition description |
+| `SkipIfAlreadyRunning(enabled = true)` | [Overlap policy](#overlap-and-retention) for new runs |
+| `Enabled(enabled = true)` | Whether future occurrences are scheduled; `Enabled(false)` creates the definition paused |
+| `WithDeleteBehavior(behavior)` | [Chain-deletion](/docs/5.x/guides/chain-deletion) policy for each published chain's root; defaults to `Restrict` |
+| `InTimeZone`, `UsingPolicy`, `WhenMissed`, `CatchUp` | [Time zone, calendar, and catch-up](/docs/5.x/guides/scheduling/cron-ticker#time-zones-calendars-and-catch-up) rules |
 
 The generic overloads resolve handlers registered with `MapTicker<T>()`. Request-bearing overloads validate and serialize each step's request against its registered contract before saving the template.
 
@@ -88,7 +99,7 @@ Publication does not wait for another worker from inside the trigger's worker. I
 
 For recurring chains, this is a persisted policy shared by hosts using the same runtime partition. Per-function maximum concurrency still applies separately inside each host. Manual **Run now** observes the same overlap policy.
 
-Recurring chains default to `ChainDeleteBehavior.Restrict`, preserving unfinished descendants. Terminal jobs follow configured retention. The occurrence receipt can outlive its chain; after cleanup its root ID remains a historical reference, and repeating publication still does not recreate the deleted chain. Deleting an occurrence does not delete its published chain.
+Recurring chains default to `ChainDeleteBehavior.Restrict`, preserving unfinished descendants. Change it with `WithDeleteBehavior(...)` on the builder or `CronChainTemplate.DeleteBehavior` on a stored template. Terminal jobs follow configured retention. The occurrence receipt can outlive its chain; after cleanup its root ID remains a historical reference, and repeating publication still does not recreate the deleted chain. Deleting an occurrence does not delete its published chain.
 
 Templates require at least one child and support 500 jobs total (including the root) and 20 child levels. Nodes cannot be shared between branches or form a cycle. Each `CronChainNode` defaults to `OnSuccess`; set its request, retries, timeout, and stale policy independently where needed. These limits also fit the dashboard traversal limits. See [one-time chain shapes](/docs/5.x/guides/job-chaining#shape-storage-and-the-dashboard) for the other creation paths.
 
@@ -96,7 +107,7 @@ Templates require at least one child and support 500 jobs total (including the r
 
 EF Core users must generate and apply a host-owned migration **before starting the upgraded library**, even if recurring chains are not enabled. The model adds `CronTickers.SkipIfAlreadyRunning` (false for existing jobs), nullable `CronTickers.Chain` (JSON text), `CronTickerOccurrences.ChainRootId`, and `TimeTickers.OriginCronTickerId`, plus an index on partition/origin/status. The three relational sample applications include `AddRecurringCronChains` and `AddCronOverlapPolicy` migrations and updated snapshots. No existing jobs are converted.
 
-MongoDB requires transactions (a replica set or sharded cluster); the provider provisions the origin/status index. Standalone MongoDB cannot atomically create this multi-document graph and is rejected. Redis uses one atomic Lua operation on standalone Redis; Redis Cluster execution remains unsupported by the scheduler's existing topology rules. Custom persistence providers must implement `SupportsCronChains` and `MaterializeCronChainAsync` before admitting recurring templates.
+MongoDB requires transactions (a replica set or sharded cluster); the provider provisions the origin/status index. Standalone MongoDB cannot atomically create this multi-document graph and is rejected. Redis uses one atomic Lua operation on standalone Redis; On Redis Cluster, recurring chains are disabled: creating or updating a cron with a chain fails with `Recurring chains require a provider with atomic chain publication support.` Custom persistence providers must implement `SupportsCronChains` and `MaterializeCronChainAsync` before admitting recurring templates.
 
 Deploy compatible scheduler nodes together before enabling recurring chains: older nodes do not understand the template or its launch receipt. No migration can make an older runtime execute the new feature safely.
 

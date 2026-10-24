@@ -95,7 +95,7 @@ Two additional hooks exist when host authentication does not fit:
 For a custom request validator, resolve database services from the current request scope:
 
 ```csharp
-// Inside AddDashboard. This is an alternative to WithHostAuthentication.
+// Inside AddDashboard. This replaces WithHostAuthentication; do not call both.
 dashboard.WithCustomAuth(async context =>
 {
     var validator = context.RequestServices
@@ -115,6 +115,8 @@ public interface IDashboardAccessValidator
 
 Register its implementation as scoped and implement real credential validation and account restrictions. Do not retain a scoped `DbContext` or `UserManager` in dashboard configuration, or build a second root service provider to resolve one.
 
-Basic and custom validators return an authentication decision; they do not automatically construct a role-bearing `HttpContext.User`. The Basic username is available as `context.Items["auth.username"]` on authenticated API requests. It is not available on the earlier runtime-configuration script request. Use host authentication for consistent role/claim-based controls throughout the browser and API.
+Do not also call `WithHostAuthentication`: this `WithCustomAuth(Func<HttpContext, Task<bool>>)` overload registers a scheme, single-mode methods apply only when no scheme is registered, and startup rejects the combination. Register both through `WithAuthentication(auth => auth.AddHost(...).AddCustom(...))` when you need host users and a custom validator together. See [mixing authentication methods](/docs/5.x/dashboard/authentication#do-not-mix-single-mode-methods).
+
+Basic and custom validators return an authentication decision; they do not automatically construct a role-bearing `HttpContext.User`. The Basic username is available as `context.Items["auth.username"]` on authenticated API requests. It is not available on the earlier runtime-configuration script request; see [read-only predicates with built-in schemes](/docs/5.x/dashboard/authentication#read-only-predicates-with-built-in-schemes). Use host authentication for consistent role/claim-based controls throughout the browser and API.
 
 The dashboard's own `AddJwtBearer` and `AddCookieLogin` use a configured `InMemoryUserStore`. Their public options do not accept an arbitrary database `IUserStore`; registering one in DI does not replace that store. See [authentication modes](/docs/5.x/dashboard/authentication) for those alternatives.

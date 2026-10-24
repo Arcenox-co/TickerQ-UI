@@ -66,9 +66,9 @@ using TickerQ.DependencyInjection;
 using TickerQ.Utilities.Base;
 using TickerQ.Utilities.Interfaces;
 
-public record InvoiceRequest(Guid OrderId);
-
 builder.Services.MapTicker<InvoiceOrderJob, InvoiceRequest>();
+
+public record InvoiceRequest(Guid OrderId);
 
 public sealed class InvoiceOrderJob(ILogger<InvoiceOrderJob> logger)
     : ITickerFunction<InvoiceRequest>
@@ -138,5 +138,14 @@ Each local function attempt gets a new asynchronous DI scope. Resolve scoped ser
 ## Execution context
 
 `Id`, `FunctionName`, `ScheduledFor`, `RetryCount`, and `ParentId` identify the current execution. For a cron occurrence, `ParentId` is its cron definition; for a chain step, it is the immediate parent time ticker.
+
+| Member | Meaning |
+| --- | --- |
+| `Type` | `TickerType.TimeTicker` for a time ticker or chain step; `TickerType.CronTickerOccurrence` for a cron occurrence |
+| `IsDue` | `true` when the scheduler's overdue-work scan picked up the execution instead of its normal scheduled wake-up. Chain steps carry their root's value. |
+| `IsTestRun` | `true` for an ephemeral dashboard test run, which has no stored job but can still cause side effects |
+| `RequestCancellation()` | Cancels the `CancellationToken` passed to this execution. If the function then throws `OperationCanceledException`, for example through `ThrowIfCancellationRequested()`, the execution ends as `Cancelled`. |
+
+`RequestCancellation()` is cooperative: code that ignores the token keeps running. To stop another job, use the manager's `RequestCancellationAsync(id)`.
 
 Use `ILogger` for [captured execution logs](/docs/5.x/guides/execution-logs). Make external side effects idempotent: retries or recovery can invoke a function again even when execution ownership is correctly fenced.

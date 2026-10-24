@@ -44,9 +44,9 @@ Inactive node records and completed command records are pruned after approximate
 
 ## Cross-node cancellation
 
-When the dashboard requests cancellation for a job owned by another process, TickerQ does not make an HTTP call to that process. It writes a short-lived command into the shared operational store:
+Cancellation from the dashboard or from `RequestCancellationAsync` on the time and cron managers first signals a matching execution in the responding process. Only when nothing local matched does TickerQ route the request to the owning process. It does not make an HTTP call to that process; it writes a short-lived command into the shared operational store:
 
-1. The request resolves the persisted execution owner and acquisition generation.
+1. The request resolves the persisted execution owner and acquisition generation. A command is written only when that record is `Queued` or `InProgress` and has an owner.
 2. A command targets the process-unique node key.
 3. The owning process polls, verifies that the same attempt is still active, and cancels its local `CancellationTokenSource`.
 4. A stale command cannot cancel a later retry or rerun of the same job.

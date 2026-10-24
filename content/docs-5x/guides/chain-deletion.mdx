@@ -41,7 +41,16 @@ if (!changed.IsSucceeded)
     throw changed.Exception;
 ```
 
-The fluent parent builder also supports `.SetDeleteBehavior(ChainDeleteBehavior.Restrict)`.
+The `AddChainAsync` builders set the same policy with `WithDeleteBehavior(...)`. The time-chain builder defaults to `Cascade`; the recurring-chain builder defaults to `Restrict`:
+
+```csharp
+var scheduled = await timeTickerManager.AddChainAsync(
+    chain => chain
+        .WithDeleteBehavior(ChainDeleteBehavior.Restrict)
+        .StartWith<PrepareReportJob>()
+        .Then<SendReportJob>(),
+    cancellationToken);
+```
 
 In the dashboard, configure **Chain deletion** in the builder's root editor. Existing chains expose **Deletion: Cascade/Restrict** in the flowchart and root details. Changing it requires saving the confirmation dialog. It is available for completed chains and disabled in read-only mode. The chain editor allows replacement once all descendants are terminal, subject to its existing root-status checks. Deletion confirmations use fresh server-side status checks.
 

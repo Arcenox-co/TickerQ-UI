@@ -9,10 +9,10 @@ Job alerts and monitoring messages share an HTTP transport, but their queues hav
 
 | Message source | Queue and state | Restart behavior |
 | --- | --- | --- |
-| Alert rule | Process-local event queue, cooldowns, and counters | Pending events and counters are lost |
+| Alert rule | Process-local event queue, cooldowns, and counters | A crash loses pending events and counters; a graceful shutdown drains the queue for up to `ShutdownDrainTimeout` |
 | Monitor | Persistent incident state and delivery queue when the operational provider supports it | Saved transitions resume after their leases expire |
 
-Settings persist in the operational store. That does not make ordinary event delivery durable. Event alerts have no replay, cluster-wide cooldown, or exactly-once delivery. Monitor queues also permit duplicates after a crash or an ambiguous HTTP result. Custom receivers can deduplicate with `eventId`; see [persistent monitoring delivery](/docs/5.x/integrations/monitoring#persistent-incident-state-and-delivery).
+Settings persist in the operational store. That does not make ordinary event delivery durable. On a graceful shutdown the alert worker stops after the scheduler, accepts no new events, and keeps delivering queued alerts for up to `ShutdownDrainTimeout`, bounded by the host's shutdown deadline. Alerts still queued when that window closes are discarded with a logged warning. Event alerts have no replay, cluster-wide cooldown, or exactly-once delivery. Monitor queues also permit duplicates after a crash or an ambiguous HTTP result. Custom receivers can deduplicate with `eventId`; see [persistent monitoring delivery](/docs/5.x/integrations/monitoring#persistent-incident-state-and-delivery).
 
 HTTP success means the endpoint accepted the request. It does not prove that a person saw the message. Use an external alerting system for requirements such as guaranteed escalation or a permanent incident audit trail.
 
@@ -26,7 +26,7 @@ Monitoring can retry a failed delivery batch after one and two minutes, for at m
 
 ## Cooldowns and duplicates
 
-Overlapping alert rules send once per destination per event. The smallest matching cooldown wins. Cooldown applies to attempts for the same **destination, event kind, and function**, including failed attempts. Zero disables it; the accepted range is 0–86,400 seconds.
+New rules default to the `failed` and `timeout_cancelled` events and a 60-second cooldown. Overlapping alert rules send once per destination per event. The smallest matching cooldown wins. Cooldown applies to attempts for the same **destination, event kind, and function**, including failed attempts. Zero disables it; the accepted range is 0–86,400 seconds.
 
 Cooldown is local to each process. Replicas do not share it. Monitoring selects its destinations directly and does not use alert-rule cooldowns. Enabling both a `failed` alert rule and a repeated-failure monitor can intentionally produce both an individual failure message and a separate incident message.
 
@@ -38,6 +38,7 @@ Set these through the existing `options.AddIntegrations(...)` callback:
 | --- | --- | --- |
 | `QueueCapacity` | 1,000 events | 1–100,000; a full queue drops the new event |
 | `RequestTimeout` | 10 seconds | 1–60 seconds per HTTP attempt |
+| `ShutdownDrainTimeout` | 10 seconds | 0–60 seconds spent delivering queued alerts on shutdown, bounded by the host's `ShutdownTimeout`; `0` discards them immediately |
 | `MonitoringInterval` | 30 seconds | 5 seconds–5 minutes |
 | `AllowedHosts` | Empty | Exact DNS host allowlist; empty permits public HTTPS destinations |
 | `AllowPrivateEndpoints` | `false` | Explicit host opt-in for trusted internal destinations |
@@ -91,6 +92,8 @@ public sealed class MyAppFormatter : IIntegrationPayloadFormatter
     };
 }
 ```
+
+A formatter receives job alerts, monitor alerts, recoveries, and Send test samples. `IntegrationMessage` carries `EventId`, `Application`, `Environment`, `DashboardUrl`, and the event as `Event` (a `TickerFailureEvent` with `Kind`, `Function`, `TickerId`, `TickerType`, `Reason`, `RetryCount`, `Retries`, `OccurredAtUtc`, and `Node`). Monitoring messages use `Kind` values `monitoring_deadline`, `monitoring_long_running`, `monitoring_consecutive_failures`, or `monitoring_recovered` and also set `MonitorId`, `MonitorName`, `IncidentId`, and `MonitorKind`, plus the condition values that apply: `ThresholdSeconds`, `ObservedDurationSeconds`, `FailureCount`, `FailureThreshold`, `DeadlineUtc`, `TimeZoneId`, and `GraceMinutes`. These monitoring properties are null for job alerts.
 
 Formatters must be thread-safe and must not perform network I/O. This extension point supports applications accepting JSON over HTTPS; OAuth flows, non-HTTP transports, and file attachments need additional adapters. Register the same formatters on every replica sharing settings.
 

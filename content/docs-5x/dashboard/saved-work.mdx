@@ -3,9 +3,11 @@ title: "Drafts, templates, and activation"
 description: "Save unfinished one-time work, reuse complete chain designs, and activate a reviewed draft exactly once."
 ---
 
-The dashboard's **Saved work** area keeps configuration separately from scheduler execution rows. A saved definition contains a job or chain design; it has no execution status, lock, result, or log history.
+The dashboard's **Saved work** panel keeps configuration separately from scheduler execution rows. A saved definition contains a job or chain design; it has no execution status, lock, result, or log history.
 
-<DashboardScreenshot name="saved-work" alt="Saved work page with a one-time draft and reusable time-chain templates" caption="Search and order drafts and templates without mixing them into execution history." />
+Saved work is a side panel, not a sidebar view. Open it with **Drafts & templates** on the Time Tickers page, which shows **Drafts** and **Templates** tabs, or with **Templates** on the Cron Tickers page, which lists cron-chain templates. Both buttons are hidden for read-only users. Inside the chain builder, **Use Templates** opens a separate picker with your saved templates for that target plus built-in starter layouts.
+
+<DashboardScreenshot name="saved-work" alt="Saved work panel with a one-time draft and reusable time-chain templates" caption="Search and order drafts and templates without mixing them into execution history." />
 
 ## Choose a draft or template
 
@@ -19,17 +21,17 @@ Single jobs are quick to recreate, so the dashboard does not offer a single-job 
 
 ## Save and activate a time draft
 
-When leaving the one-time builder, choose **Save draft** to retain the form without publishing a runnable ticker. The draft keeps its entered execution time and request data. Open it later from **Saved work**, review the complete graph, and choose **Activate draft**.
+Choose **Save draft** in the one-time job form or chain builder to retain the configuration without publishing a runnable ticker. When you leave unsaved one-time work, the leave prompt also offers **Save as draft**. The draft keeps its execution time and, unless you clear **Include request payloads**, its request data. Open it later from **Saved work**, select **Edit** to review the complete graph in the builder, and choose **Review activation**. The same button is available on the draft's card in the panel; it reads **Resume** while an earlier activation is still pending.
 
-Activation asks whether to keep or change the execution time. Confirming publishes the complete time-ticker graph once. The store takes a durable, versioned activation claim before it creates the root ticker, so two dashboard replicas cannot activate the same draft twice. After activation, use the returned job link to inspect the real execution.
+**Review activation** opens the **Activate draft** dialog. Choose **Run now** and confirm with **Activate now**, or choose **Schedule for**, keep or change the prefilled execution time, and confirm with **Activate and schedule**. Confirming publishes the complete time-ticker graph once. The store takes a durable, versioned activation claim before it creates the root ticker, so two dashboard replicas cannot activate the same draft twice. After activation, the dashboard opens the new job in Time Tickers, and the draft's card shows **Activated** with a **View job** link.
 
 A draft is not an `Idle` job and does not appear in the time-ticker or execution tables before activation.
 
 ## Save and edit a chain template
 
-Use **Save template** on a configured one-time or recurring chain. Choose whether request data should be included; omit it when the structure is reusable but the payload contains customer data or secrets.
+Use **Save template** on a configured one-time or recurring chain. As with drafts, **Include request payloads** controls whether request data is saved; clear it when the structure is reusable but the payload contains customer data or secrets. Saved items without payloads show **payloads excluded** in the panel.
 
-Templates preserve the graph shape, schedule settings relevant to their target, retry/timeout settings, conditions, and descriptions. Open a template in the chain builder, make changes, and save it back. Updates and deletes use the stored version so one operator cannot silently overwrite another operator's newer edit.
+Templates preserve the graph shape, schedule settings relevant to their target, retry/timeout settings, conditions, and descriptions. On a template card, **Use template** opens a new unsaved copy in the chain builder; **Edit** opens the template itself, and **Save template changes** saves it back. Updates and deletes use the stored version so one operator cannot silently overwrite another operator's newer edit.
 
 <DashboardScreenshot name="chain-builder" alt="Chain builder editing a grouped workflow with parallel branches and outcome steps" caption="Templates reopen as editable graph definitions; no job is created until the operator schedules or activates the result." />
 
@@ -37,7 +39,7 @@ Template names are unique inside one application namespace and scheduler target.
 
 ## Assistant-created drafts
 
-When Chat AI proposes a one-time job or one-time chain, the card uses **Save draft**. Saving does not schedule the job. The applied card exposes **Open draft**, where an operator can edit the request, execution time, conditions, and graph before activation.
+When the assistant proposes a one-time job or one-time chain, the card uses **Save draft**. Saving does not schedule the job. The saved card shows **Draft saved** and exposes **Open draft**, where an operator can edit the request, execution time, conditions, and graph before activation.
 
 Recurring schedule proposals still use an explicit confirmation card because their result is a cron definition rather than a time draft. Read [AI assistant](/docs/5.x/dashboard/ai-assistant) for proposal history and authorization behavior.
 

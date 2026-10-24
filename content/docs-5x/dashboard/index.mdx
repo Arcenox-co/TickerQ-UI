@@ -33,13 +33,13 @@ For a loopback-only local demo, explicitly opt into `dashboard.AllowAnonymousDas
 | Overview | Recent and upcoming work, with links to job details |
 | Time tickers | One-time jobs and their chains |
 | Cron tickers | Recurring definitions, human-readable expressions, and occurrences |
-| Saved work | One-time drafts and reusable time/cron chain templates |
+| Saved work | One-time drafts and reusable time/cron chain templates, in a side panel opened from **Drafts & templates** on Time Tickers or **Templates** on Cron Tickers |
 | Schedule policies | Reusable business calendars, previews, and the jobs that reference them |
 | Executions and chain view | Per-run status, progress, ownership, requests/results, errors, and logs |
 | Diagnostics | Runtime warnings, health, and recovery information |
 | Integrations | Connections, alert rules, monitoring, and delivery feedback |
 | Nodes | Scheduler replicas, capacity, queue pressure, heartbeats, and navigation links |
-| AI Operations | Chat, saved investigations, automatic diagnoses, and reviewed action cards |
+| AI → Chat AI | The TickerQ Assistant: Overview, Chat, and Investigations tabs with saved diagnoses and reviewed action cards |
 | License | Certificate and entitlement status |
 | About | Registered functions, scheduler settings, retention, and execution-log configuration |
 
@@ -79,7 +79,7 @@ dashboard.SetReadOnly(context => !context.User.IsInRole("SchedulerAdmin"));
 dashboard.SetGroupName("tickerq"); // Optional OpenAPI endpoint group.
 ```
 
-`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetEnvironmentName` adds a visible deployment label to the dashboard and sign-in page; it does not change the scheduler namespace. `SetLogoUrl` accepts an absolute URL or browser-reachable path. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. `SetGroupName` changes only the OpenAPI group assigned to dashboard endpoints. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
+`SetBasePath` changes the dashboard mount point, including its API and live-update routes. Preserve that prefix through your reverse proxy. `SetEnvironmentName` adds a visible deployment label to the dashboard and sign-in page; it does not change the scheduler namespace. `SetLogoUrl` accepts an absolute URL or browser-reachable path. `SetTimeZone` sets the dashboard display default; it does not alter the scheduler's cron interpretation. `SetReadOnly(true)` is the unconditional alternative to a per-user predicate. The `context.User` example assumes host authentication; with the dashboard's built-in schemes, see [read-only predicates with built-in schemes](/docs/5.x/dashboard/authentication#read-only-predicates-with-built-in-schemes). `SetGroupName` changes only the OpenAPI group assigned to dashboard endpoints. In host mode, the same user permissions drive the visible controls and the server write gate; see [dashboard enforcement](/docs/5.x/dashboard/authorization#what-the-dashboard-enforces).
 
 ## SignalR in multi-replica deployments
 

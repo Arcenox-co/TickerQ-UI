@@ -74,13 +74,14 @@ Match the claim types to your issuer's actual, validated principal. For example,
 | Area | Browser behavior | Server behavior |
 | --- | --- | --- |
 | Job and scheduler operations | Read-only mode hides mutation controls, including create, edit, delete, run, retry, cancel, and host controls | The protected mutation group rejects writes with HTTP 403 |
-| Integrations | Without writable management access, the page shows **Management access required** | Save, preview, and send-test require management permission, write access, and the license gate |
-| Integration configuration reads | Users without management access do not receive saved configuration | The read endpoint returns availability without loading the stored settings when management is not granted |
-| AI assistant, when configured | Viewers can ask questions; mutation proposal tools are unavailable in read-only mode | Tools use the same read-only decision; integration context requires its management permission |
+| Integrations | Without writable management access, the page shows a read-only status view: "Viewing status. Changes require integration management permission." | Save, preview, and send-test require management permission, write access, and the license gate |
+| Integration configuration reads | The status view lists connections, monitor health, and recent delivery outcomes | Without writable management access, the read endpoint returns destinations trimmed to ID, name, provider, and enabled state, plus alert rules, monitors and their state, and delivery outcomes; templates, template tokens, URLs, headers, endpoint metadata, and delivery messages are stripped |
+| AI assistant, when configured | Viewers can ask questions, including about integration status; mutation proposal tools are unavailable in read-only mode | Tools use the same read-only decision. Integration read tools are available to every dashboard user when Integrations is configured; alert-rule and monitor proposals also require integration-management permission |
+| Assistant investigations | Read-only users can browse investigations; review and delete controls are hidden | Marking an investigation read or resolved and deleting investigations return HTTP 403 for read-only users |
 | Live updates | Authenticated viewers can follow job changes | The hub validates authentication and the configured host policy when a connection opens |
 | Assistant conversations | Users can manage their own stored conversations, including in read-only mode | Conversation endpoints use the resolved history identity; they are separate from scheduler mutations |
 
-A management grant does not override read-only mode. If you deliberately grant management to a read-only user, the API can return the management snapshot, but the current Integrations page still shows the access-required state and rejects changes. Leave the management grant false when that user should not receive integration configuration.
+A management grant does not override read-only mode. A read-only user never receives the management snapshot, even with a management grant; the Integrations page shows the status view and the API rejects changes. Alert rules and monitor definitions are visible to every user who can enter the dashboard.
 
 The browser receives its read-only state through a per-user runtime configuration script; the server re-evaluates write permissions on each request. Authenticate in the host pipeline **before** `UseTickerQ` so both requests see the same user. Hiding buttons is not the authorization boundary.
 

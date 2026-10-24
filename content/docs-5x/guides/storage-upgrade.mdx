@@ -30,7 +30,7 @@ require a database migration, or move existing jobs.
 
 ## Add schedule policy storage
 
-[Schedule policies](/docs/5.x/guides/schedule-policies) add durable calendar definitions and
+[Schedule policies](/docs/5.x/guides/schedule-policies/business-calendars) add durable calendar definitions and
 scheduling evidence. The current model includes them even when no policy is configured, so enabling
 policies later does not change TickerQ registration. An existing relational database still needs an
 application-owned migration before an upgraded binary starts.
@@ -197,10 +197,13 @@ The generated model must include:
 - CronTicker:
   - nullable `SeedKey` with a unique nullable/filtered index;
   - nullable `SeedOwnerNamespace` (maximum 128 characters; an EF concurrency token), which records the application that owns a code-defined row;
+  - nullable `SeedManifestEpoch`, the desired-manifest epoch last applied by the owning application, so an older rollout cannot overwrite a newer manifest;
+  - non-null `DefinitionRevision` (default `0`; an EF concurrency token), a monotonic revision raised when the definition's semantics change;
   - nullable `SeedLastSeenAt`;
   - nullable `RetirementRequestedAt`;
   - nullable `RetiredAt`;
-  - nullable `SeedWasEnabledBeforeRetirement`, used to avoid re-enabling a user-disabled definition.
+  - nullable `SeedWasEnabledBeforeRetirement`, used to avoid re-enabling a user-disabled definition;
+  - `IX_CronTickers_SeedOwner_Epoch` on `ApplicationNamespaceKey` + `SeedOwnerNamespace` + `SeedManifestEpoch`.
 - TimeTicker:
   - nullable `ChainRootId` during rollout/backfill;
   - nullable `ChainGeneration`, preserving the root's exact fencing token during repair;
@@ -208,7 +211,9 @@ The generated model must include:
   - nullable `ProgressPercent`, `ProgressMessage` (maximum 500 characters), and `ProgressUpdatedAt` for generation-fenced execution progress;
   - indexes used by parent traversal, chain traversal, retention, and acquisition.
 - CronTickerOccurrence:
-  - nullable `ProgressPercent`, `ProgressMessage` (maximum 500 characters), and `ProgressUpdatedAt`.
+  - non-null `DefinitionRevision` (default `0`), stamped from the cron definition; acquisition rejects an occurrence whose revision no longer matches;
+  - nullable `ProgressPercent`, `ProgressMessage` (maximum 500 characters), and `ProgressUpdatedAt`;
+  - `IX_CronOccurrence_DefinitionRevision_Status` on `ApplicationNamespaceKey` + `CronTickerId` + `DefinitionRevision` + `Status`.
 - The singleton `TickerQStoreMetadata` row, including schema/data versions, optimistic-concurrency
   `Version`, durable `ActivationEpoch`, `ActivationPhase`, and nullable `ActivationCheckpoint`.
   Its `Id` column must allow 80 characters, including the full runtime activation key.
@@ -264,9 +269,12 @@ substitute for draining pre-protocol writers during first adoption. Startup then
 5. repair TimeTicker chains and discoverability;
 6. reconcile code-defined CronTickers;
 7. finalize provider state, including uniqueness constraints that require converged data;
-8. run consumer seed callbacks and stale-occurrence/provider startup actions;
-9. atomically commit the epoch;
-10. open the process-local gate, allowing scheduler, fallback, stale-recovery, retention, and Redis
+8. run consumer seed callbacks in order: the schedule-policy seeder, then the time seeder, then the cron seeder;
+9. run provider readiness probes and provider startup actions. There is no startup sweep of stale
+   occurrences; missed work is decided per schedule during acquisition (see
+   [removed stale-occurrence options](#removed-stale-occurrence-options));
+10. atomically commit the epoch;
+11. open the process-local gate, allowing scheduler, fallback, stale-recovery, retention, and Redis
    heartbeat/resource-recovery loops to perform their first persistence I/O.
 
 Each completed phase advances the durable checkpoint. A crash or cancellation leaves the epoch in
@@ -392,14 +400,19 @@ The partial unique index includes only rows whose `SeedKey` is a BSON string, so
 
 ## Redis
 
-Redis stores entities and discoverability indexes separately. Upgraded standalone Redis deployments persist each application's reconciliation epoch in a scoped `tq:reconciliation:activation:scope:<scope-key>` metadata hash. Begin/checkpoint/commit are one-key Lua/CAS transitions; admission, recovery, release, and maintenance scripts use that same scoped hash, and the final commit is the publication boundary after all awaited definition mutations and repair checkpoints complete.
+Redis stores entities and discoverability indexes separately. Upgraded standalone Redis deployments persist each application's reconciliation epoch in a scoped metadata hash named `tq:{<partition>}:reconciliation:activation:scope:<partition>`. Both `<partition>` values are the application's runtime partition key, `tq:runtime:v1:` followed by a 64-character SHA-256 hash derived from the application namespace; the braces are a literal Redis hash tag. Begin/checkpoint/commit are one-key Lua/CAS transitions; admission, recovery, release, and maintenance scripts use that same scoped hash, and the final commit is the publication boundary after all awaited definition mutations and repair checkpoints complete.
 
 Operational requirements:
 
-- The application identity needs `EVAL`/script execution plus read, write, and scan access to the configured TickerQ key prefix.
+- The application identity needs `EVAL`/script execution plus read, write, and scan access to two key ranges: the fixed `tq:` prefix used by every operational key (jobs, indexes, results, activation metadata, definitions, policies, and cluster control), and the configured `InstanceName` prefix used by cache entries, heartbeats, the node registry, and execution-log archives. `InstanceName` does not prefix operational keys.
 - **Drain every pre-protocol Redis scheduler binary before first activation.** Those binaries do not read the metadata hash and can acquire or publish work while an upgraded node is reconciling. The epoch fence protects later rollouts only after the entire fleet runs a protocol-aware binary.
 - Scheduler activation and scheduler-side multi-key mutation fail closed on Redis Cluster. Use
   standalone Redis, including ordinary primary/replica deployments, for scheduler processes.
+- Standalone detection is positive, not assumed: every endpoint of the connection must be connected
+  and report itself as a standalone server. Cluster, Sentinel, proxy, unknown, disconnected, and
+  mixed endpoint sets fail closed for activation, migration, legacy adoption, and durable node finalization.
+- Recurring chains are unavailable on Redis Cluster. Cron create/update requests that include a chain
+  are rejected, and a chained cron occurrence cannot be dispatched there.
 - Namespaced queue-only Redis Cluster producers support TimeTicker insert/update and Cron
   insert/update/remove through deliberately cluster-safe single-key commands. Cron removal rejects a
   definition while occurrences still reference it because that cross-key proof is not safe.
@@ -436,6 +449,9 @@ exact reconciliation epoch. Before inspecting state, each provider acquires a st
 record. A different owner/epoch, or runtime state belonging to multiple other owners, is rejected.
 The same owner and epoch may restart safely: EF and supported MongoDB topologies transact the move;
 Redis standalone uses a durable resumable lease; in-memory moves atomically within the process.
+EF Core applications may call the same option on the store builder,
+`store.UseLegacyRuntimePartitionAdoption("billing-api", 12, legacyWritersDrained: true)`; it is
+forwarded to this core option, and a conflicting second adoption configuration is rejected.
 Adoption completes before reconciliation and activation. It does not replace the separate reviewed
 per-function `MapLegacyDefinedCronOwnership` mapping when legacy Cron seed ownership is ambiguous.
 

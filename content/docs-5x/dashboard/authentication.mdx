@@ -21,6 +21,30 @@ Basic authentication and API keys **do not issue dashboard JWTs**. The JWT/cooki
 
 `WithAuthentication(auth => ...)` can register multiple schemes. They are tried in registration order until one succeeds; adding schemes is not a way to require multiple credentials or MFA. Use a single host identity policy when combining access requirements.
 
+### Register schemes with `WithAuthentication`
+
+The `auth` builder exposes one method per scheme:
+
+| Method | Scheme |
+| --- | --- |
+| `AddHost(policy, loginRedirectPath)` | Host authentication; both arguments are optional |
+| `AddBasic(username, password, configure)` or `AddBasic(validator, configure)` | HTTP Basic with a fixed pair or an async `(username, password)` validator |
+| `AddApiKey(key)` or `AddApiKey(key, headerName)` | Static key from the `Authorization` header, or from the named header |
+| `AddCustom(Func<string, bool>)` or `AddCustom(Func<HttpContext, Task<bool>>)` | Validator for the raw `Authorization` value, or an async request validator |
+| `AddJwtBearer(...)` / `AddCookieLogin(...)` | [Dashboard-issued sessions](#built-in-jwt-sessions) |
+
+The optional `BasicAuthOptions` callback sets `ChallengeBrowserPrompt` and `Realm`. `ChallengeBrowserPrompt` defaults to false, so a failed request returns a plain 401 for the SPA login page. When true, the 401 also carries `WWW-Authenticate: Basic realm="…"` for non-browser clients and direct browser navigations to dashboard API routes, so a browser can show its native prompt; the SPA's own fetch requests still receive a plain 401. `Realm` defaults to `TickerQ Dashboard` and is also part of a Basic user's [assistant history identity](/docs/5.x/dashboard/ai-assistant#conversation-and-proposal-history).
+
+```csharp
+dashboard.WithAuthentication(auth => auth
+    .AddHost("SchedulerOperators", "/account/login")
+    .AddApiKey(builder.Configuration["TickerQ:Dashboard:ApiKey"]!, "X-Api-Key"));
+```
+
+### Do not mix single-mode methods
+
+`WithHostAuthentication(...)`, `WithBasicAuth(username, password)`, `WithApiKey(key)`, and `WithCustomAuth(Func<string, bool>)` each select a single mode. That mode is applied at startup **only when no other scheme is registered**. If you also call `WithAuthentication(...)`, `WithBasicAuth(validator)`, `WithApiKey(key, headerName)`, or `WithCustomAuth(Func<HttpContext, Task<bool>>)`, the single-mode method could never take effect, so startup fails with an `InvalidOperationException` that names the selected mode. Calling two single-mode methods keeps only the last one, and calling `AllowAnonymousDashboard()` after one of them clears it. To combine schemes, register all of them inside `WithAuthentication(...)`.
+
 ## Existing users, roles, and scopes
 
 For database-backed application users, use **host authentication**. It reuses your sign-in flow and authenticated principal, including roles and claims. It does not require copying users into dashboard configuration.
@@ -29,6 +53,17 @@ For database-backed application users, use **host authentication**. It reuses yo
 - [Roles and permissions](/docs/5.x/dashboard/authorization): grant viewer, operator, and integration-administrator access using roles, permission claims, or OAuth scopes.
 
 `SetReadOnly(true)` makes the dashboard read-only for everyone. The predicate overload supports per-user restrictions with server-side enforcement. `AllowIntegrationManagement` is a separate permission and defaults to denied. Neither bypasses license restrictions.
+
+### Read-only predicates with built-in schemes
+
+The `context.User` examples in these guides assume host authentication. The dashboard's own schemes (Basic, API key, custom, JWT, and cookie login) do not populate `HttpContext.User`. After a dashboard API request authenticates, TickerQ stores the result in `context.Items["auth.username"]` and `context.Items["auth.userId"]`; a predicate for these schemes must read those items:
+
+```csharp
+dashboard.SetReadOnly(context =>
+    context.Items["auth.username"] as string != "operator");
+```
+
+API keys report the username `api-user` and custom validators report `custom-user`, so for those schemes `auth.username` does not identify individual users. The items are set only on authenticated API requests. The runtime-configuration script that drives the browser's controls is served before dashboard authentication, so the predicate sees no username there. With the example above, every browser shows read-only controls, while API writes from `operator` are still accepted. Use host authentication when per-user browser controls matter.
 
 ## Built-in JWT sessions
 
@@ -48,7 +83,9 @@ dashboard.WithAuthentication(auth => auth.AddJwtBearer(jwt =>
 }));
 ```
 
-Supply a strong signing secret of at least 32 bytes from a secret store. Replicas must share the key, issuer, audience, and user configuration. `AddCookieLogin(...)` provides the equivalent signed-cookie option, with `SessionLifetime` and `AddUser`. Cookie sessions default to eight hours; Bearer access tokens default to 60 minutes.
+Supply a strong signing secret of at least 32 bytes from a secret store. Replicas must share the key, issuer, audience, and user configuration. `AddCookieLogin(...)` provides the equivalent signed-cookie option, with `SessionLifetime` and `AddUser`. Cookie sessions default to eight hours; Bearer access tokens default to 60 minutes. Both option types expose `Issuer` (default `tickerq-dashboard`) and `Audience` (default `tickerq-api`). `CookieAuthOptions.CookieName` defaults to `tickerq.auth`, and the cookie is scoped to the dashboard path.
+
+Registering both `AddJwtBearer` and `AddCookieLogin` creates one shared token issuer. The bearer options supply its issuer, audience, access-token lifetime, and user store, and also its signing key when one is set. The cookie's own expiry still follows `SessionLifetime`, but the JWT inside it expires after `AccessTokenLifetime`, so a cookie session ends after `AccessTokenLifetime` unless it is renewed, even when `SessionLifetime` is longer.
 
 For local development only, `AllowEphemeralSigningKey = true` permits a random process-local key. Tokens then stop working after restart or when routed to another instance. This option is not enabled automatically, even for a single server. The built-in user store is configured by the application; it is not a user-management or SSO service.
 
@@ -63,6 +100,8 @@ With JWT/cookie login configured, paths are relative to the dashboard base path:
 | `POST /api/auth/logout` | Clear the auth cookie; the browser also discards its stored Bearer token |
 
 Renewal is sliding access-token renewal. There is no durable refresh-token store or per-token revocation. Client logout does not revoke an already-issued Bearer token. Keep lifetimes appropriate to your access policy; use your host identity system when you need its session-management capabilities.
+
+Set `AccessTokenLifetime` on `AddJwtBearer(...)` or `SessionLifetime` on `AddCookieLogin(...)` to control session length.
 
 Cookies are HttpOnly and SameSite=Strict. `SecureCookie` defaults to true; disable it only for a plain-HTTP local demo. Login endpoints limit failures to five per five-minute window, using separate IP and username buckets. These limits are process-local; use edge controls when you need shared protection across replicas. A throttled request returns 429 with `Retry-After`.
 
@@ -85,7 +124,7 @@ dashboard.SetBackendDomain("https://api.example.com");
 dashboard.AllowOrigins("https://ops.example.com");
 ```
 
-`SetBackendDomain` selects the API domain; it does not grant CORS access. Origins must be absolute HTTP(S) origins with no extra path, query, or fragment. Cross-origin access is denied by default. `SetCorsPolicy(...)` supports custom policies; retain a deliberate credentialed-origin boundary.
+`SetBackendDomain` selects the API domain; it does not grant CORS access. Calling it without `AllowOrigins(...)` or `SetCorsPolicy(...)` fails at startup. Origins must be absolute HTTP(S) origins with no extra path, query, or fragment. Cross-origin access is denied by default. `SetCorsPolicy(...)` supports custom policies; retain a deliberate credentialed-origin boundary.
 
 ## SignalR and reverse proxies
 
@@ -102,6 +141,26 @@ Configure the proxy to:
 - allow the exact browser origin when the dashboard and API use different origins.
 
 Multi-replica message delivery also needs a SignalR backplane. See [dashboard SignalR configuration](/docs/5.x/dashboard#signalr-in-multi-replica-deployments). Microsoft documents the platform requirements in its [SignalR hosting and scaling guidance](https://learn.microsoft.com/en-us/aspnet/core/signalr/scale?view=aspnetcore-10.0).
+
+## Dashboard middleware hooks
+
+Three optional properties add middleware inside the dashboard's own request branch, beneath its base path:
+
+| Property | Runs |
+| --- | --- |
+| `PreDashboardMiddleware` | After trusted forwarded headers are applied, before static files, the runtime-configuration script, routing, and dashboard authentication |
+| `CustomMiddleware` | After dashboard authentication, before dashboard API endpoints and the SignalR hub |
+| `PostDashboardMiddleware` | After endpoint mapping, so only for requests that no dashboard endpoint handled, before the SPA fallback |
+
+```csharp
+dashboard.PreDashboardMiddleware = app => app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    await next();
+});
+```
+
+These hooks do not replace your host pipeline. Host authentication still requires `UseAuthentication()` and `UseAuthorization()` before `UseTickerQ()`.
 
 ## Local anonymous access
 

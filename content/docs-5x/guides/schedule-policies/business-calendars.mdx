@@ -1,0 +1,258 @@
+---
+title: "Business calendars"
+description: "Define reusable schedule policies that decide when time tickers, cron tickers, and chains may start."
+---
+
+A schedule policy is a named, reusable calendar. It decides whether work may start at a given
+instant, evaluated in the policy's own time zone. Use it to keep business hours, closure dates, and
+holiday rules out of job handlers.
+
+Policies are scoped by `UseApplicationNamespace(...)` and stored by the active persistence provider.
+The built-in in-memory, Entity Framework Core, MongoDB, and Redis providers support them.
+
+To control what happens when allowed work starts late, read
+[late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts). That rule works with or
+without a calendar.
+
+## Define and seed a policy
+
+Use `UseSchedulePolicySeeder` for policies owned by the deployed application. `UpsertAsync` makes
+reconciliation idempotent. Policy seeding runs before time- and cron-ticker seeders, so those
+seeders can reference the policy safely.
+
+```csharp
+using TickerQ.Utilities.Models;
+
+builder.Services.AddTickerQ(options => options
+    .UseApplicationNamespace("orders-production")
+    .UseReconciliationEpoch(1)
+    .UseSchedulePolicySeeder(async (policies, cancellationToken) =>
+    {
+        await policies.UpsertAsync(
+            SchedulePolicy.Create("EU business hours")
+                .WithDescription("Weekdays from 09:00 to 17:00")
+                .InTimeZone("Europe/Tirane")
+                .AllowWeekdays(
+                    DayOfWeek.Monday,
+                    DayOfWeek.Tuesday,
+                    DayOfWeek.Wednesday,
+                    DayOfWeek.Thursday,
+                    DayOfWeek.Friday)
+                .AllowBetween(new TimeOnly(9, 0), new TimeOnly(17, 0))
+                .ExcludeAnnualDate(1, 1)
+                .ExcludeAnnualDate(12, 25)
+                .ExcludeDate(new DateOnly(2027, 1, 2))
+                .Build(),
+            cancellationToken);
+    }));
+```
+
+The seeder runs only while a new [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch)
+activates. A restart with the same, already-activated epoch skips every seeder, so a changed policy
+definition is not applied. Advance `UseReconciliationEpoch(...)` when you change a seeded policy in
+code.
+
+## How a policy evaluates an instant
+
+TickerQ converts the instant to the policy's time zone and checks the rules in this order. The first
+rule that blocks the instant decides the result and its reason.
+
+| Rule | Builder method | Behavior |
+| --- | --- | --- |
+| Weekday | `AllowWeekdays(...)` | The local day must be one of the allowed days. All days are allowed by default. |
+| Daily window | `AllowBetween(start, end)` | The local time must fall inside at least one window. With no window, the whole day is allowed. |
+| Exact date | `ExcludeDate(date)` | Blocks one local calendar date. |
+| Annual date | `ExcludeAnnualDate(month, day)` | Blocks the same month and day every year. |
+| Date provider | `ExcludeDatesFrom(name)` | Blocks dates that a registered `IScheduleDateProvider` excludes. |
+| Composition | `Require(name)` / `ExceptWhen(name)` | Combines the result with other policies. See [compose policies](#compose-policies). |
+
+A window's start is inclusive and its end is exclusive. A window whose end is before its start
+crosses midnight. Equal start and end allows the whole local day. The time zone defaults to `UTC`
+when none is set.
+
+Create and update validate the policy. They reject an unknown time zone, a policy with no allowed
+weekday, an invalid annual date, and a date provider that is not registered.
+
+## Names and revisions
+
+Policy names are stable identifiers. Matching ignores case and repeated whitespace, while the
+display spelling is kept. Schedules and composed policies reference the name, so a name cannot be
+changed after creation. Create a replacement policy and move its usages when a name must change.
+
+Each policy also has a revision number, shown as a badge such as **v3** in the dashboard. It
+increments when the rules change. Updates pass the revision they read, so one editor cannot
+overwrite another editor's newer change. Each schedule also records the revision it was validated
+against.
+
+## Apply a policy to one-time work
+
+Use a `TimeSchedule` to choose the policy and what happens when the requested time is blocked:
+
+```csharp
+var result = await timeTickerManager.AddAsync<PrepareInvoicesJob>(
+    TimeSchedule.At(DateTimeOffset.Parse("2026-12-25T10:00:00+01:00"))
+        .UsingPolicy("EU business hours")
+        .WhenBlocked(BlockedOccurrenceBehavior.MoveForward),
+    cancellationToken);
+```
+
+| Behavior | Dashboard label | Result |
+| --- | --- | --- |
+| `Reject` | Reject creation | Creation or update fails and nothing is persisted. This is the default. |
+| `Skip` | Save as skipped | The root and its descendants are stored as `Skipped`. No function runs. |
+| `MoveForward` | Move forward | The job moves to the next allowed instant. Creation fails if none exists within about ten years. |
+
+TickerQ keeps the requested time, the effective execution time, the adjustment reason, the policy
+name and revision, and the blocked behavior. The policy is evaluated when the job is created or when
+its time, policy, or blocked behavior is updated. Editing the policy later does not move or skip a
+one-time job that was already admitted.
+
+### Chains
+
+Set the policy on the chain root. TickerQ rejects a policy on a child step.
+
+```csharp
+var result = await timeTickerManager.AddChainAsync(chain => chain
+    .RunAt(DateTime.UtcNow.AddHours(1))
+    .UsingPolicy("EU business hours")
+    .WhenBlocked(BlockedOccurrenceBehavior.MoveForward)
+    .StartWith<PrepareInvoicesJob>()
+    .Then<SendInvoicesJob>(), cancellationToken);
+```
+
+The policy only decides when the root may start. After the chain starts, child steps follow their
+run conditions, delays, and retries even if the policy window closes. A workflow therefore never
+pauses halfway through its normal or compensation path.
+
+## Apply a policy to recurring work
+
+TickerQ generates cron candidates in the cron definition's time zone, then checks each one against
+the policy. Blocked candidates are omitted, so cron policies always skip. `Reject` and
+`MoveForward` apply only to one-time jobs.
+
+```csharp
+var result = await cronTickerManager.AddAsync<GenerateDailyReportJob>(
+    CronSchedule.From("0 9 * * 1-5")
+        .InTimeZone("Europe/Tirane")
+        .UsingPolicy("EU business hours"),
+    cancellationToken);
+```
+
+Recurring chains set the policy on the root:
+
+```csharp
+var result = await cronTickerManager.AddChainAsync(chain => chain
+    .WithExpression("0 9 * * 1-5")
+    .InTimeZone("Europe/Tirane")
+    .UsingPolicy("EU business hours")
+    .StartWith<PrepareInvoicesJob>()
+    .Then<SendInvoicesJob>(), cancellationToken);
+```
+
+The cron and policy time zones may differ on purpose. For example, a schedule can produce a 09:00
+New York candidate and still check it against a European closure calendar.
+
+Future cron candidates always use the current stored policy, so editing a policy changes upcoming
+cron runs. Creation and update fail when the expression has no allowed future occurrence under the
+policy.
+
+## Compose policies
+
+Build a larger rule from smaller policies:
+
+```csharp
+await policies.UpsertAsync(
+    SchedulePolicy.Create("Production window")
+        .InTimeZone("Europe/Tirane")
+        .AllowWeekdays(
+            DayOfWeek.Monday,
+            DayOfWeek.Tuesday,
+            DayOfWeek.Wednesday,
+            DayOfWeek.Thursday,
+            DayOfWeek.Friday)
+        .AllowBetween(new TimeOnly(7, 0), new TimeOnly(22, 0))
+        .Require("Company calendar")
+        .ExceptWhen("Maintenance freeze")
+        .Build(), cancellationToken);
+```
+
+- `Require(name)` allows an instant only when the referenced policy also allows it.
+- `ExceptWhen(name)` blocks an instant whenever the referenced policy allows it.
+- Create and update reject a missing reference, a dependency cycle, and a policy that both requires
+  and excludes the same policy.
+
+## Register date providers
+
+Use an `IScheduleDateProvider` when exclusions come from application code or a local cache:
+
+```csharp
+using TickerQ.Utilities.Interfaces;
+
+public sealed class PublicHolidayProvider : IScheduleDateProvider
+{
+    public string Name => "Public holidays";
+
+    public bool IsExcluded(DateOnly localDate)
+        => localDate is { Month: 1, Day: 1 } or { Month: 12, Day: 25 };
+
+    public string GetReason(DateOnly localDate)
+        => $"{localDate:yyyy-MM-dd} is a public holiday.";
+}
+
+builder.Services.AddTickerQ(options => options
+    .UseApplicationNamespace("orders-production")
+    .UseReconciliationEpoch(1)
+    .AddScheduleDateProvider<PublicHolidayProvider>()
+    .UseSchedulePolicySeeder((policies, cancellationToken) =>
+        policies.UpsertAsync(
+            SchedulePolicy.Create("Company calendar")
+                .ExcludeDatesFrom("Public holidays")
+                .Build(), cancellationToken)));
+```
+
+`GetReason` is optional. Without it, the reason is "Excluded by" followed by the provider name.
+
+`IsExcluded` runs synchronously while TickerQ searches candidate instants. Keep it fast,
+deterministic, and free of network calls. Refresh remote holiday data into a local cache outside the
+provider.
+
+Register the same provider name and behavior on every scheduler node. A node that lacks a referenced
+provider blocks every instant for that policy.
+
+## Manage policies in the dashboard
+
+Open **Policies → Schedule Policies** in the dashboard sidebar.
+
+- **Cards** show each policy's revision, time zone, allowed days, daily windows, exclusion counts,
+  and any `Require` or `ExceptWhen` references.
+- **The editor** groups settings into **Basics**, **Availability**, **Exceptions**, and **Combine
+  policies**. It lists the registered date providers to choose from. When editing, it shows how many
+  time and cron tickers use the policy, and the name field is locked.
+- **Preview** on a saved policy takes a cron expression and evaluates its next 20 candidates. Each
+  one is marked **Allowed** or **Blocked** with the reason.
+- **Delete** is rejected while a ticker or another policy still references the policy.
+
+Time and cron creation panels select a policy under **Advanced settings → Scheduling**. In the
+chain builder, the root step has its own **Scheduling** section. When a one-time job is moved by its
+policy, its details show the original **Requested** time and the schedule adjustment reason.
+
+**Run now**, re-run, and chain retry are explicit operator actions. They start the work immediately
+and do not check the calendar. Disabling a cron still stops its future runs even when the policy
+would allow them.
+
+## Manage policies from code
+
+Inject `ISchedulePolicyManager` to list, create, update, delete, evaluate, and preview policies. See
+the [manager API reference](/docs/5.x/guides/managers#schedule-policy-operations).
+
+## Storage and deployment
+
+The EF Core model always includes the `SchedulePolicies` table and the policy columns, even when no
+policy is configured. An existing database still needs an application-owned migration before the new
+binary starts. MongoDB creates its namespace and name index during startup. Redis uses
+namespace-scoped keys and needs no schema step.
+
+Custom persistence providers must implement `ISchedulePolicyStore`. Without it, schedules that do
+not use policies keep working, while policy operations fail with an explicit error. Read
+[schedule policy storage](/docs/5.x/guides/storage-upgrade#add-schedule-policy-storage) before
+deploying to an existing store.

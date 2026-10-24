@@ -5,32 +5,34 @@ description: "Use Chat AI to investigate jobs, inspect logs, and review proposed
 
 Use the assistant to investigate scheduler data, review saved diagnoses, and prepare changes for human approval. It uses the same dashboard authentication and authorization as other views. It is an optional feature of `TickerQ.Dashboard`; there is no separate AI package.
 
-<DashboardScreenshot name="assistant-overview" alt="AI Operations overview with unread investigations, diagnoses, recovery signals, and recent failures" caption="The overview summarizes operational AI activity without choosing an investigation for the operator." />
+<DashboardScreenshot name="assistant-overview" alt="TickerQ Assistant overview with unread findings, completed diagnoses, recoveries, and recent investigations" caption="The overview summarizes operational AI activity without choosing an investigation for the operator." />
 
-## AI Operations workspace
+## Assistant workspace
 
-The **AI Operations** page has three views:
+Open **AI → Chat AI** in the dashboard sidebar. The page is headed **TickerQ Assistant** and opens on its **Overview** tab; **Chat** and **Investigations** are separate tabs:
 
-| View | Purpose |
+| Tab | Purpose |
 | --- | --- |
-| **Overview** | Unread investigations, diagnoses completed today, detected recoveries, recent failures, and repeated function/classification patterns |
+| **Overview** | Counts of unread findings, investigations completed today, recoveries, and all investigations; recent investigations grouped by function; repeated function/classification patterns; and **Ask about this runtime** prompts that open in chat |
 | **Chat** | Streaming operational assistant, saved conversations, and confirmation cards |
 | **Investigations** | Searchable, namespace-scoped diagnoses with Unread, Read, and Resolved review states |
 
-Opening an investigation marks it read. Resolving it records an operator review state; it does not change the underlying execution. Repeated investigations for the same function are grouped visually, newest first, while each execution remains individually selectable and deletable.
+The Investigations tab and the Overview counts require an investigation store; without one, Overview reports that structured investigation history is not configured. Chips under the heading show the enabled capabilities, such as private chat history, run or automatic investigations, source context, and whether actions require approval or the session is read-only.
+
+Opening an investigation marks it read for users with write access. Resolving it records an operator review state; it does not change the underlying execution. Repeated investigations for the same function are grouped visually, newest first, while each execution remains individually selectable and deletable. Read-only users can browse investigations, but the review and delete controls are hidden and the API returns 403 when they mark an investigation read or resolved or delete one.
 
 <DashboardScreenshot name="assistant-investigations" alt="Grouped AI investigations with review state, repeated diagnosis count, and source evidence" caption="Repeated failures are grouped by function while every execution keeps its own review state and evidence." />
 
 ## Use Chat AI
 
-1. Open **AI → Chat AI** in the dashboard sidebar.
+1. Open **AI → Chat AI** in the dashboard sidebar, then select the **Chat** tab. The page opens on **Overview**.
 2. Select a suggested question to send it immediately, or type your own request. Press **Enter** to send and **Shift+Enter** for a new line.
 3. Read the answer as it streams, then ask a follow-up in the same conversation. Include the function name or execution ID when you want to inspect a particular job, or choose **Continue in chat** on a saved investigation.
 4. If the assistant proposes a change, review the action card before applying it. Asking a question does not apply a proposed change.
 
-The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. The model label below **Chat AI** comes from the host configuration; provider selection and credentials are configured on the server.
+The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. When the host calls `WithModelName(...)`, a **Model** chip under the **TickerQ Assistant** heading shows that label; without it, no model chip appears. Provider selection and credentials are configured on the server.
 
-<DashboardScreenshot name="assistant-conversation" alt="Chat AI continuing from a saved failed-execution investigation" caption="Continue in chat keeps the conversation scoped to the selected execution and can refresh live evidence for follow-up questions." />
+<DashboardScreenshot name="assistant-conversation" alt="Assistant chat continuing from a saved failed-execution investigation" caption="Continue in chat keeps the conversation scoped to the selected execution and can refresh live evidence for follow-up questions." />
 
 Already using the interface? See [supported requests](#inspect-data-and-propose-changes), [action cards](#confirm-operational-changes), [run investigations](#investigate-one-execution), and [conversation history](#conversation-and-proposal-history). Setting it up for the first time? [Configure a chat client](#configure-a-chat-client).
 
@@ -38,10 +40,11 @@ Already using the interface? See [supported requests](#inspect-data-and-propose-
 
 The assistant can inspect registered functions and their request contracts, executions,
 cron definitions, chain steps, retained execution logs, and node-local runtime health.
-With integration-management permission and `TickerQ.Integrations` configured, it can
-also inspect destinations, rules, monitoring state and recent delivery outcomes.
-Webhook URLs, headers, message templates and delivery response bodies are excluded
-from integration tool results.
+When `TickerQ.Integrations` is configured, any dashboard user can ask it about
+destinations, rules, monitoring state and recent delivery outcomes; reading these does
+not require integration-management permission. Webhook URLs, headers, message templates
+and delivery response bodies are excluded from integration tool results. Proposing new
+alert rules or monitors requires integration-management permission and write access.
 
 The assistant drafts review cards for:
 
@@ -73,10 +76,11 @@ Action cards show the relevant function or chain steps, schedule and time zone, 
 | **Confirm deletion** | Permanently delete the proposed target after reviewing the warning |
 | **Request cancellation** | Ask a running handler to stop using its cancellation token |
 | **Dismiss** | Leave the proposal unapplied; the card becomes **Dismissed** |
+| **Draft saved** | A one-time job or chain draft was stored; nothing was scheduled |
 | **Applied** | The API accepted the operation; this does not mean a scheduled job has finished |
 | **Requested** | A running cancellation request was accepted; check execution status for the outcome |
 
-**Changes require an explicit action on the card.** Model tools never write data or send test messages. If confirmation fails, the dashboard displays **Failed to apply** and leaves the card pending.
+**Changes require an explicit action on the card.** Model tools never write data or send test messages. If confirmation fails, the dashboard shows a **Failed to apply** notification and leaves the card pending; cards are only ever pending, applied, or dismissed.
 
 One-time job and one-time chain cards save a [non-executable draft](/docs/5.x/dashboard/saved-work). Review and edit that draft in the builder, then activate it separately. This prevents an assistant-created proposal from becoming runnable immediately. Cron schedules and recurring chains use their own confirmation cards because they create or update cron definitions.
 
@@ -84,7 +88,8 @@ Confirmation uses the normal authenticated dashboard APIs, including their read-
 license and integration-management checks. Execution cards recheck observed status
 and execution timestamps before submitting; the underlying APIs still enforce current
 state. Integration proposals retain the configuration version and fail on concurrent
-edits. Read-only users receive no proposal tools.
+edits. Read-only users receive no proposal tools, and users without integration-management
+permission receive no alert-rule or monitor proposal tools.
 
 A running cancellation requests cooperation through the handler's cancellation token;
 it does not prove that the job stopped. Re-running a cron occurrence revives that exact
@@ -117,7 +122,7 @@ options.AddDashboard(dashboard =>
 
 ## Provider settings
 
-Keep API credentials in server configuration or a secret store. `WithModelName(...)` changes the label shown in the chat panel; the model is selected when constructing your `IChatClient`. `WithMaxToolIterations(...)` limits tool round-trips per turn, not your provider's token budget. An unreachable provider, invalid credentials, or exhausted quota still prevents a reply even when the dashboard reports that the assistant is configured.
+Keep API credentials in server configuration or a secret store. `WithModelName(...)` sets the **Model** chip shown under the page heading and is not set by default; the model itself is selected when constructing your `IChatClient`. `WithMaxToolIterations(...)` limits tool round-trips per turn, not your provider's token budget. An unreachable provider, invalid credentials, or exhausted quota still prevents a reply even when the dashboard reports that the assistant is configured.
 
 `UseChatClient` resolves its factory once from the root service provider. Supply a client suitable for singleton use; do not capture scoped database services. The dashboard wraps it for tool invocation and disposes the resulting client with the application. `WithSystemPrompt(...)` replaces the default prompt; preserve the instructions about untrusted tool data, read-only behavior, and explicit confirmation if you customize it.
 
@@ -125,9 +130,9 @@ Keep API credentials in server configuration or a secret store. `WithModelName(.
 
 With server-side history enabled, the conversation sidebar lists saved chats. Select a title to reopen it, choose **New chat** for a fresh conversation, or delete a conversation after confirmation. Starting a new chat does not undo an operation already applied through an action card.
 
-TickerQ stores proposal cards with the exchange when the history store supports `IAssistantProposalHistoryStore`. Reopening a conversation restores pending, dismissed, failed, and applied cards, including the **Open draft** link returned after a one-time draft is saved. Conversation text alone is never proof that an operation ran; the card state and current scheduler data remain authoritative.
+TickerQ stores proposal cards with the exchange when the history store supports `IAssistantProposalHistoryStore`. Reopening a conversation restores pending, dismissed, and applied cards, including the **Open draft** link returned after a one-time draft is saved. Conversation text alone is never proof that an operation ran; the card state and current scheduler data remain authoritative.
 
-Without a registered server history store, the dashboard keeps a bounded browser-local transcript and proposal list. It is scoped by the stable authenticated user, backend origin, and dashboard mount. Anonymous or unresolved identities do not inherit another user's transcript, and logging out clears the active local session. **New chat** clears the current local conversation.
+Without a registered server history store, the dashboard keeps a bounded browser-local transcript. It stores user and assistant messages only; proposal cards are not kept and do not reappear after a reload. The transcript is scoped by the stable authenticated user, backend origin, and dashboard mount. Anonymous or unresolved identities do not inherit another user's transcript, and logging out clears the active local session. **New chat** clears the current local conversation.
 
 EF Core can retain conversations, cards, and structured investigations by opting in on the operational store:
 
@@ -154,7 +159,7 @@ Investigations are operational records shared by authorized dashboard users in t
 
 ## Investigate one execution
 
-Failed and cancelled time jobs and cron occurrences expose **Investigate with AI** in the job-details header. A failed chain summary targets the failed child execution rather than diagnosing only its successful root. You can also give Chat AI an exact execution ID, including for a skipped execution.
+Failed and cancelled time jobs and cron occurrences expose **Investigate with AI** in the job-details header. A failed chain summary targets the failed child execution rather than diagnosing only its successful root. You can also give the assistant an exact execution ID in chat, including for a skipped execution.
 
 The investigator assembles a bounded evidence set:
 
@@ -242,7 +247,8 @@ chains at 100 steps, ten levels, and five children per step.
 | AI assistant is not configured | Register an `IChatClient` and pass it to `AddAssistant` |
 | Configured, but no reply | Check the provider's credentials, endpoint, quota, and host logs using the error reference |
 | Answers work, but no action cards appear | Check read-only permissions and whether the provider supports tool calls |
-| Integration information is unavailable | Enable `AddIntegrations` and grant integration-management access |
+| Integration information is unavailable | Enable `AddIntegrations`; reading integration status needs no extra permission |
+| No alert-rule or monitor cards appear | Grant integration-management access to a user who also has write access |
 | A proposal is rejected when confirmed | Reload current job/configuration state and check write, license, and integration permissions |
 | Logs are missing or incomplete | Check execution-log retention, truncation, and storage availability; missing logs do not establish a successful run |
 | Investigations are unavailable | Enable a durable assistant history store and apply its migration |

@@ -1,0 +1,99 @@
+---
+title: "Late starts and catch-up"
+description: "Decide whether late one-time and recurring work still runs, and whether cron slots missed during downtime are recovered."
+---
+
+Work can start later than scheduled when workers are busy, the store is unavailable, or the
+application restarts. These rules decide whether that late work is still useful. They work with or
+without a [business calendar](/docs/5.x/guides/schedule-policies/business-calendars).
+
+The two features answer separate questions:
+
+- A business calendar decides whether an instant is allowed at all.
+- A late-start rule decides whether allowed work should still run once it is late.
+
+## The default: run once
+
+By default, persisted work runs once when capacity returns, however late that is. This is
+`MissedExecutionPolicy.RunOnce()`, shown as **Run when available** in the dashboard.
+
+## Skip work that is too late
+
+Use `SkipAfter` when stale work would be harmful, such as refreshing prices or sending a reminder:
+
+```csharp
+await timeTickerManager.AddAsync<RefreshExchangeRatesJob>(
+    TimeSchedule.At(DateTimeOffset.UtcNow.AddMinutes(5))
+        .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(2))),
+    cancellationToken);
+```
+
+TickerQ checks lateness just before user code would start. If the job is more than two minutes past
+its scheduled time, it becomes `Skipped` with the reason recorded. A delay exactly equal to the limit
+still runs.
+
+- A skip does not use a retry, because the handler never ran.
+- A skipped time chain root settles its whole chain as `Skipped`.
+- A skipped recurring-chain occurrence does not create its chain.
+- Set the rule on the chain root. TickerQ rejects a late-start rule on a child step.
+
+## Recover cron slots missed during downtime
+
+Cron schedules have a second, separate control. `WhenMissed` handles an occurrence that already
+exists but starts late. `CatchUp` handles cron slots that passed while no scheduler was running to
+create them.
+
+```csharp
+await cronTickerManager.AddAsync<RefreshExchangeRatesJob>(
+    CronSchedule.From("*/5 * * * *")
+        .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(2)))
+        .CatchUp(CronCatchUpMode.RunLatest),
+    cancellationToken);
+```
+
+| Setting | Controls | Default |
+| --- | --- | --- |
+| `WhenMissed(...)` | A persisted occurrence that reaches execution late | `RunOnce()` |
+| `CatchUp(...)` | Cron slots that passed while no scheduler could create them | `CronCatchUpMode.Skip` |
+
+`RunLatest` creates at most one occurrence: the latest missed slot that is still inside the
+`SkipAfter` window. It never replays every interval from an outage, and it never reaches back before
+the cron definition was created. When the cron also has a calendar, only slots the calendar allows
+are considered.
+
+`RunLatest` requires `WhenMissed(MissedExecutionPolicy.SkipAfter(...))`, so the window is always
+bounded. Create and update reject `RunLatest` without it. A custom persistence provider must also
+declare cron catch-up support; all built-in providers do.
+
+Recurring chains set both controls on the root:
+
+```csharp
+var result = await cronTickerManager.AddChainAsync(chain => chain
+    .WithExpression("*/5 * * * *")
+    .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(2)))
+    .CatchUp(CronCatchUpMode.RunLatest)
+    .StartWith<RefreshExchangeRatesJob>(), cancellationToken);
+```
+
+## Dashboard settings
+
+Time and cron panels show these rules under **Advanced settings → Scheduling**. The chain builder
+shows them in the root step's **Scheduling** section.
+
+| API | Dashboard label |
+| --- | --- |
+| `MissedExecutionPolicy.RunOnce()` | **Run when available**, under **If late** for time tickers and **Late start** for cron tickers |
+| `MissedExecutionPolicy.SkipAfter(window)` | **Skip after grace**, with the window in the grace field |
+| `CronCatchUpMode.Skip` | **Catch-up: Skip missed** |
+| `CronCatchUpMode.RunLatest` | **Catch-up: Run latest** |
+
+**Run now**, re-run, and chain retry start the work immediately and are not skipped for being late.
+
+## Replacing the removed startup option
+
+`SkipStaleCronOccurrencesOnStartup(...)` and `StaleCronOccurrenceThreshold` were removed. They
+applied one lateness decision to every cron in the process. Set `WhenMissed(SkipAfter(...))` on each
+cron that should not run late instead. See the
+[storage upgrade reference](/docs/5.x/guides/storage-upgrade#removed-stale-occurrence-options) for
+a before-and-after example, and [runtime reliability](/docs/5.x/guides/reliability#late-start-and-cron-catch-up)
+for how this fits with recovery and leases.

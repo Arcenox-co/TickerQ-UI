@@ -69,7 +69,29 @@ Configure the host's authentication and `SchedulerOperators` authorization polic
 
 Protect the key-ring directory with service-account permissions, persist it across restarts, and share it across replicas. Use your deployment's supported Data Protection key-encryption mechanism for keys at rest. Losing the key ring makes existing destinations unreadable; back it up with the operational database. Do not use an ephemeral key provider in production.
 
-Use **either** this package **or** `NotifyFailuresViaWebhook(...)`. Registering both fails with a configuration error. To migrate, remove the old option, then add its URL, headers, and an appropriate rule in Integrations. Opting into this package replaces the `ITickerQFailureNotifier` registration.
+Earlier releases configured failure alerts with `NotifyFailuresViaWebhook(...)`. That option no longer exists; `AddIntegrations` is the alert path. To migrate, remove the old call, then create a Custom webhook (or Slack/Teams) connection with its URL and headers, plus an alert rule for the events it should receive.
+
+### Custom failure notifier
+
+Without this package, core registers a no-op `ITickerQFailureNotifier`. An application can register its own implementation instead; `Notify(TickerFailureEvent)` receives every `failed`, `timeout_cancelled`, `stale_recovered`, and `contract_drift` event:
+
+```csharp
+using TickerQ.Utilities.Interfaces;
+using TickerQ.Utilities.Models;
+
+builder.Services.AddSingleton<ITickerQFailureNotifier, QueueingFailureNotifier>();
+
+public sealed class QueueingFailureNotifier : ITickerQFailureNotifier
+{
+    public void Notify(TickerFailureEvent failureEvent)
+    {
+        // Enqueue failureEvent.Kind, Function, TickerId, TickerType, Reason,
+        // RetryCount, Retries, OccurredAtUtc, and Node for background delivery.
+    }
+}
+```
+
+`Notify` is called from the execution pipeline, so it must not block: enqueue the event and send it elsewhere. For failed, timed-out, contract-drift, and stale-recovery events, TickerQ logs and swallows an exception thrown by the notifier. Dashboard test runs do not notify. `AddIntegrations` registers its own engine as the `ITickerQFailureNotifier`, so register a custom notifier only when you do not use this package.
 
 ## Configure in the dashboard
 
@@ -87,8 +109,10 @@ Each integration and rule saves independently. Cancelling an editor discards its
 | --- | --- |
 | `failed` | Final failure after the available retries |
 | `timeout_cancelled` | Execution timeout cancellation |
-| `stale_recovered` | Recovery of an abandoned job |
+| `stale_recovered` | One summary per recovery sweep that restarted or cancelled abandoned jobs, with the counts in its reason |
 | `contract_drift` | Stored request contract no longer matches the registered function contract |
+
+New rules select `failed` and `timeout_cancelled` with a 60-second cooldown. A `stale_recovered` event has no function name or job ID, so a rule with specific include patterns never matches it. Send it through a rule that matches all functions (an empty include list).
 
 Rules operate on scheduler events; they do not add messages for every retry, successful execution, or manual cancellation. Use a monitor with recovery enabled when you need an incident followed by a recovery message.
 

@@ -105,6 +105,8 @@ Serialization happens at the call; repeated calls keep the last value. The runti
 
 The convenience `SetResult(value)` and `GetParentResult<T>()` overloads use reflection-based JSON serialization. Prefer the `JsonTypeInfo<T>` overloads above for trimmed or Native AOT applications.
 
+A third overload, `SetResult(value, jsonTypeInfo, TickerResultContract)`, also records a declared result contract and its schema fingerprint. Generated code for an attribute's `ResultType` uses it; application code normally calls the two-argument overload.
+
 ## Publish from an ITickerFunction class
 
 `ITickerFunction.ExecuteAsync` returns `Task`; its result is published explicitly through the context. The generic argument in `ITickerFunction<TRequest>` describes the **request**, not the result. Both interfaces support the same `SetResult` and `GetParentResult` methods.
@@ -230,6 +232,14 @@ var payload = TickerHelper.CreateTickerRequest(
     new InvoiceRequest(orderId), "Invoices.Create");
 ```
 
-Use this after the function registry has been initialized. The explicit `JsonTypeInfo<T>` overload is useful when you already own the serialization context. Include all required request and result types in generated metadata, and verify your published application with trimming enabled. The source generator creates dispatch and contract registrations; it does not replace the application's `System.Text.Json` context for arbitrary DTOs.
+Use this after the function registry has been initialized. It uses the function's registered metadata only when a matching `JsonTypeInfo<T>` exists for that name and type. Otherwise, such as for an unknown name, a mismatched type, or a call before the registry is built, it silently falls back to reflection-based serialization, which is not Native-AOT-safe. To fail instead, resolve the metadata explicitly; `GetRequestTypeInfo<T>` throws when none is registered:
+
+```csharp
+var payload = TickerHelper.CreateTickerRequest(
+    new InvoiceRequest(orderId),
+    TickerFunctionProvider.GetRequestTypeInfo<InvoiceRequest>("Invoices.Create"));
+```
+
+The explicit `JsonTypeInfo<T>` overload is useful when you already own the serialization context. Include all required request and result types in generated metadata, and verify your published application with trimming enabled. The source generator creates dispatch and contract registrations; it does not replace the application's `System.Text.Json` context for arbitrary DTOs.
 
 Core generated dispatch does not make every optional component AOT-compatible. The current verified providers and exclusions are listed in the [Native AOT guide](/docs/5.x/guides/native-aot); successful compilation of an ordinary .NET build is not an AOT compatibility test.

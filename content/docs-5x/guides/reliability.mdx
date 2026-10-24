@@ -122,8 +122,8 @@ because the handler never ran.
 
 This replaces the removed process-wide `SkipStaleCronOccurrencesOnStartup(...)` and
 `StaleCronOccurrenceThreshold` settings. Per-schedule rules avoid applying one lateness decision to
-unrelated workloads. See [schedule policies](/docs/5.x/guides/schedule-policies) for business-calendar
-admission and complete examples.
+unrelated workloads. See [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts) for complete examples and
+[business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for calendar admission.
 
 ## Lease fencing
 
@@ -289,19 +289,22 @@ timeout fires:
 
 ## Graceful shutdown / drain
 
-On host shutdown TickerQ stops accepting new work, then waits for in-flight executions
-(queued, waiting-for-capacity, and executing) to finish:
+On host shutdown TickerQ stops accepting new root jobs, then waits for accepted work
+(queued attempts, attempts waiting for capacity or retrying, executing attempts, and chains
+between steps) to finish:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
 | `ShutdownDrainTimeout` | `30s` | How long to wait for in-flight executions before letting the host exit. `Zero` disables draining (jobs are abandoned and later healed by stale-job recovery). Also bounded by `HostOptions.ShutdownTimeout`. |
 
-Drain completion is measured from the scheduler's authoritative queued + active-execution
-counts, not inferred from worker threads. If the timeout is hit, the remaining queued/active
-counts are logged and abandoned jobs are recovered later through lease expiry.
+Drain completion is measured from the scheduler's own counts, not inferred from worker
+threads. The drain ends only when there are no queued attempts, no executing attempts, no
+active job orchestrations (accepted root workflows, including chains and jobs waiting to
+retry), and no acquired executions still registered for cancellation. If the timeout is hit,
+the remaining counts are logged and abandoned jobs are recovered later through lease expiry.
 
 The host shutdown deadline covers **all** services. Reserve time after scheduler drain for
-webhook delivery and execution-log persistence, for example:
+execution-log persistence, for example:
 
 ```csharp
 builder.Services.Configure<Microsoft.Extensions.Hosting.HostOptions>(options =>
@@ -311,11 +314,16 @@ builder.Services.Configure<Microsoft.Extensions.Hosting.HostOptions>(options =>
 });
 ```
 
-The built-in webhook pump stops after scheduler/recovery producers. It completes its queue
-and drains for up to 10 seconds, bounded by the remaining host deadline. HTTP timeouts,
-network failures, 408, 429 and 5xx responses receive bounded retries; other 4xx responses
-are logged without retry. Alerts remain best-effort: process crashes, queue overflow, or
-an exhausted shutdown deadline can lose notifications.
+[Integrations](/docs/5.x/integrations) alert delivery drains on shutdown. The alert worker is
+registered so that it stops after the scheduler and stale-job recovery, so failures raised while
+they drain are still queued. On stop it accepts no new events and keeps sending the queued ones
+for up to `IntegrationOptions.ShutdownDrainTimeout` (default 10 seconds), bounded by the host's
+`ShutdownTimeout`. This is separate from the scheduler's own `ShutdownDrainTimeout` above. Alerts
+still queued when the window closes are discarded and a warning is logged. While running, each delivery makes at most three HTTP attempts, retrying
+timeouts, network failures, 408, 429, and 5xx responses; other 4xx responses are not retried.
+Alerts remain best-effort: an exhausted drain window, process crashes, or queue overflow can lose them. Saved
+monitor transitions are persisted and resume after a restart; see
+[delivery guarantees](/docs/5.x/integrations/delivery#delivery-guarantees).
 
 Scheduler timing options are validated during `AddTickerQ`: finite positive maintenance
 intervals, a lease at least three times the renewal interval, positive worker/batch counts,
@@ -325,14 +333,16 @@ remain visible to lease renewal before any worker-capacity wait.
 
 ## Concurrency per host
 
-`SchedulerOptionsBuilder.MaxConcurrency` (default `Environment.ProcessorCount`) bounds
-active scheduler work items. Each item is awaited through its asynchronous lifecycle,
-including `LongRunning` work.
+`SchedulerOptionsBuilder.MaxConcurrency` (default `Environment.ProcessorCount`) is the
+maximum number of concurrent function attempts on this host. Standalone jobs, cron
+occurrences, and every individual chain step share this budget, including `LongRunning`
+work. For example, a limit of four allows at most four function attempts across all chains
+and standalone jobs combined.
 
-A time-chain root is one work item. Its handler can fan out to multiple `InProgress`
-children or matching siblings inside that item, so this setting is not a ceiling on
-every child function running across all chains. Use sequential chain structure for
-ordering and per-function concurrency for a handler-wide limit on this host. See
+An attempt keeps its slot across asynchronous I/O and until its delegate actually exits,
+including a delegate that ignores timeout cancellation. Waiting for a per-function permit,
+waiting between retries, and coordinating child jobs do not occupy an execution slot. Use
+per-function concurrency for a handler-wide limit on this host. See
 [scheduler settings](/docs/5.x/guides/scheduler#choose-the-right-concurrency-control).
 
 ## Run-now & bulk retry
@@ -351,8 +361,9 @@ Here `{basePath}` is the dashboard mount path (by default `/tickerq/dashboard`).
   `InProgress` or cannot be admitted (for example, a chain child or an owned aggregate).
 - **Run a cron ticker now** — `POST {basePath}/api/dashboard/cron-tickers/{id}/run`.
 - **Bulk retry** — `POST {basePath}/api/dashboard/executions/bulk-retry`. Runs each selected time ticker
-  through the same single-acquisition command; cron selections are de-duplicated per parent
-  cron id so one cron fires once regardless of how many occurrences are selected. The
+  through the same single-acquisition command. Each selected cron occurrence is rerun in
+  place (an occurrence that belongs to a recurring chain retries that chain); duplicate
+  occurrence IDs are ignored, but separate occurrences of the same cron are each rerun. The
   response's `Affected` count reflects only rows that were actually revived.
 
 Time run-now performs an atomic acquisition rather than merely changing `ExecutionTime`.
@@ -398,10 +409,16 @@ dispatch and notifications continue independently of caller cancellation after p
 If dispatch fails after acquisition, the result remains accepted, the error is logged, and
 normal lease-expiry recovery handles the persisted work when recovery is enabled.
 
-Cancellation is cooperative and applies only to executions registered on the current host
-in the manager's runtime partition. `AffectedRows` is `1` when a matching execution was
-signalled, or `0` when none was found. It does not delete a job, cancel an entire chain, or
-cancel work running on another server. Handlers must observe their cancellation token.
+Cancellation is cooperative and scoped to the manager's runtime partition. The manager first
+signals a matching execution registered on the current host. If none is running here and the
+provider supports cluster control (EF Core, MongoDB, Redis, and in-memory all do), it looks up
+the queued or in-progress execution's owner and stores a cancellation command for that node.
+The owning node polls for commands about once per second and signals the execution only if
+it still holds the same acquisition; an unprocessed command expires after about 30 seconds.
+`AffectedRows` is `1` when the local execution was signalled or the command was stored, and
+`0` when no queued or in-progress execution was found. A stored command does not confirm that
+the remote handler has stopped. Cancellation does not delete a job or cancel an entire chain.
+Handlers must observe their cancellation token.
 Disabling a cron prevents future scheduling and does not cancel an active occurrence.
 
 Manager insert operations fail when the provider reports zero inserted rows; an empty add

@@ -30,6 +30,7 @@ Register application-owned date providers and reconcile code-owned policies insi
 ```csharp
 builder.Services.AddTickerQ(options => options
     .UseApplicationNamespace("orders-production")
+    .UseReconciliationEpoch(1)
     .AddScheduleDateProvider<PublicHolidayProvider>()
     .UseSchedulePolicySeeder(async (policies, cancellationToken) =>
     {
@@ -43,12 +44,14 @@ builder.Services.AddTickerQ(options => options
 ```
 
 Policy seeding runs before time- and cron-ticker seeders, so those seeders can safely reference a
-reconciled policy. Every scheduler replica needs the same date-provider names and behavior. Keep
+reconciled policy. All seeders, including `UseSchedulePolicySeeder`, run only while a new
+[reconciliation epoch](#reconciliation-epoch) activates. A restart with the same, already-activated
+epoch skips them, so advance the epoch when you change a seeded policy in code. Every scheduler replica needs the same date-provider names and behavior. Keep
 provider evaluation local and deterministic; do not call remote calendar APIs from
 `IScheduleDateProvider.IsExcluded`.
 
 Policies are stored in the application namespace. Changing a node identifier does not create a
-separate policy set. See [schedule policies](/docs/5.x/guides/schedule-policies) for full definitions
+separate policy set. See [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for full definitions
 and [storage upgrade](/docs/5.x/guides/storage-upgrade#add-schedule-policy-storage) before deploying
 the new model to an existing database.
 
@@ -65,6 +68,8 @@ You run three Orders replicas and two Reporting replicas against one database:
 Replicas of one application use the **same namespace** and coordinate acquisition. A different namespace isolates time jobs, cron definitions/occurrences, and related runtime state. Namespaces are not worker names, and they are not a replacement for database credentials or a hostile-tenant security boundary.
 
 The readable namespace is converted to a canonical storage identity. The built-in providers persist ownership using `ApplicationNamespaceKey` and scoped storage structures; the database key is not necessarily the literal display name. Manager calls stamp the configured runtime identity automatically. Do not manually move a stored job into another partition.
+
+TickerQ trims the namespace and applies Unicode normalization (NFC), then compares it exactly. Matching is case-sensitive: `Orders-Production` and `orders-production` are different partitions. The value must be non-empty and at most 512 UTF-8 bytes. Changing the value later points the host at a new, empty partition; existing jobs stay under the old one. See [application namespace and identity](/docs/5.x/guides/troubleshooting#application-namespace-and-identity) for common symptoms.
 
 ## Which name goes where?
 
