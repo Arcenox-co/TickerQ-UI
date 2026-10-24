@@ -406,10 +406,28 @@ The check covers the `SchedulePolicies` table, its unique `UX_SchedulePolicies_N
 ### EF Core: the database provider is not supported
 
 ```text
-TickerQ cannot verify required relational indexes for provider '<provider>'. Schema/data versions will not be certified. Supported EF Core providers are SQLite, SQL Server, PostgreSQL (Npgsql), and MySQL (Pomelo or MySql.EntityFrameworkCore).
+TickerQ cannot verify required relational indexes for provider '<provider>'. Schema/data versions will not be certified. Supported EF Core providers are SQLite, SQL Server, PostgreSQL (Npgsql), MySQL (Pomelo or MySql.EntityFrameworkCore), and Oracle (Oracle.EntityFrameworkCore).
 ```
 
-Scheduler startup verifies indexes by reading the database catalog, which it can do only for these providers. This `TickerQStoreSchemaException` is reported directly; generating a migration does not fix it. Use a supported provider for scheduler hosts.
+Scheduler startup verifies indexes by reading the database catalog, which it can do only for these providers. MariaDB, CockroachDB, and YugabyteDB use the MySQL and PostgreSQL providers. This `TickerQStoreSchemaException` is reported directly; generating a migration does not fix it. Use a [supported database](/docs/5.x/entity-framework#supported-databases) for scheduler hosts.
+
+### EF Core: tables land in the wrong place on MySQL, MariaDB, or Oracle
+
+TickerQ's default schema is `ticker`. On MySQL and MariaDB a schema is a database, so the tables are created in a database named `ticker`. On Oracle a schema is a user, so table creation fails:
+
+```text
+ORA-01435: user does not exist
+```
+
+Call `SetSchema(...)` with your database name on MySQL or MariaDB, or with the owning Oracle user in uppercase. See [supported databases](/docs/5.x/entity-framework#supported-databases).
+
+### EF Core: CockroachDB schema creation or migration fails
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `CREATE SCHEMA usage inside a function definition is not supported`, or a syntax error near `do` | EF Core creates non-public schemas with a `DO` block, which CockroachDB cannot run | Use `SetSchema("public")` |
+| `Transaction is already completed` during a migration | CockroachDB 25.1+ commits the open transaction before schema changes (`autocommit_before_ddl`) | Add `Options=-c autocommit_before_ddl=false` to the migration connection string |
+| `EnsureCreated()` succeeds but tables are missing | CockroachDB's built-in `pg_extension` tables make the database look populated | Use migrations instead of `EnsureCreated()` |
 
 ### EF Core: activation fails on PostgreSQL or SQL Server after an upgrade
 

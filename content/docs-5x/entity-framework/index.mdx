@@ -3,7 +3,7 @@ title: "Entity Framework Core"
 description: "Persist TickerQ jobs in your application database with provider-independent EF Core integration."
 ---
 
-Use `TickerQ.EntityFrameworkCore` with one of the supported relational EF providers: SQLite, SQL Server, PostgreSQL (Npgsql), or MySQL (Pomelo or MySql.EntityFrameworkCore). Match the TickerQ package versions to your .NET line.
+Use `TickerQ.EntityFrameworkCore` with one of the [supported databases](#supported-databases): SQLite, SQL Server, PostgreSQL, MySQL, MariaDB, CockroachDB, YugabyteDB, or Oracle Database. Match the TickerQ package versions to your .NET line.
 
 ## Choose the context
 
@@ -53,9 +53,47 @@ dotnet ef database update --context AppDbContext
 
 Review the migration and apply it before scheduler startup. Use the same TickerQ package version and schema at design time and runtime. `EnsureCreated` is not an upgrade mechanism for an existing database.
 
-### Supported providers
+### Supported databases
 
-Scheduler startup verifies the required TickerQ indexes by reading the database's own catalog. That check recognizes only SQLite, SQL Server, PostgreSQL (Npgsql), and MySQL (Pomelo or MySql.EntityFrameworkCore) providers. Any other EF provider fails closed when a new reconciliation epoch is activated: startup throws a `TickerQStoreSchemaException` saying TickerQ cannot verify required relational indexes for that provider, and listing the supported providers.
+Scheduler startup verifies TickerQ's required indexes by reading the database's own catalog, so only databases TickerQ knows how to inspect can run a scheduler. Each database below passes TickerQ's relational conformance suite and an end-to-end scheduler run at the version shown.
+
+| Database | EF Core provider | Tested version |
+| --- | --- | --- |
+| SQLite | `Microsoft.EntityFrameworkCore.Sqlite` | Bundled SQLite 3 |
+| SQL Server | `Microsoft.EntityFrameworkCore.SqlServer` | SQL Server 2022 |
+| PostgreSQL | `Npgsql.EntityFrameworkCore.PostgreSQL` | PostgreSQL 17 |
+| MySQL | `MySql.EntityFrameworkCore` | MySQL 8.4 |
+| MariaDB | `MySql.EntityFrameworkCore` | MariaDB 11.4 |
+| CockroachDB | `Npgsql.EntityFrameworkCore.PostgreSQL` | CockroachDB 24.3 and 25.2 |
+| YugabyteDB (YSQL) | `Npgsql.EntityFrameworkCore.PostgreSQL` | YugabyteDB 2024.2 |
+| Oracle Database | `Oracle.EntityFrameworkCore` | Oracle Database 23ai Free |
+
+Pomelo (`Pomelo.EntityFrameworkCore.MySql`) is also recognized for MySQL and MariaDB, but it has no EF Core 10 release, so the EF Core 10 line was tested with `MySql.EntityFrameworkCore`. Any other EF provider fails closed when a new reconciliation epoch is activated: startup throws a `TickerQStoreSchemaException` saying TickerQ cannot verify required relational indexes for that provider, and listing the supported ones.
+
+Managed services run these same engines and use the same provider: Azure SQL Database and Azure SQL Managed Instance; Amazon RDS and Aurora for PostgreSQL and MySQL; Azure Database for PostgreSQL and MySQL; Google Cloud SQL; and hosted PostgreSQL such as Neon and Supabase. They are expected to work but were not tested separately. TickerQ relies on serializable transactions; behind a connection pooler such as PgBouncer, use session pooling or a direct connection, at least for migrations.
+
+TickerQ retries deadlocks and serialization conflicts itself on every supported database, so an EF execution strategy such as `EnableRetryOnFailure()` is optional.
+
+#### MySQL and MariaDB
+
+- A MySQL schema is a database. TickerQ's default schema `ticker` therefore places its tables in a database named `ticker`. Call `SetSchema("<your database>")` to keep them in the connection's database.
+- TickerQ rewrites EF Core's bulk-delete statements into a form MariaDB accepts. The rewrite is registered automatically for both `UseTickerQDbContext` and `UseApplicationDbContext`.
+- To stay within InnoDB's 3,072-byte index key limit, the assistant investigation index on MySQL and MariaDB covers `(ApplicationNamespace, OccurredAt)` and is named `IX_AssistantInvestigation_Namespace_OccurredAt`.
+
+#### CockroachDB
+
+- Keep TickerQ's tables in the `public` schema with `SetSchema("public")`. CockroachDB cannot run EF Core's schema creation for any other schema.
+- On CockroachDB 25.1 and later, add `Options=-c autocommit_before_ddl=false` to the connection string used for migrations or `AutoMigrateDatabase()`. Otherwise CockroachDB commits EF Core's migration transaction before its first schema change, and the migration fails with `Transaction is already completed`.
+- `EnsureCreated()` does not create tables on CockroachDB, because its built-in `pg_extension` tables make an empty database look populated. Use migrations.
+
+#### YugabyteDB
+
+Connect to the YSQL API (port 5433 by default) with the PostgreSQL provider. No other configuration is required.
+
+#### Oracle Database
+
+- Call `SetSchema` with the Oracle user that owns TickerQ's tables, in uppercase, for example `SetSchema("TICKERQ")`. TickerQ's default schema `ticker` names a lowercase user that normally does not exist, and table creation fails with `ORA-01435: user does not exist`.
+- Oracle indexes a row unless every key column is NULL, so a unique index over `(ApplicationNamespaceKey, SeedKey)` would reject a second cron without a `SeedKey`. On Oracle, TickerQ adds a virtual `SeedKeyScope` column to `CronTickers` and builds `UX_CronTickers_SeedKey` over `(SeedKeyScope, SeedKey)` instead. Migrations include it automatically.
 
 ### Current table inventory
 
@@ -108,6 +146,10 @@ modelBuilder.ApplyConfiguration(new TickerQControlCommandConfigurations("ticker"
 modelBuilder.ApplyConfiguration(new IntegrationSettingsConfigurations("ticker"));
 modelBuilder.ApplyConfiguration(new TickerQDefinitionConfigurations("ticker"));
 modelBuilder.ApplyConfiguration(new SchedulePolicyConfigurations("ticker"));
+
+// After the TickerQ configurations: database-specific adjustments (a no-op except on Oracle,
+// MySQL, and MariaDB). See "Supported databases" above.
+TickerProviderModelConventions.Apply(modelBuilder, Database.ProviderName);
 ```
 
 Use the same schema as `store.SetSchema(...)` (default `ticker`), and replace the ticker entity types if you extend them. Keep the complete current mapping in design-time tooling, including `ExecutionLogArchiveConfiguration`, `AssistantConversationConfigurations`, `AssistantMessageConfigurations`, `AssistantInvestigationConfigurations`, `AssistantInvestigationLeaseConfigurations`, and `AssistantInvestigationBudgetConfigurations`. Their tables remain part of the model when the related runtime feature is disabled.

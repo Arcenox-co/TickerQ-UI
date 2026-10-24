@@ -28,6 +28,7 @@ Treat the commercial 5.x line as an application upgrade. Updating a package refe
 | Nodes | Add `TickerQNodes` and `TickerQControlCommands` before using node discovery or cross-node cancellation. |
 | Saved work | Add `TickerQDefinitions` before saving drafts or chain templates. |
 | AI history | The EF model includes conversation, message, investigation, lease, and budget tables. `AddAssistantHistory()` enables their runtime services; apply the schema before assistant history or automatic investigation. |
+| EF Core dependencies | `TickerQ.EntityFrameworkCore` no longer depends on `FlexLabs.EntityFrameworkCore.Upsert`. If your application calls `Upsert(...)` itself, add a direct package reference. |
 | Integrations | The package and API names are `TickerQ.Integrations`, `AddIntegrations`, and `IntegrationSettings`. Rename existing preview storage without dropping encrypted settings. |
 | Execution logs | The EF model includes `ExecutionLogs`; apply the current schema before enabling database log storage. |
 | Schedule policies | The EF model always includes `SchedulePolicies` and the policy and late-start columns on `TimeTickers` and `CronTickers`, even when no policy is configured. Add them with an application-owned migration before the new binary starts. MongoDB creates its index at startup; Redis needs no schema step. See [schedule policy storage](/docs/5.x/guides/storage-upgrade#add-schedule-policy-storage). |

@@ -256,6 +256,19 @@ The current EF model always maps five assistant tables. `AddAssistantHistory()` 
 
 The unique namespace/execution index on investigations is required. Apply all five tables before enabling assistant history or automatic investigations; startup rejects automatic mode when its durable investigation store or coordinator is unavailable. Creating these tables does not enable AI or background provider calls by itself. Read [AI assistant](/docs/5.x/dashboard/ai-assistant#automatic-investigations).
 
+### Result payload column and database-specific model
+
+The result payload columns on `TimeTickerResults` and `CronTickerOccurrenceResults` no longer carry a 1 MiB column length. The limit is still enforced before every write. MySQL and MariaDB could not create a `varbinary(1048576)` column, so the payload now maps to each database's large binary type. On SQL Server (`varbinary(max)`), PostgreSQL (`bytea`), and SQLite (`BLOB`) the column type is unchanged. Your next generated migration may still contain an `AlterColumn` for `Payload` that only drops the length annotation.
+
+A few databases get model adjustments from TickerQ. Review them in the generated migration:
+
+| Database | Adjustment |
+| --- | --- |
+| Oracle | A virtual `SeedKeyScope` column on `CronTickers`, and `UX_CronTickers_SeedKey` over `(SeedKeyScope, SeedKey)` |
+| MySQL, MariaDB | `IX_AssistantInvestigation_Namespace_OccurredAt` over `(ApplicationNamespace, OccurredAt)` replaces the investigation index that exceeds InnoDB's key limit |
+
+See [supported databases](/docs/5.x/entity-framework#supported-databases) for the reasons and for CockroachDB's migration settings.
+
 ### Startup and data repair
 
 Schema migration must finish before TickerQ initialization. In particular, the activation metadata
