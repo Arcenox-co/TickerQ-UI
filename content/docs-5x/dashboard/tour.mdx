@@ -11,7 +11,7 @@ Select any screenshot to open the full-size image. See [dashboard setup](/docs/5
 
 | Task | Views |
 | --- | --- |
-| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view), [Saved work](#saved-work) |
+| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view), [Saved work](#saved-work), [Schedule policies](#schedule-policies) |
 | Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [AI Operations](#ai-operations) |
 | Configure alerts | [Integrations](#integrations), [Alert rules](#alert-rules), [Monitoring](#monitoring), [Message templates](#message-templates) |
 | Check the installation | [License](#license), [About](#about), [Nodes](#nodes), [Live updates](#live-updates-and-ownership) |
@@ -79,6 +79,20 @@ Progress counts all terminal steps, including skipped, failed, and cancelled ste
 Durable parallel groups appear as containers rather than fake function cards. Their branches stay inside the group, and a single merge rail leads to the success, failure, cancellation, or all-terminal outcomes. Edge colors describe the condition path; job cards keep the execution-status colors. Select a settled step to preview **Retry from this job**, or select the group to rerun all grouped branches.
 
 <DashboardScreenshot name="chain" alt="A grouped job chain with parallel branches and success, failure, cancellation, and final outcomes" caption="The workflow view separates the group container from real jobs and brings all available chain logs into one panel." />
+
+## Schedule policies
+
+Open **Policies → Schedule Policies** to manage reusable business calendars. Each card shows the
+policy's revision, time zone, allowed days, daily windows, and exclusions. Select **Preview** and
+enter a cron expression to see which of the next 20 candidates the policy allows or blocks, and why.
+
+Create and edit panels for time, cron, and chain jobs select a policy under **Advanced settings**,
+alongside the blocked-time, late-start, catch-up, timeout, and owner-loss rules. When a one-time job
+is moved by its policy, its details show the original **Requested** time and the schedule adjustment
+reason.
+
+Read [schedule policies](/docs/5.x/guides/schedule-policies) for policy rules, date providers, and
+late-start behavior.
 
 ## Executions
 

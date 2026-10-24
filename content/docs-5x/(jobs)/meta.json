@@ -9,6 +9,7 @@
     "../guides/managers",
     "---Schedule and execute---",
     "../guides/scheduling",
+    "../guides/schedule-policies",
     "../guides/job-lifecycle",
     "../guides/progress-retries-testing",
     "../guides/cron-overlap"

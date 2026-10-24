@@ -8,6 +8,7 @@
     "managers",
     "---Schedule and execute---",
     "scheduling",
+    "schedule-policies",
     "job-lifecycle",
     "progress-retries-testing",
     "cron-overlap",

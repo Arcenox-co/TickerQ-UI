@@ -10,7 +10,7 @@ TickerQ coordinates execution through persisted ownership and renewable leases. 
 | Topic | Reference |
 | --- | --- |
 | Duplicate processing and failed workers | [Execution guarantees](#execution-guarantee-at-least-once) · [Leases](#lease-fencing) |
-| Concurrency and late schedules | [Function limits](#per-function-concurrency) · [Overdue occurrences](#overdue-cron-occurrences) |
+| Concurrency and late schedules | [Function limits](#per-function-concurrency) · [Late-start and catch-up](#late-start-and-cron-catch-up) · [Overdue occurrences](#overdue-cron-occurrences) |
 | Shutdown and slow work | [Timeouts](#cooperative-in-process-timeouts) · [Drain](#graceful-shutdown--drain) |
 | Store-specific behavior | [Provider capabilities](#provider-reliability-capabilities) · [Cron cache](#ef-core-cron-expression-cache) |
 | Operator actions | [Run now](#run-now--bulk-retry) · [Manager results](#manager-operations-and-committed-results) |
@@ -96,6 +96,34 @@ live node. Store failures in fallback recovery are logged before retrying.
 This recovers existing occurrences; it does not create an occurrence for every cron slot
 missed while the application was offline. Actual start time still depends on available
 workers and concurrency limits.
+
+## Late-start and cron catch-up
+
+TickerQ separates work that **exists but starts late** from cron slots that **were never persisted**:
+
+| Control | Applies to | Default |
+| --- | --- | --- |
+| `WhenMissed(MissedExecutionPolicy.RunOnce())` | A persisted time ticker or cron occurrence waiting past its scheduled time. | Run once when capacity returns. |
+| `WhenMissed(MissedExecutionPolicy.SkipAfter(window))` | The same persisted work after a bounded lateness window. | Opt-in. |
+| `CatchUp(CronCatchUpMode.Skip)` | Cron slots missed while no scheduler was available to create them. | Do not create them. |
+| `CatchUp(CronCatchUpMode.RunLatest)` | The newest never-persisted cron slot still inside the lateness window. | Opt-in and bounded. |
+
+```csharp
+var schedule = CronSchedule.From("*/5 * * * *")
+    .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(2)))
+    .CatchUp(CronCatchUpMode.RunLatest);
+```
+
+`RunLatest` requires `SkipAfter`; TickerQ rejects an unbounded combination. It creates no more than
+one catch-up occurrence per definition and does not replay every interval from an outage. When a
+persisted root expires before user code begins, it becomes `Skipped`; a time chain settles its full
+graph, while an expired recurring occurrence does not materialize its chain. No retry is consumed
+because the handler never ran.
+
+This replaces the removed process-wide `SkipStaleCronOccurrencesOnStartup(...)` and
+`StaleCronOccurrenceThreshold` settings. Per-schedule rules avoid applying one lateness decision to
+unrelated workloads. See [schedule policies](/docs/5.x/guides/schedule-policies) for business-calendar
+admission and complete examples.
 
 ## Lease fencing
 

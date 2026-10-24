@@ -22,6 +22,29 @@ var jobId = result.Result.Id;
 
 Use UTC for `ExecutionTime`. Omitting it on a new root requests execution as soon as it can be admitted; it does not leave the job unscheduled. The function must already be registered. A successful add means the provider accepted the job; it does not mean the function has run.
 
+## Business calendars and late starts
+
+Use the typed `TimeSchedule` overload when a job must respect a named operating calendar or has a
+bounded useful start window:
+
+```csharp
+var result = await manager.AddAsync<InvoicesGenerateJob>(
+    TimeSchedule.At(DateTimeOffset.UtcNow.AddMinutes(10))
+        .UsingPolicy("EU business hours")
+        .WhenBlocked(BlockedOccurrenceBehavior.MoveForward)
+        .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(5))),
+    cancellationToken);
+```
+
+`WhenBlocked` handles a requested time outside the calendar: reject it, retain it as skipped
+evidence, or move it to the next allowed instant. `WhenMissed` applies later, when admitted work is
+still waiting after its scheduled time. Without `WhenMissed`, durable work runs once whenever a
+worker becomes available.
+
+Apply these settings to the root when building a chain. A skipped or expired root settles the
+complete graph without invoking child functions. See [schedule policies](/docs/5.x/guides/schedule-policies)
+for calendar creation, composition, date providers, revision behavior, and dashboard controls.
+
 ## Choose the right operation
 
 | Operation | Purpose |
@@ -46,4 +69,5 @@ For atomic scheduling with business data, use [EF transactional scheduling](/doc
 
 - [Requests and results](/docs/5.x/guides/requests-results) for typed input and output.
 - [One-time chains](/docs/5.x/guides/job-chaining) for dependent steps.
+- [Schedule policies](/docs/5.x/guides/schedule-policies) for operating calendars and late-start rules.
 - [History and retention](/docs/5.x/guides/retention) for automatic cleanup.

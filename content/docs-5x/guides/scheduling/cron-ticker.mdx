@@ -80,8 +80,38 @@ For a sequence of jobs on each run, add a [recurring chain template](/docs/5.x/g
 
 The scheduler time zone interprets cron expressions. Changing the dashboard's display time zone only changes how timestamps are displayed.
 
+## Time zones, calendars, and catch-up
+
+Use `CronSchedule` when a recurring definition needs an explicit time zone, reusable schedule
+policy, late-start limit, or downtime catch-up rule:
+
+```csharp
+var result = await manager.AddAsync<DailyInvoicesJob>(
+    CronSchedule.From("0 8 * * 1-5")
+        .InTimeZone("Europe/Tirane")
+        .UsingPolicy("EU business hours")
+        .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(10)))
+        .CatchUp(CronCatchUpMode.RunLatest),
+    cancellationToken);
+```
+
+The cron time zone produces candidate instants. The policy evaluates those candidates in its own
+time zone and omits blocked occurrences. `WhenMissed` limits how late an occurrence that already
+exists may enter user code. `RunLatest` addresses a different gap: it creates at most the newest
+slot missed while no scheduler was available, provided that slot is still inside the bounded
+`SkipAfter` window. The default catch-up mode is `Skip`.
+
+These settings also belong on the root of a recurring-chain builder. Read
+[schedule policies](/docs/5.x/guides/schedule-policies) for the complete behavior and
+[runtime reliability](/docs/5.x/guides/reliability#late-start-and-cron-catch-up) for failure and
+recovery boundaries.
+
 ## Choose code or a dynamic definition
 
 Use an attribute or `WithCron` for a schedule owned by the deployed application. Use the manager or dashboard for schedules that operators create and change at runtime. Two definitions may call the same function; function-name equality does not deduplicate dynamic schedules. Save the returned definition ID and update that record.
 
-A cron expression schedules future occurrences; it is not a backlog of every calendar slot missed during downtime. Recovery handles existing overdue occurrences. See [runtime reliability](/docs/5.x/guides/reliability#overdue-cron-occurrences) and [application identity](/docs/5.x/guides/configuration) before running multiple replicas.
+A cron expression schedules future occurrences; it is not an unlimited backlog of every calendar
+slot missed during downtime. Recovery handles existing overdue occurrences. `RunLatest` is an
+explicit, bounded exception that creates only the newest qualifying missed slot. See
+[runtime reliability](/docs/5.x/guides/reliability#late-start-and-cron-catch-up) and
+[application identity](/docs/5.x/guides/configuration) before running multiple replicas.

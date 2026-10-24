@@ -10,6 +10,8 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | I need to… | Start here |
 | --- | --- |
 | Save a new job now | `AddAsync` |
+| Apply a calendar or late-start rule | Typed `AddAsync<TFunction>(TimeSchedule/CronSchedule, ...)` |
+| Create or inspect a reusable calendar | `ISchedulePolicyManager` |
 | Commit new work with my business transaction | `StageAsync` with the EF application context |
 | Stop pending work before its handler runs | Time `CancelAsync` |
 | Ask a running handler to stop | `RequestCancellationAsync` on the owning host |
@@ -36,6 +38,11 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 
 `AddBatchAsync`, `UpdateBatchAsync`, and `DeleteBatchAsync` are also available. Batch atomicity depends on the operation and provider; do not assume multiple independent calls form one transaction. Use [EF staging](/docs/5.x/entity-framework/transactional-scheduling) for new jobs that must commit with business data.
 
+Typed `AddAsync<TFunction>(TimeSchedule, ct)` and
+`AddAsync<TFunction, TRequest>(TimeSchedule, request, ct)` preserve the same manager result contract
+while adding policy, blocked-time, and missed-execution settings. See
+[schedule policies](/docs/5.x/guides/schedule-policies).
+
 ## Cron operations and identifiers
 
 | Method | Identifier / behavior |
@@ -50,6 +57,29 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | `DeleteAsync(cronId, ct)` | Delete an eligible definition; this is not an occurrence cancellation operation |
 
 Cron managers also support add/update/delete batches and typed `AddAsync<TFunction>` overloads. A recurring-chain occurrence is a dispatcher: after its chain is launched, manage the resulting time jobs individually.
+
+Use `AddAsync<TFunction>(CronSchedule, ct)` or its typed-request overload for an explicit time zone,
+schedule policy, late-start rule, or catch-up mode. String-expression overloads remain supported for
+simple definitions.
+
+## Schedule policy operations
+
+Inject `ISchedulePolicyManager` to manage namespace-scoped calendar definitions:
+
+| Method | Behavior |
+| --- | --- |
+| `ListAsync(ct)` / `GetAsync(id, ct)` | Read policies and their current revisions |
+| `CreateAsync(policy, ct)` | Create a uniquely named policy |
+| `UpsertAsync(policy, ct)` | Create or reconcile the policy with the same normalized name |
+| `UpdateAsync(policy, expectedVersion, ct)` | Update rules using optimistic concurrency; names remain stable |
+| `DeleteAsync(id, expectedVersion, ct)` | Delete only when no ticker or policy references it |
+| `EvaluateAsync(name, instant, ct)` | Explain whether one UTC instant is allowed |
+| `FindNextAllowedAsync(name, instant, ct)` | Find the next allowed instant |
+| `PreviewCronAsync(...)` | Preview allowed and blocked cron candidates without creating occurrences |
+
+Use `UseSchedulePolicySeeder(...)` with `UpsertAsync` for code-owned definitions. Use
+`CreateAsync`/`UpdateAsync` for operator-owned policies created through application code. The
+dashboard uses the same manager contract and passes the displayed revision as `expectedVersion`.
 
 ## Interpret the result
 

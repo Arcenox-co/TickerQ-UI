@@ -15,6 +15,7 @@ The upgrade is additive, but it is not schema-optional. Install the required sch
 | Starting with an empty store | [Provider setup](/docs/5.x/getting-started/installation) and [application identity](/docs/5.x/guides/configuration); legacy adoption is unnecessary |
 | Upgrading an existing durable store | [Rollout sequence](#recommended-rollout), then your provider below |
 | Renaming the old namespace API only | [Application namespace configuration](#application-namespace-configuration) |
+| Enabling schedule policies or late-start rules | [Schedule policy storage](#add-schedule-policy-storage) |
 | Taking ownership of old code-defined crons | [Explicit legacy ownership migration](#explicit-legacy-ownership-migration) |
 | Moving all namespace-less runtime data to one owner | [Runtime partition adoption](#explicit-legacy-runtime-partition-adoption) |
 
@@ -26,6 +27,70 @@ Replace `UseDefinedCronApplicationNamespace(...)` with `UseApplicationNamespace(
 configuration. This API rename reflects its scope across both time tickers and cron schedules. Keep
 the same namespace value and reconciliation epoch: the rename itself does not change storage keys,
 require a database migration, or move existing jobs.
+
+## Add schedule policy storage
+
+[Schedule policies](/docs/5.x/guides/schedule-policies) add durable calendar definitions and
+scheduling evidence. The current model includes them even when no policy is configured, so enabling
+policies later does not change TickerQ registration. An existing relational database still needs an
+application-owned migration before an upgraded binary starts.
+
+For EF Core, generate the migration from the final application model and verify that it adds:
+
+| Table | Additive shape |
+| --- | --- |
+| `SchedulePolicies` | Primary key `ApplicationNamespaceKey` + `Id`; `Name` (200), `NameKey` (64), `Description` (2000), `DefinitionJson`, `CreatedAtUtc`, `UpdatedAtUtc`, and `Version` |
+| `SchedulePolicies` indexes | Unique `UX_SchedulePolicies_Name` on `ApplicationNamespaceKey` + `NameKey`; `IX_SchedulePolicies_Updated` on `ApplicationNamespaceKey` + `UpdatedAtUtc` |
+| `TimeTickers` | Nullable `SchedulePolicyName` (200), `SchedulePolicyVersion`, `BlockedOccurrenceBehavior`, `RequestedExecutionTime`, `ScheduleAdjustmentReason` (1000), and `MaximumLateness`; non-null `MissedExecutionAction` defaulting to `RunOnce` (0) |
+| `CronTickers` | Nullable `SchedulePolicyName` (200), `SchedulePolicyVersion`, `BlockedOccurrenceBehavior`, `TimeZoneId` (128), and `MaximumLateness`; non-null `MissedExecutionAction` defaulting to `RunOnce` (0) and `CatchUpMode` defaulting to `Skip` (0) |
+| Ticker indexes | `IX_TimeTicker_SchedulePolicy` and `IX_CronTickers_SchedulePolicy` on `ApplicationNamespaceKey` + `SchedulePolicyName`, used to find policy usages |
+
+```bash
+dotnet ef migrations add AddSchedulePolicies \
+  --project src/MyApp.Persistence \
+  --startup-project src/MyApp \
+  --context AppDbContext
+```
+
+The repository's ApplicationDbContext, Console, WebApi, and documentation demo samples contain
+reviewed `AddSchedulePolicies` migrations for comparison. Generate your own migration with your
+production EF provider; do not copy a sample's SQLite migration.
+
+Existing ticker rows keep null policy fields and the default `RunOnce`/`Skip` values, so their
+behavior does not change. Do not synthesize policy names for historical rows. `EnsureCreated()`
+includes the shape for a new database but does not alter an existing one.
+
+Provider notes:
+
+- **MongoDB** provisions the unique namespace/name index during normal index initialization.
+- **Redis** stores policies under namespace-scoped keys and needs no schema step.
+- **In-memory** policies are process-local and are lost on restart; seed them with
+  `UseSchedulePolicySeeder(...)`.
+- **Custom providers** must implement `ISchedulePolicyStore` to support policy operations and must
+  explicitly support cron catch-up before `RunLatest` is accepted.
+
+Apply the schema before any node writes policy metadata. Older binaries ignore the new columns and
+do not enforce calendar admission or late-start rules, so do not create policy-bound schedules while
+mixed versions are running. Register the same `IScheduleDateProvider` names and behavior on every
+scheduler node before deploying policies that reference them.
+
+### Removed stale-occurrence options
+
+`SkipStaleCronOccurrencesOnStartup(...)` and `SchedulerOptionsBuilder.StaleCronOccurrenceThreshold`
+were removed. Their process-wide startup sweep could not express different requirements per
+schedule. Replace them with a per-schedule rule:
+
+```csharp
+// Before
+options.SkipStaleCronOccurrencesOnStartup(TimeSpan.FromMinutes(10));
+
+// After: on each cron definition that should not run late
+CronSchedule.From("*/5 * * * *")
+    .WhenMissed(MissedExecutionPolicy.SkipAfter(TimeSpan.FromMinutes(10)));
+```
+
+Add `CatchUp(CronCatchUpMode.RunLatest)` only when the latest slot missed during downtime should also
+run. See [late-start and cron catch-up](/docs/5.x/guides/reliability#late-start-and-cron-catch-up).
 
 ## Guarantees and boundaries
 
@@ -150,6 +215,8 @@ The generated model must include:
 - The complete `NodeFinalizationOutbox` table and its current identity/due indexes whenever the current TickerQ EF model maps it.
 - The `TickerQNodes` heartbeat table and `TickerQControlCommands` durable control table.
 - The `TickerQDefinitions` table used by chain templates and non-executable time drafts, including its normalized unique `NameKey` index.
+- The `SchedulePolicies` table and the schedule-policy, missed-execution, and catch-up columns on
+  `TimeTickers` and `CronTickers`; see [schedule policy storage](#add-schedule-policy-storage).
 - `ExecutionLogs` and the five assistant tables: `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`. The current EF model includes them even when the corresponding runtime features are disabled.
 
 The repository's ApplicationDbContext, Console, and WebApi samples contain reviewed host-owned
@@ -383,6 +450,7 @@ Before completing rollout, verify:
 - the EF migration/snapshot or provider indexes contain every required additive field and constraint;
 - for EF Core, `TickerQStoreMetadata` reports a supported schema/data version and no framework data migration remains pending;
 - for MongoDB, bootstrap indexes and required transaction topology are ready; for Redis, available repair checkpoints have been inspected separately;
+- `SchedulePolicies` and its unique namespace/name index exist, and existing tickers report `RunOnce` and `Skip` defaults;
 - every reachable non-root TimeTicker has the expected `ChainRootId`;
 - no primary key, terminal status, or result changed during backfill;
 - exactly one active code-owned CronTicker exists per `SeedKey`;

@@ -22,6 +22,36 @@ builder.Services.AddTickerQ(options =>
 });
 ```
 
+## Schedule policy startup configuration
+
+Register application-owned date providers and reconcile code-owned policies inside the same
+`AddTickerQ` configuration:
+
+```csharp
+builder.Services.AddTickerQ(options => options
+    .UseApplicationNamespace("orders-production")
+    .AddScheduleDateProvider<PublicHolidayProvider>()
+    .UseSchedulePolicySeeder(async (policies, cancellationToken) =>
+    {
+        await policies.UpsertAsync(
+            SchedulePolicy.Create("Orders operating calendar")
+                .InTimeZone("Europe/Tirane")
+                .ExcludeDatesFrom("Public holidays")
+                .Build(),
+            cancellationToken);
+    }));
+```
+
+Policy seeding runs before time- and cron-ticker seeders, so those seeders can safely reference a
+reconciled policy. Every scheduler replica needs the same date-provider names and behavior. Keep
+provider evaluation local and deterministic; do not call remote calendar APIs from
+`IScheduleDateProvider.IsExcluded`.
+
+Policies are stored in the application namespace. Changing a node identifier does not create a
+separate policy set. See [schedule policies](/docs/5.x/guides/schedule-policies) for full definitions
+and [storage upgrade](/docs/5.x/guides/storage-upgrade#add-schedule-policy-storage) before deploying
+the new model to an existing database.
+
 ## A practical example
 
 You run three Orders replicas and two Reporting replicas against one database:
