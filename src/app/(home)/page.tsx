@@ -37,7 +37,7 @@ export default async function HomePage() {
           </div>
           <div className="divide-y divide-fd-border border-y border-fd-border">
             {[
-              { title: 'Entity Framework Core', text: 'SQL Server, PostgreSQL, and SQLite', href: '/docs/5.x/entity-framework' },
+              { title: 'Entity Framework Core', text: 'SQL Server, PostgreSQL, MySQL, MariaDB, Oracle, SQLite, CockroachDB, and YugabyteDB', href: '/docs/5.x/entity-framework' },
               { title: 'MongoDB', text: 'Document-based operational storage', href: '/docs/5.x/mongodb' },
               { title: 'Redis', text: 'Operational storage and optional caching', href: '/docs/5.x/redis' },
               { title: 'OpenTelemetry', text: 'Execution traces and runtime metrics', href: '/docs/5.x/opentelemetry' },

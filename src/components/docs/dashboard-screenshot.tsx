@@ -1,7 +1,8 @@
 import Image from "next/image";
+import { dashboardScreenshot } from "@/lib/dashboard-images";
 
 export function DashboardScreenshot({ name, alt, caption }: { name: string; alt: string; caption: string }) {
-  const src = `/images/dashboard/${name}.jpg`;
+  const src = dashboardScreenshot(name);
   return (
     <figure className="not-prose my-7 overflow-hidden rounded-xl border border-fd-border bg-fd-card">
       <a href={src} target="_blank" rel="noopener noreferrer" aria-label={`Open full-size screenshot: ${alt}`} className="block bg-[#080c16] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fd-primary">

@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowDown, ArrowRight, BellRing, Check, CheckCheck, CircleAlert, Clock3, Database, FileText, GitBranch, GitCommitHorizontal, Mail, ShoppingBag, Webhook } from 'lucide-react';
+import { ArrowDown, ArrowRight, Ban, BellRing, CalendarClock, Check, CheckCheck, CircleAlert, Clock3, Database, FileText, GitBranch, GitCommitHorizontal, Mail, ShoppingBag, Webhook } from 'lucide-react';
 
 const diagramClass = 'relative flex h-64 items-center justify-center overflow-hidden border-b border-fd-border bg-fd-muted/30 px-5 sm:px-6';
 const nodeClass = 'flex items-center gap-3 rounded-lg border border-fd-border bg-fd-background px-3.5 py-3 shadow-sm';
@@ -60,6 +60,39 @@ function TransactionDiagram() {
   );
 }
 
+const policyDays = [
+  { day: 'Mon', allowed: true }, { day: 'Tue', allowed: true }, { day: 'Wed', allowed: true },
+  { day: 'Thu', allowed: true }, { day: 'Fri', allowed: true }, { day: 'Sat', allowed: false }, { day: 'Sun', allowed: false },
+];
+
+function PolicyDiagram() {
+  return (
+    <div role="img" aria-label="Example: The Payments settlement policy allows weekdays from 08:00 to 18:00, requires Business hours, and is blocked during the maintenance window. A job requested for Saturday 09:00 moves to Monday 08:00." className={diagramClass}>
+      <div aria-hidden="true" className="w-full max-w-72">
+        <div className="rounded-lg border border-fd-border bg-fd-background px-4 py-3 shadow-sm">
+          <p className="mb-2.5 flex items-center gap-2 text-xs font-semibold"><CalendarClock className="size-3.5 text-sky-700 dark:text-sky-400" />Payments settlement<span className="ml-auto font-normal text-fd-muted-foreground">08:00–18:00</span></p>
+          <div className="grid grid-cols-7 gap-1">
+            {policyDays.map(({ day, allowed }) => (
+              <span key={day} className={`rounded border py-0.5 text-center text-[10px] font-medium ${allowed ? 'border-sky-600/30 bg-sky-500/10 text-sky-800 dark:text-sky-300' : 'border-fd-border text-fd-muted-foreground/60 line-through'}`}>{day}</span>
+            ))}
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-1.5 text-[10px] font-medium">
+            <span className="inline-flex items-center gap-1 rounded-full border border-teal-600/30 bg-teal-500/10 px-2 py-0.5 text-teal-800 dark:text-teal-300"><Check className="size-3" />Requires Business hours</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-rose-600/30 bg-rose-500/10 px-2 py-0.5 text-rose-700 dark:text-rose-300"><Ban className="size-3" />Except maintenance</span>
+          </div>
+        </div>
+        <div className="mx-auto h-4 w-px bg-fd-border" />
+        <div className="flex items-center justify-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2.5 text-[11px]">
+          <span className="text-fd-muted-foreground line-through">Sat 09:00</span>
+          <ArrowRight className="size-3.5 text-sky-700 dark:text-sky-400" />
+          <span className="font-semibold">Mon 08:00</span>
+          <span className="text-fd-muted-foreground">moved forward</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MonitoringDiagram() {
   return (
     <div role="img" aria-label="Example: Daily invoices miss the 08:00 deadline and recover at 08:12. Alerts and recovery updates can be sent to Slack, Microsoft Teams, or a webhook." className={diagramClass}>
@@ -97,6 +130,12 @@ const capabilities = [
     href: '/docs/5.x/entity-framework/transactional-scheduling', link: 'See how staging works',
   },
   {
+    category: 'Schedule policies', icon: CalendarClock, diagram: PolicyDiagram,
+    title: 'Run only when the business allows.',
+    description: 'Define business hours, holidays, and maintenance windows once. Cron runs outside a policy are skipped, and one-time jobs can move to the next allowed time.',
+    href: '/docs/5.x/guides/schedule-policies/business-calendars', link: 'Define a business calendar',
+  },
+  {
     category: 'Monitoring & integrations', icon: BellRing, diagram: MonitoringDiagram,
     title: 'Keep your team in the loop.',
     description: 'Watch deadlines, repeated failures, and long runs. Choose functions, destinations, and recovery updates in the dashboard.',
@@ -113,9 +152,9 @@ export function HomeCapabilities() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700 dark:text-teal-400">Built around real application work</p>
             <h2 id="capabilities-heading" className="mt-3 max-w-xl text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">From scheduling to knowing it’s done.</h2>
           </div>
-          <p className="max-w-md text-sm leading-6 text-fd-muted-foreground">Connect the steps, keep jobs with your business data, and let the right people know when work needs attention.</p>
+          <p className="max-w-md text-sm leading-6 text-fd-muted-foreground">Connect the steps, keep jobs with your business data, run them only when your calendar allows, and let the right people know when work needs attention.</p>
         </div>
-        <div className="grid gap-5 lg:grid-cols-3">
+        <div className="grid gap-5 md:grid-cols-2">
           {capabilities.map(({ category, icon: Icon, diagram: Diagram, title, description, href, link }) => (
             <article key={category} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-fd-border bg-fd-background">
               <Diagram />

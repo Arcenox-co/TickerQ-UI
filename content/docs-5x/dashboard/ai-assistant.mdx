@@ -17,7 +17,29 @@ Open **AI → Chat AI** in the dashboard sidebar. The page is headed **TickerQ A
 | **Chat** | Streaming operational assistant, saved conversations, and confirmation cards |
 | **Investigations** | Searchable, namespace-scoped diagnoses with Unread, Read, and Resolved review states |
 
-The Investigations tab and the Overview counts require an investigation store; without one, Overview reports that structured investigation history is not configured. Chips under the heading show the enabled capabilities, such as private chat history, run or automatic investigations, source context, and whether actions require approval or the session is read-only.
+The Investigations tab and the Overview counts require an investigation store; without one, Overview reports that structured investigation history is not configured. The strip under the heading shows the connected model and the enabled capabilities, such as private or browser-only chat history, run or automatic investigations, source context, and whether actions require approval or the session is read-only.
+
+### Connection status
+
+The badge next to **TickerQ Assistant** and the strip under it show the model connection:
+
+| Badge | Strip | Meaning |
+| --- | --- | --- |
+| **Connected** | **Local model**, provider, model, endpoint | The model endpoint is on the dashboard host, such as Ollama or LM Studio. Messages stay on the machine. |
+| **Connected** | **Hosted model**, provider, model, endpoint | Messages and tool results are sent to that provider. |
+| **Connected** | **Model** | The chat client does not report its endpoint, so the dashboard does not say where messages go. |
+| **Not connected** | **No model connected** | The host did not call `AddAssistant(...)` with a chat client. Nothing is sent anywhere. |
+| **Connection failed** | **Model unavailable** | The host configured a chat client, but creating it failed, for example because an API key is missing. |
+
+The dashboard reads the provider, endpoint, and default model from the chat client's
+`ChatClientMetadata`. It shows only the endpoint's host and port, never its path, query string, or
+credentials. A host name such as `localhost` or a loopback address counts as local.
+
+When no model is connected, the Chat tab stays open and explains how to connect one, with examples
+for a hosted model that uses an API key and a local model that needs none. The composer is disabled,
+and the Overview and Investigations tabs are unavailable.
+
+<DashboardScreenshot name="assistant-not-connected" alt="Chat AI page showing Not connected, with hosted and local model setup options and a disabled composer" caption="Without a chat client, the chat explains how to connect a hosted or local model instead of failing silently." />
 
 Opening an investigation marks it read for users with write access. Resolving it records an operator review state; it does not change the underlying execution. Repeated investigations for the same function are grouped visually, newest first, while each execution remains individually selectable and deletable. Read-only users can browse investigations, but the review and delete controls are hidden and the API returns 403 when they mark an investigation read or resolved or delete one.
 
@@ -27,10 +49,13 @@ Opening an investigation marks it read for users with write access. Resolving it
 
 1. Open **AI → Chat AI** in the dashboard sidebar, then select the **Chat** tab. The page opens on **Overview**.
 2. Select a suggested question to send it immediately, or type your own request. Press **Enter** to send and **Shift+Enter** for a new line.
-3. Read the answer as it streams, then ask a follow-up in the same conversation. Include the function name or execution ID when you want to inspect a particular job, or choose **Continue in chat** on a saved investigation.
-4. If the assistant proposes a change, review the action card before applying it. Asking a question does not apply a proposed change.
+3. Read the answer as it streams. Select **Stop** to cancel an answer in progress; the text received so far is kept and marked as stopped. Hover over an answer to copy it.
+4. Ask a follow-up in the same conversation. Include the function name or execution ID when you want to inspect a particular job, or choose **Continue in chat** on a saved investigation.
+5. If the assistant proposes a change, review the action card before applying it. Asking a question does not apply a proposed change.
 
-The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. When the host calls `WithModelName(...)`, a **Model** chip under the **TickerQ Assistant** heading shows that label; without it, no model chip appears. Provider selection and credentials are configured on the server.
+The starting questions cover failed jobs, execution logs, registered functions, scheduler health, and integrations. The line under the composer says where messages go for the connected model. The strip shows the label set by `WithModelName(...)`, or the chat client's default model when no label is set. Provider selection and credentials are configured on the server.
+
+<DashboardScreenshot name="assistant-chat" alt="Chat tab with conversation history, suggested question cards, and a local-model privacy note under the composer" caption="With server history enabled, saved conversations appear on the left. The documentation demo uses a local model." />
 
 <DashboardScreenshot name="assistant-conversation" alt="Assistant chat continuing from a saved failed-execution investigation" caption="Continue in chat keeps the conversation scoped to the selected execution and can refresh live evidence for follow-up questions." />
 
@@ -50,6 +75,8 @@ The assistant drafts review cards for:
 
 - One-time job and chain drafts, plus cron schedules and recurring chains.
 - Cron schedule updates, including enabling/disabling a schedule.
+- New schedule policies and changes to existing ones, and attaching, switching, or removing the
+  policy on a cron schedule. See [schedule policies](#schedule-policies).
 - Execution retries, cancellation, and deletion.
 - New alert rules and deadline, long-running or consecutive-failure monitors, using
   existing integration destinations and optional recovery notifications.
@@ -61,8 +88,28 @@ The assistant drafts review cards for:
 | Draft a recurring workflow | “Run Prepare then Publish every weekday at 08:00.” |
 | Monitor repeated failures | “Alert Operations if GenerateInvoices fails three times.” |
 | Set a completion deadline | “Monitor GenerateInvoices: finish by 08:00 Europe/Belgrade, with ten minutes of grace and a recovery message.” |
+| Review calendars | “List my schedule policies and which cron tickers use them.” |
+| Draft a calendar | “Create a weekend deliveries policy in Europe/Tirane, 09:00 to 17:00, blocked during the maintenance window.” |
 
 Replace the example function and destination names with ones configured in your application. The assistant works with registered handlers and existing integration destinations.
+
+### Schedule policies
+
+When the host has schedule policies, the assistant can work with them directly:
+
+| Request | What happens |
+| --- | --- |
+| List policies | Shows each policy's time zone, days, hours, exclusions, composition, and the cron tickers that use it |
+| Preview a policy | Checks up to 20 upcoming occurrences of a cron expression and gives the reason for each block |
+| Create or change a policy | Shows a card with the time zone, day chips, hours, dates, and required or blocking policies |
+| Attach a policy to a cron schedule | Shows a card with the current policy crossed out next to the new one; **None** removes it |
+| Create a cron schedule with a policy | The new cron card includes the policy |
+
+When a change names an existing policy, the card updates that policy. Fields you do not mention keep
+their current values, and each changed field shows its previous value. Ask for the policy time zone
+explicitly when it matters; the assistant asks when it is unclear.
+
+<DashboardScreenshot name="assistant-policy-proposal" alt="Chat showing a Create schedule policy card with time zone, weekend days, hours, yearly exclusion, and a blocking policy" caption="The card lists every rule of the proposed policy. Nothing is saved until you select Confirm." />
 
 ## Confirm operational changes
 
@@ -88,7 +135,9 @@ Confirmation uses the normal authenticated dashboard APIs, including their read-
 license and integration-management checks. Execution cards recheck observed status
 and execution timestamps before submitting; the underlying APIs still enforce current
 state. Integration proposals retain the configuration version and fail on concurrent
-edits. Read-only users receive no proposal tools, and users without integration-management
+edits. Schedule policy updates are pinned to the policy revision they were drafted from and fail
+if someone changed the policy first. Policy cards for a cron schedule fail if the schedule's
+function, expression, or current policy changed. Read-only users receive no proposal tools, and users without integration-management
 permission receive no alert-rule or monitor proposal tools.
 
 A running cancellation requests cooperation through the handler's cancellation token;
@@ -120,9 +169,43 @@ options.AddDashboard(dashboard =>
 });
 ```
 
+The examples below use the `Microsoft.Extensions.AI.OpenAI` package. A hosted model needs an API key;
+keep it in server configuration:
+
+```csharp
+using OpenAI;
+
+var chatClient = new OpenAIClient(builder.Configuration["OpenAI:ApiKey"])
+    .GetChatClient("gpt-4o-mini")
+    .AsIChatClient();
+
+options.AddDashboard(dashboard => dashboard
+    .AddAssistant(ai => ai.UseChatClient(chatClient).WithModelName("gpt-4o-mini")));
+```
+
+A local server with an OpenAI-compatible endpoint, such as Ollama or LM Studio, needs no API key.
+Choose a model that supports tool calling:
+
+```csharp
+using System.ClientModel;
+using OpenAI;
+
+var chatClient = new OpenAIClient(
+        new ApiKeyCredential("ollama"), // Ollama ignores the key
+        new OpenAIClientOptions { Endpoint = new Uri("http://localhost:11434/v1") })
+    .GetChatClient("llama3.1")
+    .AsIChatClient();
+
+options.AddDashboard(dashboard => dashboard
+    .AddAssistant(ai => ai.UseChatClient(chatClient).WithModelName("llama3.1")));
+```
+
+The dashboard shows this connection as a **Local model** and tells operators that messages stay on
+the machine. A local server reached through the OpenAI SDK is labeled **OpenAI-compatible**.
+
 ## Provider settings
 
-Keep API credentials in server configuration or a secret store. `WithModelName(...)` sets the **Model** chip shown under the page heading and is not set by default; the model itself is selected when constructing your `IChatClient`. `WithMaxToolIterations(...)` limits tool round-trips per turn, not your provider's token budget. An unreachable provider, invalid credentials, or exhausted quota still prevents a reply even when the dashboard reports that the assistant is configured.
+Keep API credentials in server configuration or a secret store. `WithModelName(...)` sets the model label shown in the strip under the page heading. Without it, the strip shows the default model the chat client reports, if any; the model itself is selected when constructing your `IChatClient`. `WithMaxToolIterations(...)` limits tool round-trips per turn, not your provider's token budget. If the chat client factory throws, for example because an API key is missing, the page shows **Connection failed**. An unreachable provider, invalid credentials, or exhausted quota are only detected when a message is sent, so they still prevent a reply while the page shows **Connected**.
 
 `UseChatClient` resolves its factory once from the root service provider. Supply a client suitable for singleton use; do not capture scoped database services. The dashboard wraps it for tool invocation and disposes the resulting client with the application. `WithSystemPrompt(...)` replaces the default prompt; preserve the instructions about untrusted tool data, read-only behavior, and explicit confirmation if you customize it.
 
@@ -244,9 +327,12 @@ chains at 100 steps, ten levels, and five children per step.
 
 | Symptom | Check |
 | --- | --- |
-| AI assistant is not configured | Register an `IChatClient` and pass it to `AddAssistant` |
+| **Not connected** | Register an `IChatClient` and pass it to `AddAssistant`, then restart the application |
+| **Connection failed** | The chat client factory threw; check the API key, endpoint, and host logs |
+| **Connected** without provider or endpoint | The chat client does not report `ChatClientMetadata`; set `WithModelName(...)` for a label |
 | Configured, but no reply | Check the provider's credentials, endpoint, quota, and host logs using the error reference |
 | Answers work, but no action cards appear | Check read-only permissions and whether the provider supports tool calls |
+| No schedule policy answers or cards | Check that the host registers schedule policies; read-only users can list and preview but receive no policy cards |
 | Integration information is unavailable | Enable `AddIntegrations`; reading integration status needs no extra permission |
 | No alert-rule or monitor cards appear | Grant integration-management access to a user who also has write access |
 | A proposal is rejected when confirmed | Reload current job/configuration state and check write, license, and integration permissions |

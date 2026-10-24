@@ -20,7 +20,7 @@ Select any screenshot to open the full-size image. See [dashboard setup](/docs/5
 
 Start here for scheduler state, current workers, execution volume, and recent or upcoming jobs. Follow a job link to its details. The scheduler controls affect the host responding to this dashboard; they do not pause every replica.
 
-<DashboardScreenshot name="overview-2026-10-23" alt="Overview showing scheduler state, active nodes, job totals, execution volume, and scheduled work" caption="The documentation demo combines recent work, scheduler capacity, and cluster state in one view." />
+<DashboardScreenshot name="overview" alt="Overview showing scheduler state, active nodes, job totals, execution volume, and scheduled work" caption="The documentation demo combines recent work, scheduler capacity, and cluster state in one view." />
 
 ## Time tickers
 
@@ -82,14 +82,28 @@ Durable parallel groups appear as containers rather than fake function cards. Th
 
 ## Schedule policies
 
-Open **Policies → Schedule Policies** to manage reusable business calendars. Each card shows the
-policy's revision, time zone, allowed days, daily windows, and exclusions. Select **Preview** and
-enter a cron expression to see which of the next 20 candidates the policy allows or blocks, and why.
+Open **Policies → Schedule Policies** to manage reusable business calendars. Every card has the same
+size and shows the policy's revision, time zone, allowed days, daily windows, exclusions, and the
+policies it requires or is blocked by.
+
+<DashboardScreenshot name="schedule-policies" alt="Schedule Policies page with four equal cards showing time zones, allowed days, daily windows, exclusions, and composition" caption="Allowed days are highlighted and blocked days are struck through. Composed policies show their Requires and Except references." />
+
+Select **Preview** to check a cron expression against the policy. The dialog shows how many of the
+next 20 occurrences are allowed or blocked, and the reason for each one, in the policy's time zone.
+
+<DashboardScreenshot name="schedule-policy-preview" alt="Policy preview dialog listing allowed and blocked occurrences of a daily cron expression with reasons" caption="Weekend occurrences are blocked because the required Business hours policy does not allow them." />
+
+In the editor, **Combine policies** sets each other policy to **Not used**, **Require**, or
+**Exclude**. Required policies turn green and excluded policies turn red.
+
+<DashboardScreenshot name="schedule-policy-editor" alt="Schedule policy editor with Business hours required and Maintenance window excluded" caption="Payments settlement requires Business hours and is blocked whenever the maintenance window allows." />
 
 Create and edit panels for time, cron, and chain jobs select a policy under **Advanced settings**,
 alongside the blocked-time, late-start, catch-up, timeout, and owner-loss rules. When a one-time job
 is moved by its policy, its details show the original **Requested** time and the schedule adjustment
 reason.
+
+<DashboardScreenshot name="policy-moved-job" alt="Time ticker details showing its schedule policy, the original requested time, and the adjustment reason" caption="A Saturday request under Business hours moves to the next allowed weekday time." />
 
 Read [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for policy rules and date providers, and
 [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts) for the late-start settings.
@@ -186,19 +200,27 @@ Open **Clustering → Nodes** to compare replicas in the current application nam
 
 Read [nodes and cluster operations](/docs/5.x/dashboard/clustering).
 
-<DashboardScreenshot name="nodes" alt="Nodes page showing active replicas and an offline node in one application namespace" caption="Heartbeat state, capacity, queue pressure, version, and registered functions make replica differences visible." />
+<DashboardScreenshot name="nodes" alt="Nodes page showing two healthy replicas in one application namespace" caption="Heartbeat state, capacity, queue pressure, version, and registered functions make replica differences visible." />
 
 ## AI assistant
 
-Open **AI → Chat AI** in the sidebar. The **TickerQ Assistant** page opens on its **Overview** tab, with **Chat** and **Investigations** as separate tabs. The assistant can inspect runtime data, diagnose one failed or cancelled execution, retain review states, and propose supported actions for confirmation. Optional automatic investigation uses a shared namespace budget and coordination lease so replicas do not purchase the same diagnosis concurrently. Your host supplies the AI provider and decides whether source excerpts are available.
+Open **AI → Chat AI** in the sidebar. The **TickerQ Assistant** page opens on its **Overview** tab, with **Chat** and **Investigations** as separate tabs. A badge next to the heading shows whether a model is connected, and the strip below it shows whether the model is local or hosted, with its provider, model, and endpoint. The assistant can inspect runtime data, diagnose one failed or cancelled execution, retain review states, and propose supported actions for confirmation. Optional automatic investigation uses a shared namespace budget and coordination lease so replicas do not purchase the same diagnosis concurrently. Your host supplies the AI provider and decides whether source excerpts are available.
 
 <DashboardScreenshot name="assistant-overview" alt="TickerQ Assistant overview with unread findings, recoveries, recent investigations, and repeated patterns" caption="Overview summarizes investigation counts, recent investigations, and repeated failure patterns." />
 
 <DashboardScreenshot name="assistant-investigations" alt="Investigations page grouping repeated diagnoses while retaining each execution" caption="Repeated failures can reuse one diagnosis without losing per-execution review state." />
 
-Select the **Chat** tab, then choose a suggested question or type a request in the composer. Answers stream into the conversation. Proposed changes appear as action cards that you review and confirm or dismiss.
+Select the **Chat** tab, then choose a suggested question or type a request in the composer. Answers stream into the conversation, and **Stop** cancels an answer in progress. The line under the composer says where messages go: a local model keeps them on the machine, and a hosted model sends them to its provider.
+
+<DashboardScreenshot name="assistant-chat" alt="Chat tab with conversation history, suggested questions, and a local-model privacy note under the composer" caption="The documentation demo uses a local model, so messages stay on the machine." />
+
+Proposed changes appear as action cards that you review and confirm or dismiss. For example, the assistant can list schedule policies and draft a new one.
+
+<DashboardScreenshot name="assistant-policy-proposal" alt="Chat showing a Create schedule policy card with time zone, weekend days, hours, yearly exclusion, and a blocking policy" caption="Nothing is saved until you confirm the card." />
 
 <DashboardScreenshot name="assistant-conversation" alt="Assistant chat continuing from a saved failed-execution investigation" caption="Continue in chat keeps follow-up questions scoped to the selected execution and its current evidence." />
+
+When no model is configured, the chat explains that it is not connected and shows setup examples for a hosted model with an API key and a local model without one.
 
 See [AI assistant setup, history, source context, and automatic investigations](/docs/5.x/dashboard/ai-assistant).
 
@@ -210,4 +232,4 @@ The sign-in page shows the configured environment, application label, and namesp
 
 ## Reproduce the screenshots
 
-The [`TickerQ.Docs.Demo`](https://github.com/Arcenox-co/TickerQ/tree/main/samples/TickerQ.Docs.Demo) sample is the source for this tour. It uses the current project references, a real EF Core migration, database execution logs, saved definitions, integrations, cluster state, and a deterministic local assistant client. Start two nodes against one SQLite database, sign in with the sample credentials, then call its `/demo/seed` endpoint to recreate the fixture. The sample README contains the exact commands and explains which records deliberately fail or remain paused.
+The [`TickerQ.Docs.Demo`](https://github.com/Arcenox-co/TickerQ/tree/main/samples/TickerQ.Docs.Demo) sample is the source for this tour. It uses the current project references, a real EF Core migration, database execution logs, saved definitions, integrations, schedule policies, cluster state, and a deterministic local assistant client. Start two nodes against one SQLite database, sign in with the sample credentials, then call its `/demo/seed` endpoint to recreate the fixture. The sample README contains the exact commands and explains which records deliberately fail or remain paused.
