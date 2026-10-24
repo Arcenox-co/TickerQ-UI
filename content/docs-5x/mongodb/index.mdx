@@ -36,6 +36,8 @@ options.AddOperationalStore(store => store
 
 This replaces the `UseTickerQMongoClient(...)` registration above. Sharing the client does not enlist manager operations in a business operation's `IClientSessionHandle`.
 
+TickerQ registers its `IMongoClient` and `IMongoDatabase` with `TryAddSingleton`. If the host already registered either service before `AddTickerQ`, TickerQ keeps the host's registration: the connection string passed to `UseTickerQMongoClient(...)` is ignored when an `IMongoClient` exists, and the database name passed to either method is ignored when an `IMongoDatabase` exists. A host `IMongoDatabase` therefore decides which database TickerQ uses. Registering either service after `AddTickerQ` with `AddSingleton` has the same effect, because dependency injection resolves the last registration.
+
 ## Collections and startup
 
 Indexes are established idempotently on startup. The application identity needs collection read/write and index-management privileges. Default collection names use the `ticker_` prefix:
@@ -48,8 +50,10 @@ Indexes are established idempotently on startup. The application identity needs 
 | `ticker_TickerResults` | Persisted job results |
 | `ticker_NodeFinalizationOutbox` | Durable remote execution finalization records |
 | `ticker_StoreMetadata` | Namespace activation and reconciliation metadata |
+| `ticker_TickerQDefinitions` | Saved chain templates and time-job drafts |
+| `ticker_SchedulePolicies` | Schedule policy definitions |
 
-Integration configuration uses `ticker_TimeTickers_IntegrationSettings`, and persisted execution logs use `ticker_TimeTickers_ExecutionLogs`. `SetCollectionPrefix(...)` changes the base prefix; it does not migrate existing collections. Keep the database, prefix, namespace, and deployment epoch consistent across replicas serving the same application.
+Some collections are named after the time-ticker collection: integration configuration uses `ticker_TimeTickers_IntegrationSettings`, persisted execution logs use `ticker_TimeTickers_ExecutionLogs`, node and control-command records use `ticker_TimeTickers_ClusterControl`, and the transactional graph-mutation fence uses `ticker_TimeTickers_GraphFence`. `SetCollectionPrefix(...)` changes the base prefix for every collection; it does not migrate existing collections. Keep the database, prefix, namespace, and deployment epoch consistent across replicas serving the same application.
 
 ## Transactions and custom entities
 

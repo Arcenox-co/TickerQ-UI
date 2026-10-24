@@ -11,8 +11,8 @@ Select any screenshot to open the full-size image. See [dashboard setup](/docs/5
 
 | Task | Views |
 | --- | --- |
-| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view), [Saved work](#saved-work) |
-| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [AI Operations](#ai-operations) |
+| Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view), [Saved work](#saved-work), [Schedule policies](#schedule-policies) |
+| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [AI assistant](#ai-assistant) |
 | Configure alerts | [Integrations](#integrations), [Alert rules](#alert-rules), [Monitoring](#monitoring), [Message templates](#message-templates) |
 | Check the installation | [License](#license), [About](#about), [Nodes](#nodes), [Live updates](#live-updates-and-ownership) |
 
@@ -34,15 +34,15 @@ Learn about [time scheduling](/docs/5.x/guides/scheduling/time-ticker) and [canc
 
 ## Saved work
 
-Saved work separates non-executable drafts from reusable chain templates. Search and order saved definitions, open a draft to edit its inherited execution time, or update a template in place. Activating a draft asks you to keep or change its time and publishes the graph once through a durable activation claim.
+Saved work separates non-executable drafts from reusable chain templates. It is a side panel rather than a sidebar view: open it with **Drafts & templates** on Time Tickers or **Templates** on Cron Tickers. Search and order saved definitions, open a draft to edit its inherited execution time, or update a template in place. **Review activation** on a draft opens **Activate draft**, where you keep or change its time and choose **Activate now** or **Activate and schedule**; the graph is published once through a durable activation claim.
 
 Read [drafts, templates, and activation](/docs/5.x/dashboard/saved-work).
 
-<DashboardScreenshot name="saved-work" alt="Saved work page showing one-time drafts and reusable workflow templates" caption="Drafts remain non-executable until activation; templates preserve reusable graph structure." />
+<DashboardScreenshot name="saved-work" alt="Saved work panel showing one-time drafts and reusable workflow templates" caption="Drafts remain non-executable until activation; templates preserve reusable graph structure." />
 
 ### Visual chain builder
 
-Create or edit a chain as a graph. A group starts its member jobs together, waits for their descendants to settle, and then evaluates outcome steps. Use **Test chain** for an ephemeral run, **Save draft** for unfinished one-time work, or **Save template** for a reusable chain definition.
+Create or edit a chain as a graph. A group starts its member jobs together, waits for their descendants to settle, and then evaluates outcome steps. Use **Test chain** for an ephemeral run, **Save draft** for unfinished one-time work, or **Save template** for a reusable chain definition. **Use Templates** opens a picker with your saved templates and starter layouts to pre-fill the canvas.
 
 <DashboardScreenshot name="chain-builder" alt="Visual chain builder with a grouped parallel stage and all-terminal outcome jobs" caption="The builder uses the same group and outcome model displayed by the execution flowchart." />
 
@@ -79,6 +79,20 @@ Progress counts all terminal steps, including skipped, failed, and cancelled ste
 Durable parallel groups appear as containers rather than fake function cards. Their branches stay inside the group, and a single merge rail leads to the success, failure, cancellation, or all-terminal outcomes. Edge colors describe the condition path; job cards keep the execution-status colors. Select a settled step to preview **Retry from this job**, or select the group to rerun all grouped branches.
 
 <DashboardScreenshot name="chain" alt="A grouped job chain with parallel branches and success, failure, cancellation, and final outcomes" caption="The workflow view separates the group container from real jobs and brings all available chain logs into one panel." />
+
+## Schedule policies
+
+Open **Policies → Schedule Policies** to manage reusable business calendars. Each card shows the
+policy's revision, time zone, allowed days, daily windows, and exclusions. Select **Preview** and
+enter a cron expression to see which of the next 20 candidates the policy allows or blocks, and why.
+
+Create and edit panels for time, cron, and chain jobs select a policy under **Advanced settings**,
+alongside the blocked-time, late-start, catch-up, timeout, and owner-loss rules. When a one-time job
+is moved by its policy, its details show the original **Requested** time and the schedule adjustment
+reason.
+
+Read [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for policy rules and date providers, and
+[late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts) for the late-start settings.
 
 ## Executions
 
@@ -174,17 +188,17 @@ Read [nodes and cluster operations](/docs/5.x/dashboard/clustering).
 
 <DashboardScreenshot name="nodes" alt="Nodes page showing active replicas and an offline node in one application namespace" caption="Heartbeat state, capacity, queue pressure, version, and registered functions make replica differences visible." />
 
-## AI Operations
+## AI assistant
 
-The optional assistant has Overview, Chat, and Investigations views. It can inspect runtime data, diagnose one failed or cancelled execution, retain review states, and propose supported actions for confirmation. Optional automatic investigation uses a shared namespace budget and coordination lease so replicas do not purchase the same diagnosis concurrently. Your host supplies the AI provider and decides whether source excerpts are available.
+Open **AI → Chat AI** in the sidebar. The **TickerQ Assistant** page opens on its **Overview** tab, with **Chat** and **Investigations** as separate tabs. The assistant can inspect runtime data, diagnose one failed or cancelled execution, retain review states, and propose supported actions for confirmation. Optional automatic investigation uses a shared namespace budget and coordination lease so replicas do not purchase the same diagnosis concurrently. Your host supplies the AI provider and decides whether source excerpts are available.
 
-<DashboardScreenshot name="assistant-overview" alt="AI Operations overview with unread diagnoses, recovery signals, and repeated failures" caption="Overview summarizes investigation activity and recent operational evidence." />
+<DashboardScreenshot name="assistant-overview" alt="TickerQ Assistant overview with unread findings, recoveries, recent investigations, and repeated patterns" caption="Overview summarizes investigation counts, recent investigations, and repeated failure patterns." />
 
 <DashboardScreenshot name="assistant-investigations" alt="Investigations page grouping repeated diagnoses while retaining each execution" caption="Repeated failures can reuse one diagnosis without losing per-execution review state." />
 
-Open **AI → Chat AI**, select a suggested question, or type a request in the composer. Answers stream into the conversation. Proposed changes appear as action cards that you review and confirm or dismiss.
+Select the **Chat** tab, then choose a suggested question or type a request in the composer. Answers stream into the conversation. Proposed changes appear as action cards that you review and confirm or dismiss.
 
-<DashboardScreenshot name="assistant-conversation" alt="Chat AI continuing from a saved failed-execution investigation" caption="Continue in chat keeps follow-up questions scoped to the selected execution and its current evidence." />
+<DashboardScreenshot name="assistant-conversation" alt="Assistant chat continuing from a saved failed-execution investigation" caption="Continue in chat keeps follow-up questions scoped to the selected execution and its current evidence." />
 
 See [AI assistant setup, history, source context, and automatic investigations](/docs/5.x/dashboard/ai-assistant).
 

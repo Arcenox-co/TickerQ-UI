@@ -104,7 +104,7 @@ options.AddStackExchangeRedis(redis =>
 
 The verified Native AOT path covers:
 
-- in-memory scheduling, typed requests, time chains, cron occurrences, cancellation, and dashboard reads;
+- in-memory scheduling, typed requests, time chains, cron occurrences, cancellation, time-zone-aware [schedule policies](/docs/5.x/guides/schedule-policies/business-calendars) with registered date providers and their dashboard endpoints, dashboard reads, and dashboard write authorization;
 - Redis scheduling, typed payloads, chains, point reads, and paginated dashboard queries;
 - encrypted integration settings and the scheduler integration event path; and
 - OpenTelemetry enqueue, execution, and completion activities.

@@ -8,6 +8,26 @@ Capture is enabled by default; database persistence is **off by default**. Conso
 host startup logs, and structured logger scopes are not captured. Normal host logging
 filters also apply. The default minimum captured level is `Information`.
 
+Logger categories that start with an entry in `ExcludedCategoryPrefixes` are not captured.
+The default list contains `Microsoft.EntityFrameworkCore.Database`, so EF Core SQL command,
+connection, and transaction logs emitted during a job stay out of its tail (they still reach
+your normal logging providers). Prefixes are matched case-sensitively from the start of the
+category name; entries cannot be blank:
+
+```csharp
+options.ConfigureExecutionLogs(logs =>
+{
+    // Also exclude a noisy client library; keep the EF Core default.
+    logs.ExcludedCategoryPrefixes =
+    [
+        "Microsoft.EntityFrameworkCore.Database",
+        "System.Net.Http.HttpClient"
+    ];
+    // Or capture every category allowed by MinimumLevel, including EF Core SQL:
+    // logs.ExcludedCategoryPrefixes = [];
+});
+```
+
 <DashboardScreenshot name="execution-logs" alt="Job details showing persisted lifecycle, progress, and application failure logs" caption="A database-backed log tail with application source context and retry evidence." />
 
 ## Find the relevant setup
@@ -126,6 +146,7 @@ tail. Keep centralized application logging if you need complete history.
 | Setting | Default | Effect |
 | --- | --- | --- |
 | `MinimumLevel` | Information | Excludes Debug and Trace unless explicitly enabled |
+| `ExcludedCategoryPrefixes` | `Microsoft.EntityFrameworkCore.Database` | Skips logger categories starting with these prefixes; empty captures all categories |
 | `MaxLinesPerExecution` | 200 | Keeps the latest lines per ticker |
 | `MaxMessageBytes` | 2 KiB | Clips each message at a UTF-8 boundary |
 | `MaxBytesPerExecution` | 32 KiB | Caps the encoded tail before GZip compression |

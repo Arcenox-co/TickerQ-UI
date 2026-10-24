@@ -24,6 +24,15 @@ if (!scheduled.IsSucceeded)
 
 `StartWith<TFunction, TRequest>(request)` validates the root request against the registered function contract. `Then<TFunction>()` advances the current linear path. Overloads accepting `TickerFunctionRef`, function names, typed requests, and per-step options are also available.
 
+Chain-level settings apply to the root and go on the builder before `StartWith`:
+
+| Method | Effect |
+| --- | --- |
+| `WithDescription(text)` | Root description |
+| `RunAt(executionTime)` | Root execution time; use UTC. When omitted, the chain runs as soon as it can be admitted |
+| `WithDeleteBehavior(behavior)` | Root [chain-deletion](/docs/5.x/guides/chain-deletion) policy; defaults to `Cascade` |
+| `UsingPolicy`, `WhenBlocked`, `WhenMissed` | Root [business calendar](/docs/5.x/guides/schedule-policies/business-calendars#chains) and [late-start](/docs/5.x/guides/schedule-policies/late-starts) rules |
+
 Configure an individual step inside its callback:
 
 ```csharp
@@ -142,7 +151,7 @@ A skipped conditional branch skips its descendants. It does not run those descen
 
 ## Retry without rebuilding the chain
 
-After the complete chain settles, retry a failed or cancelled step in place:
+After the complete chain settles, retry any step in place. The step does not need to be failed or cancelled, but every job in the chain must be terminal and none can still be owned or leased:
 
 ```csharp
 var retried = await timeTickerManager.RetryFromAsync(
@@ -150,7 +159,7 @@ var retried = await timeTickerManager.RetryFromAsync(
     cancellationToken);
 ```
 
-The selected step and its affected downstream path run under a new generation. Completed ancestors are traversed without calling their functions again. Retrying a grouped branch re-evaluates group outcomes while preserving completed siblings; retrying the structural group reruns every grouped branch. The dashboard previews this impact before applying it. Read [progress, retries, and test runs](/docs/5.x/guides/progress-retries-testing) for the full operational contract.
+The selected step and its affected downstream path run under a new generation. Completed ancestors are traversed without calling their functions again. Retrying a grouped branch re-evaluates group outcomes while preserving completed siblings; retrying the structural group reruns every grouped branch. The dashboard previews this impact before applying it. A successful call returns the chain's root entity. Chains with more than 1,000 jobs, or a selected step more than 50 levels deep (counting the root), are rejected. The calling host's scheduler must be running and licensed. Read [progress, retries, and test runs](/docs/5.x/guides/progress-retries-testing) for the full operational contract.
 
 ## Shape, storage, and the dashboard
 
@@ -165,4 +174,4 @@ Keep graphs within the dashboard limits when operators need a complete visual hi
 
 The flowchart groups parallel branches, draws one join rail for their outcomes, and separates the job result color from the condition path color. Select a job for its request, parent input, committed output, error source frame, and logs. Aggregate badges distinguish **Running**, **Waiting**, successful completion, failures, cancellations, and skipped branches.
 
-`Restrict` protects unfinished descendants from deletion and releases automatically after every descendant becomes terminal. Read [chain deletion](/docs/5.x/guides/chain-deletion). Use [recurring chains](/docs/5.x/guides/recurring-chains) when the graph should be materialized for every cron occurrence, and [StageAsync](/docs/5.x/entity-framework/transactional-scheduling) when the graph must commit with business data.
+Set `WithDeleteBehavior(ChainDeleteBehavior.Restrict)` on the builder, or `DeleteBehavior` on an entity root, to change the default. `Restrict` protects unfinished descendants from deletion and releases automatically after every descendant becomes terminal. Read [chain deletion](/docs/5.x/guides/chain-deletion). Use [recurring chains](/docs/5.x/guides/recurring-chains) when the graph should be materialized for every cron occurrence, and [StageAsync](/docs/5.x/entity-framework/transactional-scheduling) when the graph must commit with business data.

@@ -1,26 +1,35 @@
 ---
 title: "Troubleshooting"
-description: "Find the cause of missing runs, pending chains, unavailable logs, and alert delivery problems."
+description: "Find the cause of missing runs, namespace and epoch startup errors, schedule policy rejections, storage failures, pending chains, unavailable logs, and alert delivery problems."
 ---
 
-Start with **License**, **About → Functions**, and **System → Diagnostics** on the dashboard, then inspect the affected job's details and logs. Diagnostics describe the responding host, not the whole cluster. If startup fails before the dashboard is available, use the host logs.
+Start with **License**, **About → Functions**, and **System → Diagnostics** on the dashboard, then inspect the affected job's details and logs. **About → Host → Application namespace** (also shown in the top bar) tells you which runtime partition the responding host reads and writes; **Legacy global** means no namespace is configured. Diagnostics describe the responding host, not the whole cluster. If startup fails before the dashboard is available, use the host logs.
+
+Most startup failures in this page are deliberate: TickerQ stops rather than guess ownership or ordering. Fix the reported cause instead of editing activation metadata or deleting rows to get past the error. Exact messages are quoted so you can search for them.
 
 ## Find the relevant check
 
 | Symptom | Go to |
 | --- | --- |
 | A job never starts | [Scheduling checks](#a-job-is-not-running) |
+| Jobs are saved but never picked up, or disappeared after a configuration change | [Application namespace and identity](#application-namespace-and-identity) |
+| Startup fails with a namespace, epoch, activation, or legacy-ownership error | [Startup and reconciliation epoch](#startup-and-reconciliation-epoch) |
+| A manager call never returns | [Manager calls wait for activation](#a-manager-call-never-returns) |
 | A cron missed a run | [Occurrence checks](#a-cron-run-is-missing-or-skipped) |
+| A schedule policy rejects, moves, or skips work | [Schedule policies](#schedule-policies) |
 | A chain is still waiting | [Chain state](#a-chain-says-waiting-after-its-root-finished) |
 | Cancellation or logs are confusing | [Cancellation](#cancellation-was-accepted-but-work-continues) · [Log capture](#logs-are-missing-or-disappear-after-restart) |
+| EF Core, MongoDB, or Redis fails at startup | [Storage](#a-migration-or-activation-fails) · [Storage providers](#storage-providers) |
 | Lists load but live updates are delayed | [Dashboard live updates](#dashboard-live-updates-are-delayed) |
-| Alerts, startup, or permissions fail | [Integrations](#an-integration-did-not-send-an-alert) · [Storage](#a-migration-or-activation-fails) · [Access](#login-succeeds-but-dashboard-access-or-controls-are-wrong) |
+| Dashboard registration, sign-in, or **Run now** fails | [Dashboard configuration](#dashboard-configuration-errors) · [Access](#login-succeeds-but-dashboard-access-or-controls-are-wrong) |
+| Alerts are not sent | [Integrations](#an-integration-did-not-send-an-alert) |
 
 ## A job is not running
 
 | Check | What to verify |
 | --- | --- |
 | License | The certificate is present and valid on every worker |
+| Startup | `UseTickerQ()` is called, and the host log has no TickerQ startup exception |
 | Scheduler | The host is running, startup activation completed, and `DisableBackgroundServices()` is not enabled on every process |
 | Function | The exact persisted function name exists in **About → Functions** |
 | Runtime identity | Producers and workers use the same application namespace and store; worker replicas use the intended epoch |
@@ -28,15 +37,319 @@ Start with **License**, **About → Functions**, and **System → Diagnostics** 
 | Capacity | Worker slots and any per-function permits are available |
 | Persisted state | EF staging was saved and committed; the job was not cancelled, skipped, or already acquired |
 
+These host-log warnings explain a scheduler that never begins:
+
+```text
+TickerQ — UseTickerQ() was not called. Call app.UseTickerQ() before app.Run() to initialize the scheduler.
+```
+
+```text
+TickerQ — No ticker functions registered. Register an ITickerFunction with MapTicker<T>() or decorate a method with [TickerFunction].
+```
+
+`app.UseTickerQ(TickerQStartMode.Manual)` deliberately keeps the scheduler stopped until you start it through `ITickerQHostScheduler`; **Diagnostics → Scheduler → State** then shows **Stopped**. See [starting the scheduler manually](/docs/5.x/guides/scheduler#start-the-scheduler-manually).
+
+A process that creates jobs must also know the function. Creating a cron job for an unregistered name fails with `Cannot find TickerFunction with name <function>`; a single time job fails with a message containing `No request contract is registered for function '<function>'.` A worker that acquires a job without the function records this failure:
+
+```text
+Ticker function '<function>' was not found in the registered functions. Register an ITickerFunction with MapTicker<T>() or decorate a method with [TickerFunction].
+```
+
 A five-part cron such as `* * * * *` is supported, including configuration references. Six-part expressions place seconds first. Verify the resolved configuration value and next run; an empty or invalid value should be investigated in startup diagnostics.
 
-Startup reconciliation runs under a deployment epoch. Restarting a changed binary with an already-activated epoch does not apply its new manifest. Advance the epoch for changed definitions or contracts using your [rollout plan](/docs/5.x/guides/storage-upgrade).
+Startup reconciliation runs under a deployment epoch. Restarting a changed binary with an already-activated epoch does not apply its new manifest. Advance the epoch for changed definitions or contracts using your [rollout plan](/docs/5.x/guides/storage-upgrade). See [changes were not applied](#code-or-seeder-changes-were-not-applied-after-a-deploy).
+
+## Application namespace and identity
+
+`UseApplicationNamespace(...)` selects the runtime partition. Time tickers, cron definitions and occurrences, schedule policies, activation metadata, node heartbeats, and control commands are stored under it, and a process reads and writes only its own partition. Background on choosing names is in [application namespace and workers](/docs/5.x/guides/configuration).
+
+The namespace is trimmed and Unicode-normalized, then compared exactly. It is **case-sensitive**: `Orders-Production` and `orders-production` are different partitions.
+
+### A scheduler host fails during registration
+
+```text
+Scheduler-enabled TickerQ registration requires an explicit application namespace.
+```
+
+`AddTickerQ` throws this when background services are enabled and no namespace is configured. Add `options.UseApplicationNamespace("orders-production")` to every scheduler host. Only processes that call `DisableBackgroundServices()` may omit it, and then they write to the legacy-global partition.
+
+```text
+A non-empty application namespace is required.
+```
+
+`UseApplicationNamespace` received `null`, an empty string, or whitespace. This usually means a configuration key was missing in that environment. Read the value explicitly and fail with your own message when it is absent.
+
+```text
+The application namespace must be at most 512 UTF-8 bytes after trimming; the configured value is <n> bytes.
+```
+
+The namespace is longer than 512 UTF-8 bytes after trimming and Unicode normalization. Characters outside ASCII take more than one byte each. Use a short, stable name. The storage key is a fixed-length hash, so length does not affect isolation.
+
+### Jobs are saved but never run
+
+The manager call succeeds, but the job stays **Idle**, the worker logs nothing, and it may be visible in one dashboard but not another.
+
+| Cause | What happens |
+| --- | --- |
+| Producer and worker use different namespaces, including different casing | Each reads only its own partition |
+| The producer calls `DisableBackgroundServices()` without a namespace | Its jobs go to the legacy-global partition, which a namespaced worker never reads |
+| The processes use a different database, schema, Redis deployment, or MongoDB collection prefix | They do not share a store |
+
+Compare **About → Host → Application namespace** on each process and configure the identical namespace on the producer and the worker. A namespaced producer in a different partition also reports `Schedule policy '<name>' does not exist.` because policies are partitioned too.
+
+Jobs already written to the wrong partition stay there; do not edit their partition key manually. Re-create them from a correctly configured process. Namespace-less legacy state can be moved once, as a whole, by [explicit legacy runtime partition adoption](/docs/5.x/guides/storage-upgrade#explicit-legacy-runtime-partition-adoption).
+
+### Jobs, crons, or policies disappeared after changing the namespace
+
+Changing the namespace selects a new, empty partition. Nothing is deleted: existing time jobs, dynamic crons, occurrences, results, and schedule policies stay under the old namespace and are visible only to a process configured with it. Code-defined crons are seeded again under the new namespace by its first activation.
+
+Restore the previous value to bring the data back. TickerQ has no namespace rename operation. To retire an old namespace deliberately, let its work finish, or cancel it, from a process still configured with that namespace before switching. See [existing data](/docs/5.x/guides/configuration#existing-data).
+
+### Two applications sharing a namespace interfere
+
+Symptoms include jobs failing with `Ticker function '<function>' was not found in the registered functions…`, one application's code-defined crons being retired after the other deploys, and one application failing startup with an [epoch error](#startup-fails-because-a-newer-epoch-is-already-recorded).
+
+All schedulers in a namespace cooperate as replicas of one application:
+
+- Any scheduler in the namespace can acquire any due job in it. Acquisition does not filter by the functions that process has registered.
+- Each scheduler reconciles code-defined crons against every seeded row owned by the namespace. Crons seeded by the other application are missing from its manifest, so it requests their retirement.
+- They share one activation epoch record.
+
+Give every independently deployed application, and every environment sharing a store, its own namespace. Replicas of the same application share one namespace.
+
+### Redis InstanceName did not separate two applications
+
+Redis job, cron, occurrence, and activation keys are named from the namespace's partition key (`tq:{tq:runtime:v1:<hash>}:…`). They do not include `InstanceName`, which prefixes other keys such as the node registry and execution logs. Two applications with the same namespace therefore share jobs even with different instance names. Give each application its own namespace.
+
+### The Nodes page is empty or a replica is missing
+
+**Clustering → Nodes** lists only scheduler processes in the active namespace. An empty page shows:
+
+```text
+No cluster-capable nodes reported yet
+```
+
+| Cause | Fix |
+| --- | --- |
+| The replica uses a different namespace | Check **About → Host** on that replica |
+| The replica calls `DisableBackgroundServices()` | Queue-only processes neither send heartbeats nor execute cancellation commands |
+| A custom provider does not implement `ITickerQClusterControlStore` | Nodes and cross-node cancellation are unavailable; ordinary scheduling still works |
+| The first heartbeat is still pending, or the store cannot be reached | Check the replica log for `TickerQ cluster-control polling failed; it will retry.` |
+
+Several replicas may share `NodeIdentifier`; each process still gets a unique execution owner. `AdvertisedDashboardUrl` is validated at registration and fails with `AdvertisedDashboardUrl must be an absolute HTTP or HTTPS URL without credentials.` when it is relative or contains credentials. See [nodes and cluster operations](/docs/5.x/dashboard/clustering).
+
+## Startup and reconciliation epoch
+
+Scheduler startup runs through checkpoints `01-bootstrap-complete` to `07-provider-startup-actions-complete`, then commits the epoch as `Activated` and opens the local gate. Until then the process does not acquire work. These checks run only when the license permits execution; fix a license problem first. The full order is in [startup and data repair](/docs/5.x/guides/storage-upgrade#startup-and-data-repair).
+
+### Startup requires a reconciliation epoch
+
+```text
+Scheduler startup requires an explicit positive UseReconciliationEpoch value.
+```
+
+The scheduler host did not call `UseReconciliationEpoch(...)`. It is thrown when the host starts, not during registration. Add `options.UseReconciliationEpoch(1)` and use the same value on every replica of the deployment. Passing zero or a negative value fails immediately with `The reconciliation epoch must be positive.` See [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
+
+### Startup fails because a newer epoch is already recorded
+
+```text
+Reconciliation activation begin returned 'epoch=7, phase=Activated, checkpoint=07-provider-startup-actions-complete'; expected exact epoch=6, phase=Activating. Startup remains fail-closed.
+```
+
+The namespace already has a higher epoch than this binary is configured with. Typical causes: a rollback that kept the old epoch, a replica with stale configuration, or another application using the same namespace. TickerQ never lowers the recorded epoch.
+
+Start with an epoch at least as high as the recorded one. Use the same number to join the current deployment; that skips reconciliation. Use a higher number when this binary's code-defined crons, request contracts, or seeders differ, including for a binary rollback. Read the [rollback limitations](/docs/5.x/guides/storage-upgrade#rollback-limitations) first.
+
+### Code or seeder changes were not applied after a deploy
+
+No error appears, but a changed `[TickerFunction]` cron expression keeps its old value, a removed code-defined cron is still active, or a change to `UseSchedulePolicySeeder` or `UseTickerSeeder` is missing.
+
+When startup finds its exact epoch already `Activated`, it opens the local gate and skips every fenced startup mutation: chain repair, code-defined cron reconciliation, finalization, the schedule policy seeder, and the time and cron seeders. Equal epoch numbers are not treated as proof of equal manifests. Increase the epoch for every deployment whose definitions or seed inputs change.
+
+Seeders never run on a process that calls `DisableBackgroundServices()`. Retiring a removed code-defined cron also needs a later reconciliation after its grace period; see [retirement grace](/docs/5.x/guides/storage-upgrade#retirement-grace).
+
+### Older replicas stop processing during a rolling deploy
+
+Once a replica begins a higher epoch, the built-in providers deny acquisition and runnable writes from replicas still configured with the older epoch. Those replicas stop picking up work, and inserts made through them are denied. With EF Core the messages include:
+
+```text
+TimeTicker '<id>' was not inserted because the store did not admit the write. This host's reconciliation epoch may have been superseded by a newer deployment, or legacy runtime partition adoption may be in progress.
+```
+
+```text
+No cron ticker was inserted. It may already exist or mutation admission may have changed.
+```
+
+```text
+The TickerQ runtime activation epoch no longer permits scheduling.
+```
+
+A time ticker insert reports `already exists` only when a row with that ID is actually stored. The third comes from `StageAsync` on `SaveChanges`. Finish the rollout so every scheduler replica uses the new epoch. Queue-only producers are not fenced by the epoch.
+
+### Startup was interrupted while Activating
+
+A crash, timeout, or exception leaves the namespace in `Activating` at the last completed checkpoint, and the local gate stays closed. The first exception in the host log is the actual cause. Fix it and restart a replica with the **same** epoch: startup reruns its idempotent phases and advances past the recorded checkpoint. Do not edit the metadata row or Redis hash.
+
+On EF Core, heavy contention between replicas starting the same epoch can end with:
+
+```text
+TickerQ activation metadata did not converge after repeated optimistic-concurrency retries.
+```
+
+Restart the affected replica. If it recurs, start one replica first and roll out the rest after it is activated.
+
+### A manager call never returns
+
+On a scheduler host, manager mutations such as `AddAsync`, `UpdateAsync`, `DeleteAsync`, and EF `StageAsync` wait until startup activation opens the local gate. The gate opens only after the host has started, `UseTickerQ()` was called, the license permits execution, and activation succeeded. A call made earlier waits until its cancellation token fires.
+
+Common causes are awaiting a manager in `Program.cs` before `app.Run()`, inside an `IHostedService.StartAsync` that runs before TickerQ's startup, without `UseTickerQ()`, or on an unlicensed host. Create startup jobs with `UseTickerSeeder(...)`, which runs inside activation, or after the host has started. Pass a cancellation token with a timeout so a blocked call fails visibly. Queue-only processes do not wait.
+
+### Legacy code-defined cron ownership errors
+
+These appear on the first namespaced reconciliation of a store that contains code-defined crons created before namespaces existed:
+
+```text
+Legacy defined-Cron function '<function>' requires an explicit legacy ownership mapping before any application may mutate it.
+```
+
+No owner is configured for an unclaimed legacy row. Add `MapLegacyDefinedCronOwnership("<function>", "<owner-namespace>")` on every application sharing the store, or `AdoptLegacyDefinedCronTickers()` only when one application uses the store.
+
+```text
+Ambiguous legacy defined-Cron ownership for function '<function>' while application namespace '<namespace>' attempted adoption. No rows were mutated; resolve ownership explicitly.
+```
+
+There are duplicate legacy rows for the function, or this manifest defines the function more than once. Inventory and resolve the rows before retrying.
+
+```text
+Legacy Cron function '<function>' is already mapped to application namespace '<a>' and cannot also be mapped to '<b>'.
+```
+
+The same function was mapped to two owners during configuration. Keep one mapping and deploy the same mapping set to every application. See [explicit legacy ownership migration](/docs/5.x/guides/storage-upgrade#explicit-legacy-ownership-migration).
+
+### Legacy runtime partition adoption errors
+
+| Message | Cause and fix |
+| --- | --- |
+| `Legacy runtime adoption requires positive confirmation that all pre-partition writers are drained.` | `legacyWritersDrained` is `false`. Drain old writers, then pass `true`. |
+| `Legacy runtime adoption is ambiguous because runtime rows exist for another namespace.` | The store already holds data for a third namespace; Redis says `runtime keys`. Adoption is only for a store used by one application. |
+| `Legacy runtime adoption is already held or completed by a different owner or epoch.` | An earlier adoption used another target namespace or epoch. |
+| `Legacy runtime partition adoption must exactly match the bound runtime partition and reconciliation epoch.` | A later `UseApplicationNamespace` or `UseReconciliationEpoch` call changed the values set by `UseLegacyRuntimePartitionAdoption`. |
+| `MongoDB legacy runtime adoption requires replica-set or mongos transaction support; standalone topology is unsafe.` | Run adoption against a replica set or mongos. |
+| `Redis legacy runtime partition adoption requires a positively identified standalone topology. …` | Run adoption against standalone Redis, not Redis Cluster. |
+
+The adoption call fixes both the namespace and the epoch. After a deployment has completed adoption, remove the call before your next epoch increase. Otherwise the next deployment fails with the different-owner-or-epoch error, or with the exact-match error when only `UseReconciliationEpoch` was raised.
+
+After adoption, writers still targeting the legacy-global partition are fenced. EF `StageAsync` fails with `The legacy TickerQ partition has been adopted; staging is not allowed.`, and queue-only `AddAsync` calls are denied. Give those producers the target namespace. See [explicit legacy runtime partition adoption](/docs/5.x/guides/storage-upgrade#explicit-legacy-runtime-partition-adoption).
 
 ## A cron run is missing or skipped
 
-Inspect the occurrence's skip reason and the definition's enabled state. An overlap policy can skip a new run while an earlier run or chain remains unfinished. Optional startup stale-occurrence skipping deliberately discards eligible old runs.
+Inspect the occurrence's skip reason and the definition's enabled state:
 
-Recovery can execute persisted overdue occurrences, but TickerQ does not manufacture an occurrence for every cron slot missed while all hosts were offline. Use a business-level reconciliation job if every business period must be accounted for.
+| Skip reason | Meaning |
+| --- | --- |
+| `Another execution of this cron job is already running on this scheduler host.` | [`SkipIfAlreadyRunning`](/docs/5.x/guides/cron-overlap) skipped an overlapping run |
+| `A previous chain for this cron schedule still has unfinished jobs.` | A [recurring chain](/docs/5.x/guides/recurring-chains) overlap was skipped |
+| `Missed execution window: scheduled for …, maximum lateness …, evaluated at ….` | The occurrence started later than its `WhenMissed(SkipAfter(...))` window |
+| `Quarantined because its Cron definition revision is stale.` | The definition changed or was retired while this occurrence was pending |
+
+Slots blocked by a schedule policy are never created, so they do not appear as skipped occurrences. Use the policy **Preview** in the dashboard to see which candidates are blocked.
+
+TickerQ has no startup-wide stale-occurrence option any more. Late work is decided per schedule: `WhenMissed(MissedExecutionPolicy.SkipAfter(...))` skips an occurrence that would start too late. See [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts).
+
+Recovery can execute persisted overdue occurrences, but TickerQ does not manufacture an occurrence for every cron slot missed while all hosts were offline. `CatchUp(CronCatchUpMode.RunLatest)` creates at most one occurrence, for the latest missed slot inside the `SkipAfter` window. Use a business-level reconciliation job if every business period must be accounted for.
+
+## Schedule policies
+
+Policies are stored per application namespace and evaluated by the process that creates or updates the schedule. Background is in [business calendars](/docs/5.x/guides/schedule-policies/business-calendars).
+
+### A schedule references a missing policy
+
+```text
+Schedule policy '<name>' does not exist.
+```
+
+The name does not match a policy in this namespace. Policy names are compared after normalization, but they are scoped to the namespace: a producer configured with another namespace, or none, cannot see the worker's policies. Create the policy with `UseSchedulePolicySeeder(...)`, through `ISchedulePolicyManager`, or in **Policies → Schedule Policies**. A seeder change applies only under a [new epoch](#code-or-seeder-changes-were-not-applied-after-a-deploy).
+
+### A one-time job is rejected by its policy
+
+```text
+Schedule policy 'EU business hours' blocked 2026-12-26T09:00:00.0000000Z: Saturday is outside the allowed weekdays.
+```
+
+`Reject` is the default blocked behavior for one-time jobs, so creation or update fails and nothing is persisted. Choose another time, or set `.WhenBlocked(BlockedOccurrenceBehavior.MoveForward)` or `.WhenBlocked(BlockedOccurrenceBehavior.Skip)`. A `Skip` job is stored as **Skipped** with a reason that starts with `Schedule policy '<name>':`. `MoveForward` fails when no allowed instant exists within about ten years; its message ends with `No allowed instant was found within 3660 days.`
+
+Set the policy on the chain root. A policy on a child step fails with `Schedule policies apply to a chain root. Child steps continue after the chain is admitted.`
+
+### A cron with a policy is rejected
+
+```text
+Cron schedule policies support Skip behavior. MoveForward and Reject are for one-time jobs.
+```
+
+Cron policies always omit blocked slots. Remove the blocked behavior from the cron, or set it to `Skip`.
+
+```text
+Cron schedule '<expression>' has no allowed future occurrence or is invalid.
+```
+
+Either the expression is invalid, or the policy blocks every future candidate. Check the expression, the cron time zone, and the policy's weekdays, windows, and exclusions with **Preview**. An unknown cron time zone fails earlier with `Unknown or invalid cron time zone '<id>'.`
+
+### A date provider is not registered
+
+When a policy is saved:
+
+```text
+Schedule date provider '<name>' is not registered.
+```
+
+When a schedule is evaluated, every instant the policy's other rules allow is blocked with this reason:
+
+```text
+Date provider '<name>' is not registered.
+```
+
+Date providers are registered per process with `AddScheduleDateProvider<T>()`. Register the same provider name and behavior on every scheduler replica **and** on every producer that creates schedules with that policy; producers evaluate the policy too. See [register date providers](/docs/5.x/guides/schedule-policies/business-calendars#register-date-providers).
+
+### A policy cannot be saved or deleted
+
+| Message | Fix |
+| --- | --- |
+| `Schedule policy '<name>' cannot be deleted while a ticker references it.` | Move or remove the time and cron tickers that use it; the editor shows how many do |
+| `Schedule policy '<name>' cannot be deleted while another policy references it.` | Remove it from the other policy's `Require` or `ExceptWhen` lists first |
+| `Referenced schedule policy '<name>' does not exist.` | Create the referenced policy first, or fix the name |
+| `Schedule policy composition contains a cycle at '<name>'.` | Break the reference loop |
+| `A schedule policy cannot both require and exclude the same referenced policy.` | Keep the reference in one list |
+| `Schedule policy names are stable identifiers and cannot be changed. Create a new policy instead.` | Create a policy with the new name and move schedules to it |
+| `Unknown or invalid time zone '<id>'.` | Use a time zone ID available on every host |
+
+### The provider does not support schedule policies
+
+```text
+The configured persistence provider does not support schedule policies.
+```
+
+```text
+Persistence provider '<provider>' does not support schedule policies. Use a built-in TickerQ provider or update the provider implementation.
+```
+
+A custom provider does not implement `ISchedulePolicyStore`. Schedules without a policy keep working. The built-in in-memory, EF Core, MongoDB, and Redis providers all support policies.
+
+### Late-start and catch-up settings are rejected
+
+| Message | Fix |
+| --- | --- |
+| `RunLatest cron catch-up requires WhenMissed(MissedExecutionPolicy.SkipAfter(...)) so catch-up has a bounded window.` | Add `WhenMissed(MissedExecutionPolicy.SkipAfter(...))` to the cron |
+| `Skip missed executions requires a maximum lateness.` | Use `MissedExecutionPolicy.SkipAfter(window)` instead of setting the action alone |
+| `Maximum lateness cannot be negative.` | Use a zero or positive window |
+| `The configured persistence provider does not support RunLatest cron catch-up.` | Use a built-in provider or implement cron catch-up in the custom provider |
+
+### Jobs are skipped with a missed execution window
+
+```text
+Missed execution window: scheduled for 2026-10-24T08:00:00.0000000Z, maximum lateness 00:02:00, evaluated at 2026-10-24T08:05:12.0000000Z.
+```
+
+The job has `WhenMissed(SkipAfter(...))` and reached a worker after its window. This is checked just before user code starts, so busy workers, a full queue, per-function limits, or downtime can cause it. Increase the window, add capacity, or use the default `RunOnce()` when late work is still useful. **Run now**, re-run, and chain retry are not skipped for lateness. See [skip work that is too late](/docs/5.x/guides/schedule-policies/late-starts#skip-work-that-is-too-late).
 
 ## A chain says Waiting after its root finished
 
@@ -46,7 +359,11 @@ A child with its own `ExecutionTime` is scheduled independently; leave that fiel
 
 ## Cancellation was accepted but work continues
 
-`CancelAsync` applies to pending time jobs. `RequestCancellationAsync` signals running work on the current host and returns zero affected rows when that host does not own it. A handler must observe its cancellation token and pass it to asynchronous dependencies. Timeouts also request cooperative cancellation; the runtime cannot forcibly terminate arbitrary .NET code.
+`CancelAsync` applies to pending time jobs. `RequestCancellationAsync` first signals a running execution on the current host. When the current host does not own it and the provider supports cluster control, as all built-in providers do, TickerQ records a cancellation command for the owning process. The command targets that exact attempt and expires after about 30 seconds.
+
+`AffectedRows = 1` means the local signal was sent or the command was recorded. It does not mean the function has stopped. The result is `0` when the execution is not queued or in progress, or when the provider has no cluster control.
+
+The owning process polls about once a second. A command has no effect when that process has stopped or cannot reach the store before the command expires, or when the attempt has already finished or been retried. A handler must observe its cancellation token and pass it to asynchronous dependencies. Timeouts also request cooperative cancellation; the runtime cannot forcibly terminate arbitrary .NET code. See [cross-node cancellation](/docs/5.x/dashboard/clustering#cross-node-cancellation).
 
 ## Logs are missing or disappear after restart
 
@@ -66,15 +383,121 @@ Sending a test checks the saved destination's delivery path. It does not prove a
 
 ## A migration or activation fails
 
-Apply the application's generated migration before scheduler startup. Inspect the reported epoch, unsupported schema version, ambiguous legacy owner, or malformed chain instead of clearing metadata or deleting history to bypass the error. MongoDB scheduler mode requires transactions; Redis Cluster scheduler mode is unsupported. The [storage upgrade reference](/docs/5.x/guides/storage-upgrade) describes safe remediation and adoption boundaries.
+Apply the application's generated migration before scheduler startup. Inspect the reported epoch, unsupported schema version, ambiguous legacy owner, or malformed chain instead of clearing metadata or deleting history to bypass the error. MongoDB scheduler activation requires replica-set transactions; Redis Cluster scheduler mode is unsupported. Provider-specific messages are under [storage providers](#storage-providers), and the [storage upgrade reference](/docs/5.x/guides/storage-upgrade) describes safe remediation and adoption boundaries.
+
+## Storage providers
+
+### EF Core: the store is missing required schema
+
+```text
+TickerQ EF store is missing the schema required by data migration '<migration>'. Generate and deploy the consumer-owned migration (for example: 'dotnet ef migrations add TickerQProfessionalStoreUpgrade' then 'dotnet ef database update'). The migration must include TickerQStoreMetadata, TickerQNodes, TickerQControlCommands, TickerQDefinitions, SchedulePolicies, ChainRootId, NodeFinalizationOutbox, the schedule-policy and missed-execution columns on TimeTickers and CronTickers, and the current additive CronTicker columns/indexes.
+```
+
+This `TickerQStoreSchemaException` wraps the specific problem; read its inner exception:
+
+| Inner message | Cause |
+| --- | --- |
+| `The consumer DbContext has pending schema migrations: …` | Migrations exist but were not applied. Run `dotnet ef database update` or enable `AutoMigrateDatabase()`. |
+| A database error naming a missing table or column | The migration was never generated from the current model. |
+| `Required TickerQ index '<name>' is missing from '<table>'.` | The index was dropped or excluded from the migration. |
+| `Required TickerQ index '<name>' is not semantically valid: …` | An index with that name exists but has the wrong table, columns, uniqueness, or filter. |
+The check covers the `SchedulePolicies` table, its unique `UX_SchedulePolicies_Name` index, and the schedule-policy and missed-execution columns, so a missing schedule-policy migration fails here rather than on a later query. See [generate and inspect the migration](/docs/5.x/guides/storage-upgrade#generate-and-inspect-the-migration) and [schedule policy storage](/docs/5.x/guides/storage-upgrade#add-schedule-policy-storage).
+
+### EF Core: the database provider is not supported
+
+```text
+TickerQ cannot verify required relational indexes for provider '<provider>'. Schema/data versions will not be certified. Supported EF Core providers are SQLite, SQL Server, PostgreSQL (Npgsql), and MySQL (Pomelo or MySql.EntityFrameworkCore).
+```
+
+Scheduler startup verifies indexes by reading the database catalog, which it can do only for these providers. This `TickerQStoreSchemaException` is reported directly; generating a migration does not fix it. Use a supported provider for scheduler hosts.
+
+### EF Core: activation fails on PostgreSQL or SQL Server after an upgrade
+
+The first activation insert fails with a `DbUpdateException` whose inner database error says a value is too long for `TickerQStoreMetadata.Id`. Earlier 5.x models limited that column to 64 characters; a runtime activation key needs 78. Widen it to 80 with a migration before starting upgraded replicas. Shortening the namespace does not help. See [widen the activation metadata key](/docs/5.x/guides/storage-upgrade#widen-the-activation-metadata-key).
+
+### EF Core: the store is newer than the binary
+
+```text
+TickerQ store version schema=<n>, data=<n> is newer than this binary supports (schema=<n>, data=<n>). Upgrade the TickerQ application before opening this store.
+```
+
+An older binary was started against an upgraded store, usually during a rollback. Deploy the newer binary; do not decrement the metadata row.
+
+### EF Core: staging without a namespace
+
+```text
+Staging in the legacy global partition requires a Serializable transaction. Configure an application namespace or use BeginTransactionAsync(IsolationLevel.Serializable).
+```
+
+A namespace-less producer called `StageAsync` inside a weaker transaction. Configure the worker's application namespace on the producer, which is preferred, or open the transaction with `IsolationLevel.Serializable`.
+
+### MongoDB: activation requires transactions
+
+```text
+Durable Mongo reconciliation activation requires replica-set transactions; standalone MongoDB cannot atomically publish cross-collection reconciliation. Activation was not claimed and the scheduler gate must remain closed.
+```
+
+Scheduler hosts need a replica set or mongos. A single-node replica set is enough for development. See the [MongoDB upgrade requirements](/docs/5.x/guides/storage-upgrade#mongodb).
+
+### Redis: scheduler startup fails closed
+
+```text
+TickerQ Redis migration/readiness requires a positively identified connected standalone Redis topology. Redis Cluster, unknown, disconnected, proxy, sentinel-ambiguous, and mixed topologies fail closed because the required multi-key Lua scripts cannot be proven atomic.
+```
+
+```text
+Durable Redis reconciliation activation requires a positively identified connected standalone Redis topology. Activation was not claimed because activation metadata and ticker keys do not share a Redis Cluster hash slot, so atomic ordering cannot be proven.
+```
+
+TickerQ inspects every endpoint the connection knows about. Each must be connected and report itself as a standalone server. Redis Cluster, Sentinel endpoints, proxies, or a listed endpoint that is down all fail. The same check runs before acquisition, so an endpoint that disconnects later also stops acquisition until it reconnects.
+
+Point scheduler hosts directly at standalone primary and replica endpoints, and list only reachable ones. Redis Cluster is limited to namespaced queue-only producers. On Cluster, removing a cron that still has occurrences fails with `Queue-only Redis Cluster cannot safely remove Cron definition '<id>' while occurrences reference it; …`. See [Redis deployment boundaries](/docs/5.x/redis#deployment-boundaries) and the [Redis upgrade reference](/docs/5.x/guides/storage-upgrade#redis).
 
 ## Login succeeds but dashboard access or controls are wrong
 
-Check that host authentication is registered before `AddTickerQ` and its middleware runs before `UseTickerQ`. The named dashboard policy must exist and accept the user's actual claims. Read-only predicates return true to block writes; integration management needs a separate positive grant.
+Check that host authentication is registered before `AddTickerQ` and its middleware runs before `UseTickerQ`. The named dashboard policy must exist and accept the user's actual claims. Read-only predicates return true to block writes; integration management needs a separate positive grant through `AllowIntegrationManagement(...)`.
 
 If API calls authenticate but the browser has the wrong controls, verify that normal navigation and the runtime configuration script also receive the host session. Basic/custom API authentication does not automatically populate a role-bearing `HttpContext.User`. Check role-claim mapping, refresh the session after database role changes, and reload the page to refresh its privately cached configuration.
 
-An integration **Management access required** message can mean missing management permission or read-only mode. HTTP 403 on writes can also come from the license gate. See [existing users](/docs/5.x/dashboard/existing-users) and [roles and permissions](/docs/5.x/dashboard/authorization).
+Without integration management permission, or in read-only mode, **Integrations** shows a status-only view with the note "Viewing status. Changes require integration management permission." Writes rejected by read-only mode return HTTP 403 with `Dashboard is running in read-only mode.`. HTTP 403 on writes can also come from the license gate, which returns the license message. See [existing users](/docs/5.x/dashboard/existing-users) and [roles and permissions](/docs/5.x/dashboard/authorization).
+
+## Dashboard configuration errors
+
+Dashboard options are validated while `AddTickerQ` registers services, so these errors stop the application before it serves requests.
+
+| Message | Fix |
+| --- | --- |
+| `TickerQ Dashboard authentication is not configured. Call AllowAnonymousDashboard() to explicitly acknowledge public exposure, or configure an authentication scheme.` | Configure an [authentication mode](/docs/5.x/dashboard/authentication#choose-an-authentication-mode) |
+| `SetBackendDomain does not grant cross-origin trust. Call AllowOrigins() with exact browser origins.` | Add `AllowOrigins("https://ui.example.com")` with the browser's origin, or supply `SetCorsPolicy(...)` |
+| `Backend domain must be an HTTP(S) origin without credentials, a path, query or fragment.` | Pass only scheme, host, and port to `SetBackendDomain` |
+| `'<origin>' is not a valid HTTP(S) origin.` | Pass origins to `AllowOrigins` without a path, query, or fragment |
+| `EnableForwardedHeaders requires at least one TrustForwardedProxy() or TrustForwardedNetwork().` | Trust your proxy's address or network |
+
+See [reverse proxies and cross-origin access](/docs/5.x/dashboard/authentication#reverse-proxies-and-cross-origin-access).
+
+### Only one of the configured sign-in methods works
+
+The single-mode methods `WithBasicAuth(username, password)`, `WithApiKey(key)`, `WithHostAuthentication(...)`, and `WithCustomAuth(Func<string, bool>)` replace one another; the last call wins. `AllowAnonymousDashboard()` is also a mode, so calling it after one of these methods turns authentication off.
+
+### Startup rejects a combination of sign-in methods
+
+```text
+Dashboard authentication mode '<mode>' was selected with a single-mode method (WithHostAuthentication, WithBasicAuth(username, password), WithApiKey(key), or WithCustomAuth(Func<string, bool>)), but other schemes are also registered ...
+```
+
+A single-mode method applies only when no other scheme is registered. Combining one with a scheme-list method, `WithBasicAuth(validator)`, `WithApiKey(key, headerName)`, `WithCustomAuth(Func<HttpContext, Task<bool>>)`, or `WithAuthentication(...)`, would silently ignore it, so startup fails instead.
+
+To accept several methods, register all of them in one `WithAuthentication(auth => auth.AddBasic(...).AddApiKey(...))` call. They are tried in order and the first match wins.
+
+### Run now, re-run, or retry fails
+
+```text
+The scheduler must be running and licensed before a time ticker can run immediately.
+```
+
+The cron, occurrence, and chain-step variants end with `before a cron can run immediately.`, `before a cron occurrence can be re-run.`, and `before a chain step can be retried.`
+
+These actions dispatch work on the host that serves the dashboard request. They fail when that host calls `DisableBackgroundServices()`, was started with `TickerQStartMode.Manual` and has not been started, or is not licensed for execution. Use the dashboard of a running, licensed scheduler host, or start the scheduler. See [separate producers and workers](/docs/5.x/guides/configuration#separate-producers-and-workers).
 
 ## Dashboard live updates are delayed
 
@@ -90,4 +513,4 @@ Active views perform a bounded consistency refresh approximately every 30 second
 
 ## Prepare a useful issue report
 
-Include the full TickerQ package versions, .NET/EF/provider versions, topology, number of replicas, relevant sanitized configuration, job/occurrence IDs, timestamps with time zone, and a minimal reproduction. Explain the expected behavior and the persisted outcome. Omit certificates, API keys, connection strings, and webhook credentials.
+Include the full TickerQ package versions, .NET/EF/provider versions, topology, number of replicas, each process's application namespace and reconciliation epoch, relevant sanitized configuration, job/occurrence IDs, timestamps with time zone, the first TickerQ exception in the host log, and a minimal reproduction. Explain the expected behavior and the persisted outcome. Omit certificates, API keys, connection strings, and webhook credentials.

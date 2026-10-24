@@ -35,7 +35,7 @@ Core also provides `options.EnableActivitySource()`. If you already configure tr
 
 | Activity | Meaning |
 | --- | --- |
-| `tickerq.job.execute.timeticker` / `tickerq.job.execute.cronticker` | Execution span with attempt and final-status tags |
+| `tickerq.job.execute.timeticker` / `tickerq.job.execute.crontickeroccurrence` | Execution span with attempt and final-status tags |
 | `tickerq.job.enqueued` | Entry into the execution pipeline |
 | `tickerq.job.completed` | Completion outcome and duration |
 | `tickerq.job.failed`, `tickerq.job.cancelled`, `tickerq.job.skipped` | Failure, cancellation, or skipped execution event |
@@ -67,7 +67,7 @@ The core meter defines these instruments:
 | `tickerq.jobs.completed` | Finished executions; `tickerq.success` distinguishes successful and unsuccessful outcomes |
 | `tickerq.jobs.failed` | Jobs that exhausted retries and reached Failed |
 | `tickerq.jobs.retried`, `tickerq.jobs.cancelled`, `tickerq.jobs.skipped` | Retry and policy outcomes |
-| `tickerq.jobs.stale_recovered` | Expired-lease recovery actions |
+| `tickerq.jobs.stale_recovered` | Expired-lease jobs recovered by the stale watchdog; `tickerq.action` is `restart` or `cancel` |
 | `tickerq.jobs.active` | In-flight executions on the current node |
 | `tickerq.job.duration` | Execution duration in milliseconds, including retry waits |
 | `tickerq.logs.pending_writes`, `tickerq.logs.dropped_unflushed`, `tickerq.logs.write_failures` | Buffered archive writes, dropped tails, and write failures |
@@ -75,7 +75,9 @@ The core meter defines these instruments:
 | `tickerq.logs.last_successful_flush`, `tickerq.fallback.last_success` | Unix seconds of the last success; 0 before the first success |
 | `tickerq.fallback.failures` | Failed overdue-work scans |
 
-Job counters and durations use the `tickerq.function` tag; completion/duration also carry `tickerq.success`. Attach service, environment, and instance identity through your host's OpenTelemetry resource configuration so multiple applications or replicas can be distinguished.
+Job counters and durations use the `tickerq.function` tag; completion/duration also carry `tickerq.success`. `tickerq.jobs.stale_recovered` has no function tag: each recovery sweep records restarted and cancelled counts under `tickerq.action`. Attach service, environment, and instance identity through your host's OpenTelemetry resource configuration so multiple applications or replicas can be distinguished.
+
+The dashboard package publishes a separate `TickerQ.Dashboard` meter (`tickerq.dashboard.requests`, `tickerq.dashboard.request.duration`, `tickerq.dashboard.auth.failures`, `tickerq.dashboard.auth.throttled`, and `tickerq.dashboard.signalr.connections`); add `metrics.AddMeter("TickerQ.Dashboard")` to export it.
 
 The meter can be inspected locally with `dotnet-counters monitor --process-id PID --counters TickerQ` when the diagnostic tool is installed. Metrics are emitted by running processes, not reconstructed from database history. Label instances and aggregate deliberately in your collector; node-local values are not cluster totals.
 

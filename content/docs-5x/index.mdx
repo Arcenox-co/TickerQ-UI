@@ -22,9 +22,9 @@ The sidebar groups guides by task. Open a group to explore its pages; your curre
 | Group | What you will find |
 | --- | --- |
 | **Getting started** | Package selection, your first job, licensing, and migration |
-| **Jobs and workflows** | Functions, time/cron schedules, requests and results, durable groups, progress, retries, test runs, and cancellation |
+| **Jobs and workflows** | Functions, time/cron schedules, schedule policies (business calendars, late starts, and catch-up), requests and results, durable groups, progress, retries, test runs, and cancellation |
 | **Storage** | EF Core, transactional scheduling, MongoDB, and Redis |
-| **Dashboard** | A visual tour, drafts/templates, existing users, roles/scopes, cluster nodes, and AI Operations |
+| **Dashboard** | A visual tour, drafts/templates, existing users, roles/scopes, cluster nodes, and the AI assistant |
 | **Operations** | Application namespaces, workers, logging, telemetry, retention, reliability, and troubleshooting |
 | **Integrations** | Slack, Teams, webhooks, payload templates, deadlines, and recovery alerts |
 
@@ -33,6 +33,7 @@ See the [Changelog](/docs/5.x/changelog) for release notes and upgrade informati
 ## Common tasks
 
 - **Save a job with a business change:** use [EF transactional scheduling](/docs/5.x/entity-framework/transactional-scheduling).
+- **Keep work inside business hours or skip stale runs:** define [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) and choose a [late-start and catch-up rule](/docs/5.x/guides/schedule-policies/late-starts).
 - **Run a recurring workflow:** define [recurring chains](/docs/5.x/guides/recurring-chains) and choose an overlap policy.
 - **Give your team dashboard access:** reuse [existing database users](/docs/5.x/dashboard/existing-users) and map [roles or permission scopes](/docs/5.x/dashboard/authorization).
 - **Build a parallel workflow with outcomes:** use [`ThenMany` and durable group joins](/docs/5.x/guides/job-chaining#run-several-branches-and-join-them).
@@ -56,7 +57,7 @@ Use matching package versions throughout your application, including the same pr
 
 ## Explore the packages
 
-- **Core:** functions, scheduling, chains, retries, cancellation, and runtime isolation.
+- **Core:** functions, scheduling, schedule policies, chains, retries, cancellation, and runtime isolation.
 - **[Dashboard](/docs/5.x/dashboard):** execution history, logs, chain views, diagnostics, and an optional AI assistant.
 - **[EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), and [Redis](/docs/5.x/redis):** storage options with documented deployment requirements.
 - **[Integrations](/docs/5.x/integrations):** configurable connections, alert rules, payloads, and function monitoring.

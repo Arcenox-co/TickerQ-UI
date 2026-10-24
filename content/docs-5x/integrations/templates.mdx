@@ -57,6 +57,8 @@ Additional placeholders:
 - Monitoring summaries: `condition`, `threshold`, and `observed`, suitable for one template shared by different monitor conditions.
 - Structured monitoring values: `monitorKind`, `thresholdSeconds`, `observedDurationSeconds`, `failureCount`, `failureThreshold`, `deadlineUtc`, `timeZoneId`, and `graceMinutes`.
 
+A registered custom formatter reads the same values directly from `IntegrationMessage`; see [extend to another application](/docs/5.x/integrations/delivery#extend-to-another-application).
+
 Unavailable values become empty strings in custom templates and null in the default webhook. Default webhook counts/durations remain JSON numbers; custom placeholders inside strings are strings. Duration uses persisted execution time for completed runs, and time since first observed InProgress for active runs. Failure counts are retained observed counts and can be lower bounds. Recovery does not invent a completed job duration. `deadlineUtc` is the scheduled deadline before the separately reported grace period.
 
 ## Correlation and links

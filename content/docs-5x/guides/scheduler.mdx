@@ -25,7 +25,7 @@ The dashboard's **About → Scheduler** shows effective settings on the respondi
 
 | Control | Scope | At capacity |
 | --- | --- | --- |
-| `scheduler.MaxConcurrency` | Scheduler work items on one host | New work items wait for capacity |
+| `scheduler.MaxConcurrency` | Executing function attempts on one host: standalone jobs, cron occurrences, and every individual chain step | Additional attempts wait for capacity |
 | `scheduler.MaxQueuedExecutions` | Admitted function attempts waiting in this host's execution queue | Additional scheduler acquisition waits; request-side immediate dispatch can be rejected |
 | `scheduler.MaxActiveWorkflows` | Admitted root workflows, including chains waiting to retry | Background scheduling waits before admitting more roots |
 | `scheduler.MaxConcurrentChainSteps` | Live step tasks inside one chain | Additional ready steps remain lightweight graph nodes |
@@ -34,15 +34,17 @@ The dashboard's **About → Scheduler** shows effective settings on the respondi
 
 With two replicas configured for eight concurrent scheduler executions each, there is no shared eight-execution cluster limit. A function with `maxConcurrency: 1` can run once on each replica. Ordinary cron overlap protection is also host-local; **recurring-chain overlap** checks unfinished persisted chains across the runtime partition. See [cron overlap](/docs/5.x/guides/cron-overlap) for the distinction.
 
-A chain is handled inside its root's scheduler work item. Matching siblings and `InProgress` children can run concurrently within that item. For example, `MaxConcurrency = 1` does not serialize three different child functions in one chain. Use a sequential parent → child structure for ordering, and per-function limits for a shared handler.
+Each chain step is its own function attempt and takes a `MaxConcurrency` slot while it runs. With `MaxConcurrency = 1`, the host runs one function attempt at a time across all chains, standalone jobs, and cron occurrences, so parallel siblings and `InProgress` children wait for that slot. `MaxConcurrentChainSteps` separately limits the live step tasks inside one chain. Orchestration, retry delays, and waits for a per-function permit do not hold an execution slot. Use a sequential parent → child structure for ordering, and per-function limits for a shared handler.
 
 Per-function permits are held while an attempt runs and released between retries. They do not stay held while a parent traverses its children. Await the work started by a function: detached tasks outlive the scheduler's ability to track their completion.
 
-`TickerTaskPriority.High`, `Normal`, and `Low` order the scheduler's acquired batch before publication. They do not create a globally prioritized queue or interrupt running work; manual dispatch and already queued work need not preserve that ordering. `LongRunning` selects a dedicated-thread execution strategy while using the same scheduler capacity. Priority is not an isolation or delivery guarantee.
+`TickerTaskPriority` affects ordering on one host only. The scheduler sorts each acquired batch by priority before publication, with `LongRunning` first. Attempts waiting for execution capacity then sit in separate first-in, first-out `High`, `Normal`, and `Low` queues, served in a weighted 4:2:1 cycle so lower priorities still progress while higher queues have work. `LongRunning` joins the `Normal` queue and starts its delegate on a dedicated thread; it uses the same `MaxConcurrency` capacity. Priority does not create a cluster-wide queue or interrupt running work. It is not an isolation or delivery guarantee.
 
 ## Time zones
 
 The default `SchedulerTimeZone` is `TimeZoneInfo.Local`, so it follows the host environment. Set it explicitly on every replica for predictable cron interpretation. Keep time-ticker `ExecutionTime` values in UTC.
+
+A dynamic cron definition can choose its own zone with `CronSchedule.InTimeZone(...)` or `CronTickerEntity.TimeZoneId`. A null `TimeZoneId` uses `SchedulerTimeZone`. Code-defined `WithCron` and attribute schedules always use `SchedulerTimeZone`. See [cron time zones](/docs/5.x/guides/scheduling/cron-ticker#time-zones-calendars-and-catch-up).
 
 The dashboard toolbar changes timestamp presentation only. It does not change the cron schedule's time zone. Integration deadline monitors have a separate, explicit time zone.
 
@@ -50,7 +52,7 @@ The dashboard toolbar changes timestamp presentation only. It does not change th
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `MaxConcurrency` | `Environment.ProcessorCount` | Scheduler execution capacity per host |
+| `MaxConcurrency` | `Environment.ProcessorCount` | Maximum executing function attempts per host, including individual chain steps |
 | `AcquisitionBatchSize` | `100` | Maximum time-ticker roots loaded by one scheduled/immediate acquisition |
 | `MaxQueuedExecutions` | `1,024` | Maximum admitted attempts waiting for execution capacity |
 | `MaxActiveWorkflows` | `128` | Maximum admitted root workflows, including chains and delayed retries |
@@ -79,6 +81,31 @@ Detailed logging covers acquisition, queue publication, recovery, restart, and r
 
 ## Startup choices
 
-- `SkipStaleCronOccurrencesOnStartup(TimeSpan.FromSeconds(5))` explicitly skips eligible old Idle/Queued occurrences during startup initialization. It is disabled by default. Enable it only when missing old runs is preferable to recovering those existing occurrences; it does not create every slot missed during downtime.
+- Late work is decided per schedule, not by a startup option. Use `WhenMissed(MissedExecutionPolicy.SkipAfter(...))` on a schedule that should not run late, and `CatchUp(CronCatchUpMode.RunLatest)` on a cron that should run its latest slot missed during downtime. See [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts). The former `SkipStaleCronOccurrencesOnStartup(...)` option was removed.
 - `IgnoreSeedDefinedCronTickers()` disables automatic creation/reconciliation of attribute and `WithCron` schedules. Dynamic manager-created schedules remain separate.
 - `DisableBackgroundServices()` creates a producer that queues jobs without processing them locally. Use the worker's namespace and persistent store. See [producer and worker deployments](/docs/5.x/guides/configuration#separate-producers-and-workers).
+- `app.UseTickerQ(TickerQStartMode.Manual)` registers the scheduler but keeps it from processing work when the host starts. Start it later through `ITickerQHostScheduler`, described below.
+
+## Start the scheduler manually
+
+By default, `app.UseTickerQ()` starts processing when the host starts. Pass `TickerQStartMode.Manual` when your application must finish its own startup work first:
+
+```csharp
+using TickerQ.Utilities.Enums;
+using TickerQ.Utilities.Interfaces;
+
+app.UseTickerQ(TickerQStartMode.Manual);
+
+// Later, after your own readiness checks:
+var scheduler = app.Services.GetRequiredService<ITickerQHostScheduler>();
+await scheduler.StartAsync();
+```
+
+| Member | Purpose |
+| --- | --- |
+| `StartAsync(cancellationToken)` | Starts local processing. A second call while running does nothing. |
+| `StopAsync(cancellationToken)` | Stops local acquisition and waits up to `ShutdownDrainTimeout` for in-flight work. |
+| `Restart()` | Asks a running scheduler to recompute its next wake-up. |
+| `IsRunning` | Whether this host's scheduler loop is currently started. |
+
+Manual mode affects only this host. Startup initialization still runs when the host starts. Hosts configured with `DisableBackgroundServices()` receive a no-op `ITickerQHostScheduler`.

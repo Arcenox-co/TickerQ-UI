@@ -3,7 +3,7 @@ title: "Entity Framework Core"
 description: "Persist TickerQ jobs in your application database with provider-independent EF Core integration."
 ---
 
-Use `TickerQ.EntityFrameworkCore` with a relational EF provider such as SQL Server, PostgreSQL, or SQLite. Match the TickerQ package versions to your .NET line.
+Use `TickerQ.EntityFrameworkCore` with one of the supported relational EF providers: SQLite, SQL Server, PostgreSQL (Npgsql), or MySQL (Pomelo or MySql.EntityFrameworkCore). Match the TickerQ package versions to your .NET line.
 
 ## Choose the context
 
@@ -53,9 +53,13 @@ dotnet ef database update --context AppDbContext
 
 Review the migration and apply it before scheduler startup. Use the same TickerQ package version and schema at design time and runtime. `EnsureCreated` is not an upgrade mechanism for an existing database.
 
+### Supported providers
+
+Scheduler startup verifies the required TickerQ indexes by reading the database's own catalog. That check recognizes only SQLite, SQL Server, PostgreSQL (Npgsql), and MySQL (Pomelo or MySql.EntityFrameworkCore) providers. Any other EF provider fails closed when a new reconciliation epoch is activated: startup throws a `TickerQStoreSchemaException` saying TickerQ cannot verify required relational indexes for that provider, and listing the supported providers.
+
 ### Current table inventory
 
-The current EF model maps **17 tables**:
+The current EF model maps **18 tables**:
 
 | Area | Tables |
 | --- | --- |
@@ -63,10 +67,11 @@ The current EF model maps **17 tables**:
 | Committed results | `TimeTickerResults`, `CronTickerOccurrenceResults` |
 | Runtime coordination | `TickerQStoreMetadata`, `NodeFinalizationOutbox`, `TickerQNodes`, `TickerQControlCommands` |
 | Dashboard definitions/settings | `TickerQDefinitions`, `IntegrationSettings` |
+| Schedule policies | `SchedulePolicies` |
 | Execution logs | `ExecutionLogs` |
 | Assistant operations | `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, `AssistantInvestigationBudgets` |
 
-All 17 mappings are present even when log persistence, AI chat history, or automatic investigation is disabled. Those options control runtime services and writes, not schema shape. This keeps migrations stable when a capability is enabled later. Drafts and templates share `TickerQDefinitions`; they do not create separate tables.
+All 18 mappings are present even when log persistence, AI chat history, automatic investigation, or schedule policies are not in use. Those options control runtime services and writes, not schema shape. This keeps migrations stable when a capability is enabled later. Drafts and templates share `TickerQDefinitions`; they do not create separate tables.
 
 ## Dedicated TickerQ context
 
@@ -79,7 +84,7 @@ options.AddOperationalStore(store => store.UseTickerQDbContext<TickerQDbContext>
     db.UseSqlite("Data Source=tickerq.db")));
 ```
 
-Generate migrations for that context through your application's normal design-time setup. `SetSchema(...)` selects a relational schema where the provider supports schemas; SQLite does not. `AutoMigrateDatabase()` explicitly applies pending migrations at startup, but generating and reviewing them remains the application's responsibility. Use your deployment pipeline when schema changes need separate control.
+Generate migrations for that context through your application's normal design-time setup. `SetSchema(...)` selects a relational schema where the provider supports schemas; SQLite does not. `UseTickerQDbContext` also accepts the schema as an optional second argument, for example `UseTickerQDbContext<TickerQDbContext>(db => db.UseNpgsql(connectionString), schema: "jobs")`. Both set the same value, so the last call wins; omitting the argument keeps the current schema (default `ticker`). `AutoMigrateDatabase()` explicitly applies pending migrations at startup, but generating and reviewing them remains the application's responsibility. Use your deployment pipeline when schema changes need separate control.
 
 The dedicated context supports independent manager operations. It does not make `StageAsync` join an unrelated business context; that operation requires the application-context registration.
 
@@ -102,6 +107,7 @@ modelBuilder.ApplyConfiguration(new TickerQNodeConfigurations("ticker"));
 modelBuilder.ApplyConfiguration(new TickerQControlCommandConfigurations("ticker"));
 modelBuilder.ApplyConfiguration(new IntegrationSettingsConfigurations("ticker"));
 modelBuilder.ApplyConfiguration(new TickerQDefinitionConfigurations("ticker"));
+modelBuilder.ApplyConfiguration(new SchedulePolicyConfigurations("ticker"));
 ```
 
 Use the same schema as `store.SetSchema(...)` (default `ticker`), and replace the ticker entity types if you extend them. Keep the complete current mapping in design-time tooling, including `ExecutionLogArchiveConfiguration`, `AssistantConversationConfigurations`, `AssistantMessageConfigurations`, `AssistantInvestigationConfigurations`, `AssistantInvestigationLeaseConfigurations`, and `AssistantInvestigationBudgetConfigurations`. Their tables remain part of the model when the related runtime feature is disabled.
@@ -126,6 +132,7 @@ For existing databases, replica rollout, stable cron identities, and schema owne
 | `SetDbContextPoolSize(1024)` | Sets the dedicated TickerQ context pool size; does not resize your application's `AddDbContextPool` |
 | `AutoMigrateDatabase()` | Applies existing pending migrations before scheduler initialization |
 | `AddAssistantHistory(...)` | Enables EF-backed chat/proposal history, structured investigations, coordination, and retention services; the tables are already part of the model |
+| `UseLegacyRuntimePartitionAdoption(namespace, epoch, legacyWritersDrained: true)` | Store-builder form of the core [legacy runtime partition adoption](/docs/5.x/guides/storage-upgrade#explicit-legacy-runtime-partition-adoption) option; it is forwarded to the core option, and a conflicting second adoption configuration is rejected |
 
 Execution-log persistence and assistant history are optional runtime features. Their tables, integration settings, node finalization, cluster control, and saved definitions are part of the current mapping even when their dashboard surfaces are not in use. Generate and review the current model instead of copying an older fixed table list.
 

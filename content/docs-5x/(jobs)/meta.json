@@ -11,6 +11,9 @@
     "../guides/scheduling",
     "../guides/job-lifecycle",
     "../guides/progress-retries-testing",
-    "../guides/cron-overlap"
+    "../guides/cron-overlap",
+    "---Schedule policies---",
+    "../guides/schedule-policies/business-calendars",
+    "../guides/schedule-policies/late-starts"
   ]
 }

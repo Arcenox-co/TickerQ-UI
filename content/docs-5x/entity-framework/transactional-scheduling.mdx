@@ -64,6 +64,25 @@ persist independently and does not join your application context's transaction.
 
 A cron schedule can also include its `Chain` template. The complete template is validated before save, and each future occurrence creates its own chain. See [recurring chains](/docs/5.x/guides/recurring-chains).
 
+## Stage with a schedule policy
+
+Set `SchedulePolicyName` and the related fields on the entity before calling `StageAsync`. The
+[schedule policy](/docs/5.x/guides/schedule-policies/business-calendars) is applied during staging,
+not during save:
+
+- The named policy must already exist in the policy store when `StageAsync` runs; an unknown name
+  throws. The stored policy name and revision are stamped on the entity.
+- For a time job or chain, set the policy on the root only. A policy on any child step is rejected.
+  The blocked behavior defaults to `Reject`, which throws from `StageAsync` when the requested time
+  is blocked; `MoveForward` changes the staged `ExecutionTime`; `Skip` stages the root and its
+  descendants as `Skipped`.
+- A cron schedule accepts only the `Skip` blocked behavior and must have at least one allowed future
+  occurrence.
+
+After staging, the policy name, policy revision, blocked behavior, `MissedExecutionAction`, and
+`MaximumLateness` are frozen; for a cron schedule, `TimeZoneId` and `CatchUpMode` are frozen too.
+Changing any of them before `SaveChangesAsync` makes the save throw. Set them first, then stage.
+
 ## Commit an explicit transaction
 
 For work spanning multiple saves, use the context's normal EF transaction:
@@ -121,6 +140,8 @@ delay discovery until that cache is refreshed.
 | Missing mappings or interceptors | Register the context through DI and `UseApplicationDbContext`; do not construct it separately |
 | An existing entity is rejected | Stage accepts new, untracked jobs/schedules, not updates or previously executed jobs |
 | A chain fails validation during save | Keep its full graph, IDs, ownership, and parent links unchanged after staging |
+| Save rejects a changed policy, missed-execution, catch-up, or time-zone field | Set those fields before `StageAsync`; to change them, discard the staged entity and stage a new one |
+| `StageAsync` says a schedule policy does not exist | Create or seed the policy before staging the job |
 | The job is missing after the method returned | Staging alone does not save; confirm `SaveChangesAsync` and the outer transaction commit |
 | Save/commit succeeded but the UI did not update immediately | Check post-commit notification logs; do not retry the business transaction just to refresh the dashboard |
 
