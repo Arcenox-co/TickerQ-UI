@@ -30,7 +30,7 @@ builder.Services.AddTickerQ(options =>
     // Keep your existing license, namespace, scheduler, and storage options.
     options.AddDashboard(dashboard =>
     {
-        dashboard.WithHostAuthentication("SchedulerOperators", "/account/login");
+        dashboard.WithHostAuthentication("SchedulerOperators", "/account/login", "/account/logout");
         dashboard.SetReadOnly(context =>
             !context.User.IsInRole("SchedulerOperator") &&
             !context.User.IsInRole("SchedulerAdmin"));
@@ -63,7 +63,45 @@ app.UseTickerQ();
 app.Run();
 ```
 
-Replace `/account/login` with your actual login page. The dashboard adds a `returnUrl` for unauthenticated browser navigations; your login handler should accept only local return URLs. API requests do not use this dashboard navigation redirect, although your host's authentication handler determines its own challenge response.
+Replace `/account/login` with your actual login page. The dashboard adds a `returnUrl` for unauthenticated browser navigations; your login handler should accept only local return URLs. API requests do not use this dashboard navigation redirect, although your host's authentication handler determines its own challenge response. With cookie authentication, make API challenges answer 401 and 403 instead of redirecting, because the dashboard already sends browser navigations to the login page:
+
+```csharp
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(cookie =>
+    {
+        cookie.LoginPath = "/account/login";
+        cookie.Events.OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        };
+        cookie.Events.OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
+```
+
+## Signed-in user and sign-out
+
+The dashboard's top bar shows the signed-in user, how they signed in, and whether they have full or
+read-only access. The third argument of `WithHostAuthentication`, here `/account/logout`, is your
+application's logout endpoint. The dashboard's **Sign out** sends the browser there, because your
+application owns the session. Without it, the account menu tells the user to sign out from the
+application.
+
+By default the name shown is `User.Identity.Name`, which is the claim your authentication handler
+marks as the name claim. To show a different claim without changing `Identity.Name` for the rest of
+your application, list the claim types in order of preference:
+
+```csharp
+dashboard.UseUserNameClaim("name", "email");
+```
+
+The first claim with a value is shown; otherwise `Identity.Name`. Only the displayed name changes.
+Per-user data such as assistant history is keyed by the user's subject (`sub` or `NameIdentifier`),
+so it is kept when you change the displayed claim.
 
 ## Database users and roles
 

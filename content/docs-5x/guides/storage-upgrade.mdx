@@ -14,19 +14,11 @@ The upgrade is additive, but it is not schema-optional. Install the required sch
 | --- | --- |
 | Starting with an empty store | [Provider setup](/docs/5.x/getting-started/installation) and [application identity](/docs/5.x/guides/configuration); legacy adoption is unnecessary |
 | Upgrading an existing durable store | [Rollout sequence](#recommended-rollout), then your provider below |
-| Renaming the old namespace API only | [Application namespace configuration](#application-namespace-configuration) |
 | Enabling schedule policies or late-start rules | [Schedule policy storage](#add-schedule-policy-storage) |
 | Taking ownership of old code-defined crons | [Explicit legacy ownership migration](#explicit-legacy-ownership-migration) |
 | Moving all namespace-less runtime data to one owner | [Runtime partition adoption](#explicit-legacy-runtime-partition-adoption) |
 
 Provider references: [EF Core](#entity-framework-core) · [MongoDB](#mongodb) · [Redis](#redis) · [In-memory](#in-memory-provider). Finish with the [verification checklist](#verification-checklist).
-
-## Application namespace configuration
-
-Replace `UseDefinedCronApplicationNamespace(...)` with `UseApplicationNamespace(...)` in application
-configuration. This API rename reflects its scope across both time tickers and cron schedules. Keep
-the same namespace value: the rename itself does not change storage keys, require a database
-migration, or move existing jobs.
 
 ## Add schedule policy storage
 
@@ -222,17 +214,16 @@ The generated model must include:
   `TimeTickers` and `CronTickers`; see [schedule policy storage](#add-schedule-policy-storage).
 - `ExecutionLogs` and the five assistant tables: `AssistantConversations`, `AssistantMessages`, `AssistantInvestigations`, `AssistantInvestigationLeases`, and `AssistantInvestigationBudgets`. The current EF model includes them even when the corresponding runtime features are disabled.
 
-The repository's ApplicationDbContext, Console, and WebApi samples contain reviewed host-owned
-`ApplicationRuntimePartitioning` migrations and matching snapshots. Consumers must generate and
+The repository's ApplicationDbContext, Console, and WebApi samples each contain one reviewed
+host-owned `UpgradeTickerQStore` migration from the 10.3 schema, with matching snapshots. It adds the
+new schema and backfills `ChainRootId` for existing time-ticker chains. Consumers must generate and
 review their own equivalent migration; the provider does not own application migration history.
 
+On SQLite, EF Core rebuilds tables to change their primary keys, and that fails while foreign keys are
+enforced. Open the connection, run `PRAGMA foreign_keys = OFF;`, apply the migration, then turn
+foreign keys back on, as the samples do. The pragma has no effect inside a transaction.
+
 On SQL Server, the unique nullable `SeedKey` index must exclude null rows. SQLite and PostgreSQL allow multiple null values in a unique index. Use the generated provider-specific model rather than hard-coding one provider's quoting or filter syntax.
-
-### Widen the activation metadata key
-
-Earlier 5.x models limited `TickerQStoreMetadata.Id` to 64 characters. A runtime activation key contains the `tq:runtime:v1:` prefix and a 64-character SHA-256 hash, totaling **78 characters**. PostgreSQL and SQL Server enforce the old limit and reject activation inserts. The current model allows **80 characters**; shortening the application namespace does not shorten its hash.
-
-Generate a provider-specific migration that widens the existing column to 80 while preserving its composite primary key and checkpoint rows. Apply it before starting upgraded replicas. Fresh databases created from the current model already have the corrected limit. Keep the widened column during binary rollback; do not truncate or rewrite activation keys.
 
 ### Add node discovery and control tables
 
@@ -330,7 +321,7 @@ The value is persisted in `SeedOwnerNamespace`; use the same value on every node
 
 Scheduler hosts must configure `UseApplicationNamespace(...)`; startup fails closed when it is omitted. Dashboard/manager-only processes that disable scheduler background services do not participate in activation. Keep the namespace stable for the lifetime of the application. The reconciliation epoch is managed automatically; see [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch).
 
-On the first v2 reconciliation, exactly one legacy code-owned row for a definition may be adopted in place when it has no owner and its key is null, the function/stable-definition ID, or the pre-v2 `namespace:stableDefinitionId` form. Adoption rewrites ownership to the bounded v2 key while preserving the row's primary key and occurrence references. **Unclaimed legacy rows are not adopted automatically.** Reconciliation fails closed before writes when no explicit owner is configured, candidates are duplicated, the local manifest has multiple possible definitions for that function, or another namespaced owner already conflicts. Resolve ownership explicitly before retrying; do not delete historical rows merely to bypass the diagnostic.
+On the first reconciliation, exactly one legacy code-owned row for a definition may be adopted in place when it has no owner and no `SeedKey`, which is how 10.x releases stored seeded crons. Adoption writes the bounded seed key while preserving the row's primary key and occurrence references. **Unclaimed legacy rows are not adopted automatically.** Reconciliation fails closed before writes when no explicit owner is configured, candidates are duplicated, the local manifest has multiple possible definitions for that function, or another namespaced owner already conflicts. Resolve ownership explicitly before retrying; do not delete historical rows merely to bypass the diagnostic.
 
 ### Explicit legacy ownership migration
 

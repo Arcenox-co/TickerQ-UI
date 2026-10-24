@@ -115,7 +115,7 @@ All schedulers in a namespace cooperate as replicas of one application:
 - Each scheduler reconciles code-defined crons against every seeded row owned by the namespace. Crons seeded by the other application are missing from its manifest, so it requests their retirement.
 - They share one activation epoch record. Their startup fingerprints differ, so each start of one application claims a new epoch and fences the other.
 
-Give every independently deployed application, and every environment sharing a store, its own namespace. Replicas of the same application share one namespace.
+Give every independently deployed application, and every environment sharing a store, its own namespace. Replicas of the same application share one namespace. [`UseApplicationNamespace("orders", builder.Environment)`](/docs/5.x/guides/configuration#separate-environments) separates environments in one line.
 
 ### Redis InstanceName did not separate two applications
 
@@ -459,10 +459,6 @@ Call `SetSchema(...)` with your database name on MySQL or MariaDB, or with the o
 | `CREATE SCHEMA usage inside a function definition is not supported`, or a syntax error near `do` | EF Core creates non-public schemas with a `DO` block, which CockroachDB cannot run | Use `SetSchema("public")` |
 | `Transaction is already completed` during a migration | CockroachDB 25.1+ commits the open transaction before schema changes (`autocommit_before_ddl`) | Add `Options=-c autocommit_before_ddl=false` to the migration connection string |
 | `EnsureCreated()` succeeds but tables are missing | CockroachDB's built-in `pg_extension` tables make the database look populated | Use migrations instead of `EnsureCreated()` |
-
-### EF Core: activation fails on PostgreSQL or SQL Server after an upgrade
-
-The first activation insert fails with a `DbUpdateException` whose inner database error says a value is too long for `TickerQStoreMetadata.Id`. Earlier 5.x models limited that column to 64 characters; a runtime activation key needs 78. Widen it to 80 with a migration before starting upgraded replicas. Shortening the namespace does not help. See [widen the activation metadata key](/docs/5.x/guides/storage-upgrade#widen-the-activation-metadata-key).
 
 ### EF Core: the store is newer than the binary
 

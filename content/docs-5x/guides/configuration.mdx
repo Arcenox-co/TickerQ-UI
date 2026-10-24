@@ -64,6 +64,31 @@ The readable namespace is converted to a canonical storage identity. The built-i
 
 TickerQ trims the namespace and applies Unicode normalization (NFC), then compares it exactly. Matching is case-sensitive: `Orders-Production` and `orders-production` are different partitions. The value must be non-empty and at most 512 UTF-8 bytes. Changing the value later points the host at a new, empty partition; existing jobs stay under the old one. See [application namespace and identity](/docs/5.x/guides/troubleshooting#application-namespace-and-identity) for common symptoms.
 
+## Separate environments
+
+Give every environment its own namespace when environments can reach the same store, for example a
+developer machine connected to a shared demo database. The environment overload appends the host's
+environment name in lower case:
+
+```csharp
+builder.Services.AddTickerQ(options =>
+{
+    // orders-production, orders-staging, orders-development, ...
+    options.UseApplicationNamespace("orders", builder.Environment);
+});
+```
+
+A local run then has its own jobs, schedules, and [reconciliation epoch](#reconciliation-epoch), so it
+never picks up demo jobs or fences the demo's nodes. Without separate namespaces, a local build with
+different code claims a new epoch and the shared environment stops processing until the local app
+stops.
+
+Every service of one application must use the same application name and run under the same
+environment name. An API configured as `Production` and a worker configured as `Prod` get different
+namespaces, so the worker never sees the API's jobs. Developers who share one store and one
+environment name still share a namespace; give each one a distinct value if needed, for example
+`UseApplicationNamespace($"orders-{Environment.UserName}")`.
+
 ## Which name goes where?
 
 | Name | Set it on | Example |

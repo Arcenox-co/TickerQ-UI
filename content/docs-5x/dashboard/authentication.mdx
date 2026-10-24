@@ -11,7 +11,7 @@ The dashboard can inspect and operate your scheduler. Configure authentication b
 
 | Mode | Configuration | Behavior |
 | --- | --- | --- |
-| Host authentication | `WithHostAuthentication(policy, loginRedirectPath)` | Reuses your application's authenticated user and authorization policy |
+| Host authentication | `WithHostAuthentication(policy, loginRedirectPath, logoutPath)` | Reuses your application's authenticated user and authorization policy; see [signed-in user and sign-out](/docs/5.x/dashboard/existing-users#signed-in-user-and-sign-out) |
 | HTTP Basic | `WithBasicAuth(username, password)` | Validates Basic credentials; an async validator overload is also available |
 | API key | `WithApiKey(key)` or `WithApiKey(key, headerName)` | Validates a static key from Bearer authorization or your named header |
 | Dashboard JWT or cookie login | `WithAuthentication(auth => ...)` | Issues signed sessions using explicitly configured users and signing keys |

@@ -19,7 +19,7 @@ Treat the commercial 5.x line as an application upgrade. Updating a package refe
 
 | Area | What to check |
 | --- | --- |
-| Runtime identity | Use `UseApplicationNamespace(...)`. Do not generate a namespace per process. TickerQ manages the reconciliation epoch; `UseReconciliationEpoch(...)` is only for [manual control](/docs/5.x/guides/configuration#manual-epochs). `UseDefinedCronApplicationNamespace(...)` was renamed to `UseApplicationNamespace(...)`; keep the same value. See [application namespace configuration](/docs/5.x/guides/storage-upgrade#application-namespace-configuration). |
+| Runtime identity | Use `UseApplicationNamespace(...)`. Do not generate a namespace per process. TickerQ manages the reconciliation epoch; `UseReconciliationEpoch(...)` is only for [manual control](/docs/5.x/guides/configuration#manual-epochs). |
 | Code-defined crons | `[TickerFunction("Name", "<cron>")]` and `WithCron(...)` no longer declare schedules; a cron argument is a compile error. Move each schedule to `options.SeedCronTickers(crons => crons.Add("Name", "<cron>"))`. The key defaults to the function name, so existing rows are kept. See [moving from attribute schedules](/docs/5.x/guides/scheduling/cron-ticker#moving-from-attribute-schedules). |
 | Cron overlap | Set `CronTickerEntity.SkipIfAlreadyRunning`; remove calls to the old function-context helper. |
 | Transactional scheduling | Use `StageAsync` on a scoped EF application context when jobs must commit with business data. `AddAsync` still persists independently. |
