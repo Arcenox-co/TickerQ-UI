@@ -19,6 +19,7 @@ The current 5.x source documentation includes:
 - node discovery, capacity visibility, and store-routed cooperative cancellation across replicas;
 - production SignalR guidance and `ConfigureSignalR(...)` support for Redis or managed backplanes, with reconnect recovery and bounded consistency refreshes;
 - The AI assistant (**AI → Chat AI**) with persistent proposal cards, structured run investigations, optional source excerpts, automatic diagnosis deduplication, and a shared multi-node model-call budget;
+- assistant [connection status](/docs/5.x/dashboard/ai-assistant#connection-status) that shows whether a local or hosted model answers and where messages go, setup guidance when no model is connected, and [schedule policy](/docs/5.x/dashboard/ai-assistant#schedule-policies) listing, preview, and proposal cards;
 - `TickerQ.EntityFrameworkCore` no longer depends on `FlexLabs.EntityFrameworkCore.Upsert`; applications that call `Upsert(...)` themselves need their own package reference;
 - EF Core support for MariaDB, CockroachDB, YugabyteDB, and Oracle Database alongside SQLite, SQL Server, PostgreSQL, and MySQL, each verified by a relational conformance suite; see [supported databases](/docs/5.x/entity-framework#supported-databases);
 - additive EF mappings for progress/retry state, cluster control, saved definitions, execution logs, and assistant operations; the related runtime features remain opt-in.

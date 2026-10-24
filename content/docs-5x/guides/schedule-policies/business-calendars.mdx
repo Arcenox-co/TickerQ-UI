@@ -107,6 +107,8 @@ name and revision, and the blocked behavior. The policy is evaluated when the jo
 its time, policy, or blocked behavior is updated. Editing the policy later does not move or skip a
 one-time job that was already admitted.
 
+<DashboardScreenshot name="policy-moved-job" alt="Time ticker details showing the Business hours policy, the original requested time, and the adjustment reason" caption="A job requested for Saturday under Business hours moved to the next allowed weekday time. Its details keep the requested time and the reason." />
+
 ### Chains
 
 Set the policy on the chain root. TickerQ rejects a policy on a child step.
@@ -223,14 +225,26 @@ provider blocks every instant for that policy.
 
 Open **Policies → Schedule Policies** in the dashboard sidebar.
 
+<DashboardScreenshot name="schedule-policies" alt="Schedule Policies page with equal cards showing time zones, allowed days, daily windows, exclusions, and composition" caption="Each card highlights the allowed days and strikes through the blocked ones. Requires and Except tags show composition." />
+
 - **Cards** show each policy's revision, time zone, allowed days, daily windows, exclusion counts,
   and any `Require` or `ExceptWhen` references.
 - **The editor** groups settings into **Basics**, **Availability**, **Exceptions**, and **Combine
   policies**. It lists the registered date providers to choose from. When editing, it shows how many
   time and cron tickers use the policy, and the name field is locked.
-- **Preview** on a saved policy takes a cron expression and evaluates its next 20 candidates. Each
-  one is marked **Allowed** or **Blocked** with the reason.
+- **Combine policies** sets each other policy to **Not used**, **Require**, or **Exclude**.
+  **Require** matches `Require(name)` and **Exclude** matches `ExceptWhen(name)`.
+- **Preview** on a saved policy takes a cron expression and evaluates its next 20 candidates. It
+  shows how many are allowed and blocked, and marks each one **Allowed** or **Blocked** with the
+  reason, in the policy's time zone. Quick buttons fill in common expressions.
 - **Delete** is rejected while a ticker or another policy still references the policy.
+
+<DashboardScreenshot name="schedule-policy-editor" alt="Schedule policy editor with Business hours required and Maintenance window excluded" caption="Payments settlement requires Business hours and is blocked whenever Maintenance window allows." />
+
+<DashboardScreenshot name="schedule-policy-preview" alt="Policy preview listing allowed weekday occurrences and blocked weekend occurrences with reasons" caption="The preview explains each blocked occurrence, including blocks that come from a required policy." />
+
+The [AI assistant](/docs/5.x/dashboard/ai-assistant#schedule-policies) can also list policies,
+preview a cron expression against one, and draft a new policy or a change for you to confirm.
 
 Time and cron creation panels select a policy under **Advanced settings → Scheduling**. In the
 chain builder, the root step has its own **Scheduling** section. When a one-time job is moved by its

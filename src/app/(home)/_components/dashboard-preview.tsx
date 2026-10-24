@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Bot, GitBranch, LayoutDashboard, Maximize2, Pause, Play, Plug, X } from "lucide-react";
+import { dashboardScreenshot } from "@/lib/dashboard-images";
+import { ArrowRight, Bot, CalendarClock, GitBranch, LayoutDashboard, Maximize2, Pause, Play, Plug, X } from "lucide-react";
 
 const views = [
   {
@@ -19,15 +20,21 @@ const views = [
     panX: 400,
   },
   {
+    id: "policies", image: "schedule-policies", label: "Schedule policies", shortLabel: "Policies", icon: CalendarClock,
+    alt: "TickerQ Schedule Policies page with business hours, a maintenance window, and a composed payments policy",
+    caption: "Define business hours, holidays, and maintenance windows once, then reuse them across jobs.",
+    panX: 150,
+  },
+  {
     id: "integrations", image: "integrations", label: "Connections", shortLabel: "Connect", icon: Plug,
     alt: "TickerQ Connections view with a saved Slack integration and delivery status",
     caption: "Manage connections for Slack, Teams, and custom webhooks in one place.",
     panX: 150,
   },
   {
-    id: "assistant", image: "assistant-conversation", label: "AI assistant", shortLabel: "AI", icon: Bot,
-    alt: "TickerQ AI conversation with a proposed time ticker and Confirm and Dismiss actions",
-    caption: "Turn a request into a proposed job, then review the action before confirming it.",
+    id: "assistant", image: "assistant-policy-proposal", label: "AI assistant", shortLabel: "AI", icon: Bot,
+    alt: "TickerQ AI chat with a proposed schedule policy and Confirm and Dismiss actions",
+    caption: "Turn a request into a proposed change, then review it before confirming. Use a hosted or local model.",
     panX: 235,
   },
 ];
@@ -183,7 +190,7 @@ export function DashboardPreview() {
           <div key={id} id={`preview-panel-${id}`} role="tabpanel" aria-labelledby={`preview-tab-${id}`} hidden={active !== index}>
             {active === index && (
               <button type="button" onClick={openPreview} aria-haspopup="dialog" aria-label={`Expand ${label} screenshot`} className="group relative block aspect-[1440/920] w-full cursor-zoom-in overflow-hidden rounded-lg bg-[#080c16] text-start motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-teal-300">
-                <Image src={`/images/dashboard/${image}.jpg`} alt={alt} width={1440} height={920} sizes="(min-width: 1280px) 660px, (min-width: 1024px) 55vw, (min-width: 640px) 576px, 100vw" className="block h-auto w-full" unoptimized preload={index === 0} />
+                <Image src={dashboardScreenshot(image)} alt={alt} width={1440} height={920} sizes="(min-width: 1280px) 660px, (min-width: 1024px) 55vw, (min-width: 640px) 576px, 100vw" className="block h-auto w-full" unoptimized preload={index === 0} />
                 <span className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-[#101725]/95 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 shadow-sm transition-colors group-hover:bg-[#182337] group-hover:text-white">
                   <Maximize2 className="size-3" aria-hidden />Expand view
                 </span>
@@ -208,7 +215,7 @@ export function DashboardPreview() {
             </button>
           </div>
           <div ref={imageViewport} role="region" aria-label="Full dashboard screenshot" tabIndex={0} className="min-h-0 overflow-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-300">
-            {expanded && <Image src={`/images/dashboard/${view.image}.jpg`} alt={view.alt} width={1440} height={920} sizes="1440px" className="h-auto w-full min-w-[1040px] max-w-none" unoptimized />}
+            {expanded && <Image src={dashboardScreenshot(view.image)} alt={view.alt} width={1440} height={920} sizes="1440px" className="h-auto w-full min-w-[1040px] max-w-none" unoptimized />}
           </div>
         </div>
       </dialog>
