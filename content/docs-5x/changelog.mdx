@@ -37,6 +37,8 @@ The current 5.x source documentation includes the changes below, compared with t
 - schedule policies: reusable [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for time tickers, cron tickers, and chain roots, plus per-schedule [late-start and cron catch-up rules](/docs/5.x/guides/schedule-policies/late-starts) that replace the removed `SkipStaleCronOccurrencesOnStartup(...)` option;
 - [`UseApplicationNamespace("orders", builder.Environment)`](/docs/5.x/guides/configuration#separate-environments) gives each environment sharing a store its own namespace;
 - new [manager operations](/docs/5.x/guides/managers#wait-for-a-job-and-read-its-result): `WaitForCompletionAsync` and `GetOutcomeAsync` return a job's or cron occurrence's status and published result, `RescheduleAsync` moves a job that has not started, `CancelPendingAsync<TFunction>()` cancels a function's pending jobs, and cron `GetNextOccurrencesAsync` lists upcoming run times;
+- manager [reads and bulk deletes](/docs/5.x/guides/managers#read-and-delete-in-bulk): time and cron `GetAsync`, `ListAsync` (all, by filter, or by function), and `DeleteAsync` by filter, which skips running work, protected chains, and seeded crons; `TickerResult.EnsureSuccess()` rethrows a failed operation's exception;
+- a [test clock](/docs/5.x/guides/progress-retries-testing#control-time-in-automated-tests): an `ITickerClock` registered after `AddTickerQ` sets what the managers treat as now;
 - `TickerFunctionContext.ParentId` identifies the owning cron definition for a cron occurrence and the parent time ticker for a chain step.
 
 ### Storage
@@ -63,6 +65,8 @@ The current 5.x source documentation includes the changes below, compared with t
 - the Redis provider loads an occurrence's `CronTicker` when acquiring it, instead of throwing a `NullReferenceException`;
 - dashboard time-series charts are no longer empty for the graph date-range endpoints;
 - the dashboard's ticker-request route sends the ticker's GUID instead of the literal `id`;
+- build-time OpenAPI generation (`Microsoft.Extensions.ApiDescription.Server`) no longer starts TickerQ, so `dotnet build` does not need a reachable or migrated database; see [build-time OpenAPI generation](/docs/5.x/guides/troubleshooting#build-time-openapi-generation);
+- `TickerFunctionProvider.TickerFunctions` and the request-type mirrors can no longer be replaced after the registry is built;
 - the source generator no longer produces `CS0136` when a function's class constructor has a `serviceProvider` parameter.
 
 Check the release entry and published NuGet version before relying on a documented feature in a deployed package. Preview source and preview packages can move ahead of the latest stable release.

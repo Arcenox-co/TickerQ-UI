@@ -19,6 +19,8 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | Move pending work to another time | Time `RescheduleAsync` |
 | Wait for a job and read its result | `WaitForCompletionAsync`, or `GetOutcomeAsync` to check once |
 | Show a cron's upcoming run times | Cron `GetNextOccurrencesAsync` |
+| Read or list existing jobs or crons | `GetAsync`, `ListAsync`, `ListAsync<TFunction>` |
+| Delete every job or cron matching a filter | `DeleteAsync(filter)` |
 | Ask a running handler to stop | `RequestCancellationAsync`; forwarded to the owning node when needed |
 | Repeat work immediately | `RunNowAsync`, then inspect its persisted outcome |
 | Retry a settled chain from one step | Time `RetryFromAsync` |
@@ -43,7 +45,10 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | `WaitForCompletionAsync(id, timeout, ct)` | Wait until the job finishes or the timeout passes, then return its outcome |
 | `RequestCancellationAsync(id, ct)` | Signal one running execution on this host, or send a cancellation command to the node that owns it |
 | `SetDeleteBehaviorAsync(rootId, behavior, ct)` | Change the root's chain-deletion policy |
+| `GetAsync(id, ct)` | Read one job with its chain steps; `null` when it does not exist |
+| `ListAsync(ct)` / `ListAsync(filter, ct)` / `ListAsync<TFunction>(ct)` | List standalone jobs and chain roots, newest first, with steps in `Children` |
 | `DeleteAsync(id, ct)` | Remove an eligible job/chain, subject to ownership and deletion checks |
+| `DeleteAsync(filter, ct)` | Remove every matching job/chain that is safe to delete; see [read and delete in bulk](#read-and-delete-in-bulk) |
 
 `AddBatchAsync`, `UpdateBatchAsync`, and `DeleteBatchAsync` are also available. Batch atomicity depends on the operation and provider; do not assume multiple independent calls form one transaction. Use [EF staging](/docs/5.x/entity-framework/transactional-scheduling) for new jobs that must commit with business data.
 
@@ -67,7 +72,10 @@ while adding policy, blocked-time, and missed-execution settings. See
 | `GetNextOccurrencesAsync(cronId, count, ct)` | List the next 1–1,000 run times in UTC, applying the cron's time zone and schedule policy; empty while it is disabled |
 | `GetOutcomeAsync(occurrenceId, ct)` | Read an occurrence's stored status, failure, and published result |
 | `WaitForCompletionAsync(occurrenceId, timeout, ct)` | Wait until the occurrence finishes or the timeout passes, then return its outcome |
+| `GetAsync(cronId, ct)` | Read one definition; `null` when it does not exist |
+| `ListAsync(ct)` / `ListAsync(filter, ct)` / `ListAsync<TFunction>(ct)` | List definitions, seeded ones included |
 | `DeleteAsync(cronId, ct)` | Delete an eligible definition; this is not an occurrence cancellation operation |
+| `DeleteAsync(filter, ct)` | Delete matching definitions with their occurrences; seeded crons are kept |
 
 Cron managers also support add/update/delete batches and typed `AddAsync<TFunction>` overloads. A recurring-chain occurrence is a dispatcher: after its chain is launched, manage the resulting time jobs individually.
 
@@ -104,6 +112,12 @@ if (!run.IsSucceeded)
     throw run.Exception;
 
 var occurrenceId = run.Result.Id;
+```
+
+`EnsureSuccess()` does the same check in one call. It rethrows the failure with its original stack trace, or returns the result so you can keep using it:
+
+```csharp
+var occurrenceId = (await cronTickerManager.RunNowAsync(cronId, cancellationToken)).EnsureSuccess().Result.Id;
 ```
 
 | Member | Meaning |
@@ -148,6 +162,27 @@ before its steps run; wait on the step whose result you need. In a Native AOT ap
 `GetResult(typeInfo)` with source-generated serializer metadata.
 
 For a cron, pass the occurrence ID, for example the one returned by `RunNowAsync`, not the cron's ID.
+
+## Read and delete in bulk
+
+`ListAsync` returns standalone jobs and chain roots, with each chain's steps in `Children`. A filter is matched against roots only, so a filter on a step's function finds nothing unless its root also matches. Reads cover only this application's [namespace](/docs/5.x/guides/configuration#separate-environments). Large stores return every match, so filter as narrowly as you can.
+
+```csharp
+var pendingExports = await timeManager.ListAsync(
+    x => x.Function == "ExportJob" && x.Status == TickerStatus.Idle, cancellationToken);
+var reportCrons = await cronManager.ListAsync<ReportJob>(cancellationToken);
+```
+
+`DeleteAsync(filter)` deletes each matching job together with its chain steps, whatever its status, so finished and failed history goes too. It skips work that is running or leased, and chains whose `Restrict` policy still protects unfinished steps. `AffectedRows` counts every deleted job, steps included. Pass `_ => true` to delete everything that is safe to delete:
+
+```csharp
+(await timeManager.DeleteAsync(_ => true, cancellationToken)).EnsureSuccess();
+(await timeManager.DeleteAsync(
+    x => x.Function == "ReportJob" && x.Status == TickerStatus.Done, cancellationToken)).EnsureSuccess();
+(await cronManager.DeleteAsync(x => x.Function == "ReportJob", cancellationToken)).EnsureSuccess();
+```
+
+The cron overload deletes definitions with their occurrences, but keep crons declared with [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers): their code owns them, so remove them from the seed instead. To stop jobs without deleting their history, use `CancelPendingAsync<TFunction>` or `SetEnabledAsync`.
 
 ## Run, retry, and cancel on demand
 

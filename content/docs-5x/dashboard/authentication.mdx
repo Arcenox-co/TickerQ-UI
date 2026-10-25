@@ -162,6 +162,16 @@ dashboard.PreDashboardMiddleware = app => app.Use(async (context, next) =>
 
 These hooks do not replace your host pipeline. Host authentication still requires `UseAuthentication()` and `UseAuthorization()` before `UseTickerQ()`.
 
+Inside that branch, ASP.NET Core moves the base path into `Request.PathBase`, so `Request.Path` is relative to the dashboard (for example `/api/auth/info`). Code that recognizes dashboard requests by URL, such as an authorization handler or middleware that exempts them from a policy, must combine both parts:
+
+```csharp
+var fullPath = httpContext.Request.PathBase.Add(httpContext.Request.Path);
+if (fullPath.StartsWithSegments("/api/tickerq"))
+{
+    // dashboard request
+}
+```
+
 ## Local anonymous access
 
 ```csharp

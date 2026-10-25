@@ -100,3 +100,29 @@ await ChargeAndPublishInvoiceAsync(cancellationToken);
 Remote SDK functions require a durable execution and cannot use this local test endpoint. Progress reported during a test is visible only while that bounded test result remains in the current dashboard host.
 
 For work you want to revisit without executing, save a [time draft or chain template](/docs/5.x/dashboard/saved-work).
+
+## Control time in automated tests
+
+TickerQ reads the current UTC time through `ITickerClock`. Register your own implementation after `AddTickerQ` to choose what the managers treat as now, for example a fixed date in a BDD scenario:
+
+```csharp
+public sealed class TestClock : ITickerClock
+{
+    public DateTime UtcNow { get; set; } = new(2025, 9, 5, 12, 0, 0, DateTimeKind.Utc);
+}
+
+var clock = new TestClock();
+services.AddTickerQ(options => { /* ... */ });
+services.AddSingleton<ITickerClock>(clock);
+```
+
+A job added without an execution time is then scheduled for `clock.UtcNow`, and cron `GetNextOccurrencesAsync` lists run times after it. The scheduler's polling still runs in real time, so the clock does not fast-forward work. To execute a job inside a test without waiting for its time, run it and wait for its outcome on a licensed scheduler host:
+
+```csharp
+var added = (await timeManager.AddAsync<ReportJob>(clock.UtcNow.AddDays(1))).EnsureSuccess();
+(await timeManager.RunNowAsync(added.Result.Id)).EnsureSuccess();
+var outcome = await timeManager.WaitForCompletionAsync(added.Result.Id, TimeSpan.FromSeconds(30));
+Assert.True(outcome!.IsSucceeded);
+```
+
+Without a configured operational store, TickerQ keeps jobs in memory, which keeps such tests self-contained.

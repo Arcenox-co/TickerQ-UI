@@ -550,6 +550,21 @@ The cron, occurrence, and chain-step variants end with `before a cron can run im
 
 These actions dispatch work on the host that serves the dashboard request. They fail when that host calls `DisableBackgroundServices()`, was started with `TickerQStartMode.Manual` and has not been started, or is not licensed for execution. Use the dashboard of a running, licensed scheduler host, or start the scheduler. See [separate producers and workers](/docs/5.x/guides/configuration#separate-producers-and-workers).
 
+### Saving or deleting returns 405 on IIS
+
+When reading works but saving, disabling, or deleting a job in the dashboard returns `405 Method Not Allowed`, IIS's WebDAV module is handling the `PUT` and `DELETE` requests before they reach the application. Remove the module, and its handler, in the application's `web.config`:
+
+```xml
+<system.webServer>
+  <modules>
+    <remove name="WebDAVModule" />
+  </modules>
+  <handlers>
+    <remove name="WebDAV" />
+  </handlers>
+</system.webServer>
+```
+
 ## Dashboard live updates are delayed
 
 The REST API is the source of truth; SignalR tells active views which queries to refresh. If data appears after a manual reload but not immediately, inspect the browser network panel for the hub negotiation and connection beneath the configured dashboard base path.
