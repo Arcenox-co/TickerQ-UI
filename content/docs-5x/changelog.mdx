@@ -10,26 +10,59 @@ Follow the latest features, improvements, and fixes across the `10.5.x`, `9.5.x`
 
 ## Current 5.x documentation highlights
 
-The current 5.x source documentation includes:
+The current 5.x source documentation includes the changes below, compared with the 10.3.0 release.
 
-- type-safe `AddChainAsync` builders with `ThenMany` durable groups and outcome joins;
-- [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) declares code-owned cron schedules with the recurring-chain builder (time zone, schedule policy, request, retries, and chain steps), validated like `AddChainAsync` and reconciled once per epoch without duplicates; `[TickerFunction]` and `WithCron(...)` no longer accept a cron expression;
-- [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work) declares one-time startup work with the same chain builder, created once per key through the `AddOnceAsync` identity;
-- dashboard host authentication: an account menu with the signed-in user and access level, Sign out through the application's logout endpoint, and [`UseUserNameClaim`](/docs/5.x/dashboard/existing-users#signed-in-user-and-sign-out) to choose the displayed name;
-- `dotnet ef migrations add` finds the dedicated `TickerQDbContext` in a new project, without a design-time factory;
-- MariaDB and MySQL through `Microting.EntityFrameworkCore.MySql`, the EF Core 10 fork of Pomelo: crons and time tickers run instead of being skipped;
-- Oracle Database 19c and 21c with the provider's default settings: TickerQ's boolean columns are `NUMBER(1)` and its queries avoid SQL `BOOLEAN`, so migrations no longer fail with `ORA-00904: "FALSE": invalid identifier`;
-- automatic [reconciliation epochs](/docs/5.x/guides/configuration#reconciliation-epoch): TickerQ fingerprints functions, request contracts, and seeds, reconciles when they change, and fences hosts running an earlier deployment, so `UseReconciliationEpoch` is no longer required; [`SeedSchedulePolicies`](/docs/5.x/guides/schedule-policies/business-calendars) declares code-owned policies;
-- schedule policies: reusable [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for time tickers, cron tickers, and chain roots, plus per-schedule [late-start and cron catch-up rules](/docs/5.x/guides/schedule-policies/late-starts) that replace the removed `SkipStaleCronOccurrencesOnStartup(...)` option;
-- recurring chains, parent-result propagation, progress reporting, and retry from a selected chain step or group;
+### Licensing
+
+- 5.x packages are distributed under the [TickerQ Software License Agreement](/docs/5.x/getting-started/licensing), with a free Community option, a 30-day Evaluation, and a Commercial Subscription. Install the certificate with `UseLicense(...)`; earlier MIT and Apache 2.0 releases keep their original terms.
+
+### Dashboard
+
+- the dashboard is rewritten in React 19 and TypeScript, replacing the Vue 3 (Vuetify and Pinia) dashboard of earlier releases. Its routes load on demand. Authentication is now configured explicitly; see the [5.x upgrade guide](/docs/5.x/getting-started/migration);
+- dashboard host authentication: an account menu with the signed-in user and access level, Sign out through the application's logout endpoint, and [`UseUserNameClaim`](/docs/5.x/dashboard/existing-users#signed-in-user-and-sign-out) to choose the displayed name; when the dashboard uses the application's sign-in, its login page links to it;
+- [node discovery](/docs/5.x/dashboard/clustering), capacity visibility, and store-routed cooperative cancellation across replicas;
+- server-side status and search filters on the time tickers page;
 - ephemeral create-form test runs, saved one-time drafts, and reusable time/cron chain templates;
-- node discovery, capacity visibility, and store-routed cooperative cancellation across replicas;
 - production SignalR guidance and `ConfigureSignalR(...)` support for Redis or managed backplanes, with reconnect recovery and bounded consistency refreshes;
 - The AI assistant (**AI → Chat AI**) with persistent proposal cards, structured run investigations, optional source excerpts, automatic diagnosis deduplication, and a shared multi-node model-call budget;
-- assistant [connection status](/docs/5.x/dashboard/ai-assistant#connection-status) that shows whether a local or hosted model answers and where messages go, setup guidance when no model is connected, and [schedule policy](/docs/5.x/dashboard/ai-assistant#schedule-policies) listing, preview, and proposal cards;
-- `TickerQ.EntityFrameworkCore` no longer depends on `FlexLabs.EntityFrameworkCore.Upsert`; applications that call `Upsert(...)` themselves need their own package reference;
+- assistant [connection status](/docs/5.x/dashboard/ai-assistant#connection-status) that shows whether a local or hosted model answers and where messages go, setup guidance when no model is connected, and [schedule policy](/docs/5.x/dashboard/ai-assistant#schedule-policies) listing, preview, and proposal cards.
+
+### Scheduling and chains
+
+- type-safe `AddChainAsync` builders with `ThenMany` durable groups and outcome joins;
+- recurring chains, parent-result propagation, progress reporting, and retry from a selected chain step or group;
+- [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) declares code-owned cron schedules with the recurring-chain builder (time zone, schedule policy, request, retries, and chain steps), validated like `AddChainAsync` and reconciled once per epoch without duplicates; `[TickerFunction]` and `WithCron(...)` no longer accept a cron expression;
+- [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work) declares one-time startup work with the same chain builder, created once per key through the `AddOnceAsync` identity;
+- automatic [reconciliation epochs](/docs/5.x/guides/configuration#reconciliation-epoch): TickerQ fingerprints functions, request contracts, and seeds, reconciles when they change, and fences hosts running an earlier deployment, so `UseReconciliationEpoch` is no longer required; [`SeedSchedulePolicies`](/docs/5.x/guides/schedule-policies/business-calendars) declares code-owned policies;
+- schedule policies: reusable [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for time tickers, cron tickers, and chain roots, plus per-schedule [late-start and cron catch-up rules](/docs/5.x/guides/schedule-policies/late-starts) that replace the removed `SkipStaleCronOccurrencesOnStartup(...)` option;
+- [`UseApplicationNamespace("orders", builder.Environment)`](/docs/5.x/guides/configuration#separate-environments) gives each environment sharing a store its own namespace;
+- `TickerFunctionContext.ParentId` identifies the owning cron definition for a cron occurrence and the parent time ticker for a chain step.
+
+### Storage
+
 - EF Core support for MariaDB, CockroachDB, YugabyteDB, and Oracle Database alongside SQLite, SQL Server, PostgreSQL, and MySQL, each verified by a relational conformance suite; see [supported databases](/docs/5.x/entity-framework#supported-databases);
+- Oracle Database 19c and 21c with the provider's default settings: TickerQ's boolean columns are `NUMBER(1)` and its queries avoid SQL `BOOLEAN`, so migrations no longer fail with `ORA-00904: "FALSE": invalid identifier`;
+- MariaDB and MySQL through `Microting.EntityFrameworkCore.MySql`, the EF Core 10 fork of Pomelo: crons and time tickers run instead of being skipped;
+- `dotnet ef migrations add` finds the dedicated `TickerQDbContext` in a new project, without a design-time factory;
+- a [MongoDB persistence provider](/docs/5.x/mongodb), and public `TickerQ.Utilities` projection helpers so third-party providers can implement `ITickerPersistenceProvider`;
+- Redis can reuse your application's connection through [`ConnectionMultiplexer` or `ConnectionMultiplexerFactory`](/docs/5.x/redis); TickerQ registers its Redis services as keyed singletons so they do not replace the host's own;
+- `TickerQ.EntityFrameworkCore` no longer depends on `FlexLabs.EntityFrameworkCore.Upsert`; applications that call `Upsert(...)` themselves need their own package reference;
 - additive EF mappings for progress/retry state, cluster control, saved definitions, execution logs, and assistant operations; the related runtime features remain opt-in.
+
+### Runtime and observability
+
+- [Native AOT](/docs/5.x/guides/native-aot) publishing for the scheduler, the dashboard, and the optional packages, validated against installed packages;
+- tracing is built into the core package: call `options.EnableActivitySource()` and subscribe to the `TickerQ` source, or use the [OpenTelemetry package](/docs/5.x/opentelemetry); OpenTelemetry dependencies are updated to 1.15.3 for a CVE fix;
+- overdue work stays eligible after downtime and drains in bounded batches with capacity backpressure, and scheduled jobs check their absolute due time before dispatch;
+- lower runtime memory use: bounded in-memory state, fewer logging allocations, and request-schema registrations that can be collected.
+
+### Fixes
+
+- recovered cron occurrences keep their execution time, so `ScheduledFor` is no longer empty;
+- the Redis provider loads an occurrence's `CronTicker` when acquiring it, instead of throwing a `NullReferenceException`;
+- dashboard time-series charts are no longer empty for the graph date-range endpoints;
+- the dashboard's ticker-request route sends the ticker's GUID instead of the literal `id`;
+- the source generator no longer produces `CS0136` when a function's class constructor has a `serviceProvider` parameter.
 
 Check the release entry and published NuGet version before relying on a documented feature in a deployed package. Preview source and preview packages can move ahead of the latest stable release.
 
