@@ -450,7 +450,7 @@ TickerQ's default schema is `ticker`. On MySQL and MariaDB a schema is a databas
 ORA-01435: user does not exist
 ```
 
-Call `SetSchema(...)` with your database name on MySQL or MariaDB, or with the owning Oracle user in uppercase. See [supported databases](/docs/5.x/entity-framework#supported-databases).
+Call `SetSchema(...)` with your database name on MySQL or MariaDB, or with the owning Oracle user in uppercase. With Pomelo or Microting, table creation instead fails with `MySQL does not support the EF Core concept of schemas`; configure `SchemaBehavior(MySqlSchemaBehavior.Ignore)` on `UseMySql`. See [supported databases](/docs/5.x/entity-framework#supported-databases).
 
 ### EF Core: CockroachDB schema creation or migration fails
 

@@ -63,7 +63,7 @@ app.UseTickerQ();
 app.Run();
 ```
 
-Replace `/account/login` with your actual login page. The dashboard adds a `returnUrl` for unauthenticated browser navigations; your login handler should accept only local return URLs. API requests do not use this dashboard navigation redirect, although your host's authentication handler determines its own challenge response. With cookie authentication, make API challenges answer 401 and 403 instead of redirecting, because the dashboard already sends browser navigations to the login page:
+Replace `/account/login` with your actual login page. Without a login path, the dashboard's sign-in screen offers **Sign in**, which runs your application's default authentication challenge (for example its cookie login page or OpenID Connect provider) and returns to the dashboard. The dashboard adds a `returnUrl` for unauthenticated browser navigations; your login handler should accept only local return URLs. API requests do not use this dashboard navigation redirect, although your host's authentication handler determines its own challenge response. With cookie authentication, make API challenges answer 401 and 403 instead of redirecting, because the dashboard already sends browser navigations to the login page:
 
 ```csharp
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

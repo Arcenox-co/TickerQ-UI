@@ -63,11 +63,12 @@ Scheduler startup verifies TickerQ's required indexes by reading the database's 
 | PostgreSQL | `Npgsql.EntityFrameworkCore.PostgreSQL` | PostgreSQL 17 |
 | MySQL | `MySql.EntityFrameworkCore` | MySQL 8.4 |
 | MariaDB | `MySql.EntityFrameworkCore` | MariaDB 11.4 |
+| MariaDB | `Microting.EntityFrameworkCore.MySql` | MariaDB 10.11 |
 | CockroachDB | `Npgsql.EntityFrameworkCore.PostgreSQL` | CockroachDB 24.3 and 25.2 |
 | YugabyteDB (YSQL) | `Npgsql.EntityFrameworkCore.PostgreSQL` | YugabyteDB 2024.2 |
-| Oracle Database | `Oracle.EntityFrameworkCore` | Oracle Database 23ai Free |
+| Oracle Database | `Oracle.EntityFrameworkCore` | Oracle Database 23ai Free and 21c XE |
 
-Pomelo (`Pomelo.EntityFrameworkCore.MySql`) is also recognized for MySQL and MariaDB, but it has no EF Core 10 release, so the EF Core 10 line was tested with `MySql.EntityFrameworkCore`. Any other EF provider fails closed when a new reconciliation epoch is activated: startup throws a `TickerQStoreSchemaException` saying TickerQ cannot verify required relational indexes for that provider, and listing the supported ones.
+Pomelo (`Pomelo.EntityFrameworkCore.MySql`) is also recognized for MySQL and MariaDB, but it has no EF Core 10 release. Its EF Core 10 fork, `Microting.EntityFrameworkCore.MySql`, is supported and was tested on MariaDB 10.11. Any other EF provider fails closed when a new reconciliation epoch is activated: startup throws a `TickerQStoreSchemaException` saying TickerQ cannot verify required relational indexes for that provider, and listing the supported ones.
 
 Managed services run these same engines and use the same provider: Azure SQL Database and Azure SQL Managed Instance; Amazon RDS and Aurora for PostgreSQL and MySQL; Azure Database for PostgreSQL and MySQL; Google Cloud SQL; and hosted PostgreSQL such as Neon and Supabase. They are expected to work but were not tested separately. TickerQ relies on serializable transactions; behind a connection pooler such as PgBouncer, use session pooling or a direct connection, at least for migrations.
 
@@ -75,7 +76,15 @@ TickerQ retries deadlocks and serialization conflicts itself on every supported 
 
 #### MySQL and MariaDB
 
-- A MySQL schema is a database. TickerQ's default schema `ticker` therefore places its tables in a database named `ticker`. Call `SetSchema("<your database>")` to keep them in the connection's database.
+- A MySQL schema is a database. With `MySql.EntityFrameworkCore`, TickerQ's default schema `ticker` places its tables in a database named `ticker`; call `SetSchema("<your database>")` to keep them in the connection's database.
+- Pomelo and Microting reject EF schemas by default, so creating or migrating TickerQ's tables fails with `MySQL does not support the EF Core concept of schemas`. Tell the provider to ignore them, which keeps the tables in the connection's database:
+
+  ```csharp
+  db.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString),
+      mysql => mysql.SchemaBehavior(MySqlSchemaBehavior.Ignore));
+  ```
+
+  `MySqlSchemaBehavior` is in `Microting.EntityFrameworkCore.MySql.Infrastructure` for Microting and in `Pomelo.EntityFrameworkCore.MySql.Infrastructure` for Pomelo.
 - TickerQ rewrites EF Core's bulk-delete statements into a form MariaDB accepts. The rewrite is registered automatically for both `UseTickerQDbContext` and `UseApplicationDbContext`.
 - To stay within InnoDB's 3,072-byte index key limit, the assistant investigation index on MySQL and MariaDB covers `(ApplicationNamespace, OccurredAt)` and is named `IX_AssistantInvestigation_Namespace_OccurredAt`.
 
@@ -92,6 +101,7 @@ Connect to the YSQL API (port 5433 by default) with the PostgreSQL provider. No 
 #### Oracle Database
 
 - Call `SetSchema` with the Oracle user that owns TickerQ's tables, in uppercase, for example `SetSchema("TICKERQ")`. TickerQ's default schema `ticker` names a lowercase user that normally does not exist, and table creation fails with `ORA-01435: user does not exist`.
+- TickerQ stores its boolean columns as `NUMBER(1)` on every Oracle version, so the same tables and migrations work on 19c, 21c, and 23ai. No `UseOracleSQLCompatibility` setting is needed for TickerQ, with either value. Your own entities keep the provider's mapping: if your application's tables use `bool` on Oracle 19c or 21c, set `UseOracleSQLCompatibility(OracleSQLCompatibility.DatabaseVersion19)` for them as the provider requires.
 - Oracle indexes a row unless every key column is NULL, so a unique index over `(ApplicationNamespaceKey, SeedKey)` would reject a second cron without a `SeedKey`. On Oracle, TickerQ adds a virtual `SeedKeyScope` column to `CronTickers` and builds `UX_CronTickers_SeedKey` over `(SeedKeyScope, SeedKey)` instead. Migrations include it automatically.
 
 ### Current table inventory
@@ -118,10 +128,19 @@ If jobs do not need to share the business context, the package supplies a dedica
 using TickerQ.EntityFrameworkCore.DbContextFactory;
 
 options.AddOperationalStore(store => store.UseTickerQDbContext<TickerQDbContext>(db =>
-    db.UseSqlite("Data Source=tickerq.db")));
+    db.UseSqlite("Data Source=tickerq.db", sqlite =>
+        sqlite.MigrationsAssembly(typeof(Program).Assembly.FullName))));
 ```
 
-Generate migrations for that context through your application's normal design-time setup. `SetSchema(...)` selects a relational schema where the provider supports schemas; SQLite does not. `UseTickerQDbContext` also accepts the schema as an optional second argument, for example `UseTickerQDbContext<TickerQDbContext>(db => db.UseNpgsql(connectionString), schema: "jobs")`. Both set the same value, so the last call wins; omitting the argument keeps the current schema (default `ticker`). `AutoMigrateDatabase()` explicitly applies pending migrations at startup, but generating and reviewing them remains the application's responsibility. Use your deployment pipeline when schema changes need separate control.
+Generate migrations for that context with the EF Core tools, from the project that builds your host:
+
+```sh
+dotnet ef migrations add AddTickerQ --context TickerQDbContext
+```
+
+`TickerQDbContext` lives in the TickerQ package, so set `MigrationsAssembly` to your application's
+assembly as above; migrations then belong to your project. No design-time factory is needed: the tools
+find the context through your application's services, even before the first migration exists. `SetSchema(...)` selects a relational schema where the provider supports schemas; SQLite does not. `UseTickerQDbContext` also accepts the schema as an optional second argument, for example `UseTickerQDbContext<TickerQDbContext>(db => db.UseNpgsql(connectionString), schema: "jobs")`. Both set the same value, so the last call wins; omitting the argument keeps the current schema (default `ticker`). `AutoMigrateDatabase()` explicitly applies pending migrations at startup, but generating and reviewing them remains the application's responsibility. Use your deployment pipeline when schema changes need separate control.
 
 The dedicated context supports independent manager operations. It does not make `StageAsync` join an unrelated business context; that operation requires the application-context registration.
 
