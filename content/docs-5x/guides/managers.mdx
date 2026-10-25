@@ -15,6 +15,10 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | Create or inspect a reusable calendar | `ISchedulePolicyManager` |
 | Commit new work with my business transaction | `StageAsync` with the EF application context |
 | Stop pending work before its handler runs | Time `CancelAsync` |
+| Stop all pending work of one function | Time `CancelPendingAsync<TFunction>` |
+| Move pending work to another time | Time `RescheduleAsync` |
+| Wait for a job and read its result | `WaitForCompletionAsync`, or `GetOutcomeAsync` to check once |
+| Show a cron's upcoming run times | Cron `GetNextOccurrencesAsync` |
 | Ask a running handler to stop | `RequestCancellationAsync`; forwarded to the owning node when needed |
 | Repeat work immediately | `RunNowAsync`, then inspect its persisted outcome |
 | Retry a settled chain from one step | Time `RetryFromAsync` |
@@ -27,13 +31,16 @@ Inject `ITimeTickerManager<TimeTickerEntity>` or `ICronTickerManager<CronTickerE
 | --- | --- |
 | `AddAsync(entity, ct)` | Validate and persist a new job or complete chain independently |
 | `AddChainAsync(chain => ..., ct)` | Build a [one-time chain](/docs/5.x/guides/job-chaining) with the fluent builder and persist it like `AddAsync` |
-| `AddOnceAsync(identifier, entity, ct)` | Create a seed once while that initialization identifier exists; return the existing job unchanged on later calls |
 | `StageAsync(entity, ct)` | Track a new job/chain in the same scoped EF application context as business data; caller saves and commits |
 | `UpdateAsync(entity, ct)` | Update an eligible job; this is not a direct status setter |
 | `ReplaceChainAsync(rootId, newRoot, ct)` | Validate and replace an eligible complete graph atomically, preserving the original if replacement fails |
 | `RunNowAsync(rootId, ct)` | Acquire an eligible root for execution now; does not reset an entire chain |
 | `RetryFromAsync(id, ct)` | Reuse the existing chain identity, preserve completed ancestors and unaffected group branches, and reset the selected/affected downstream path; returns the chain root |
+| `RescheduleAsync(id, executionTime, ct)` | Move a root that has not started to a new time, applying its schedule policy; fails for chain steps and for work that is queued, running, or finished |
 | `CancelAsync(id, ct)` | Cancel an Idle/Queued job and its pending descendants; preserve records |
+| `CancelPendingAsync<TFunction>(ct)` | Cancel every Idle/Queued standalone job and chain root of that function, with their pending steps |
+| `GetOutcomeAsync(id, ct)` | Read the stored status, failure, and published result; `null` when the job does not exist |
+| `WaitForCompletionAsync(id, timeout, ct)` | Wait until the job finishes or the timeout passes, then return its outcome |
 | `RequestCancellationAsync(id, ct)` | Signal one running execution on this host, or send a cancellation command to the node that owns it |
 | `SetDeleteBehaviorAsync(rootId, behavior, ct)` | Change the root's chain-deletion policy |
 | `DeleteAsync(id, ct)` | Remove an eligible job/chain, subject to ownership and deletion checks |
@@ -57,6 +64,9 @@ while adding policy, blocked-time, and missed-execution settings. See
 | `RunNowAsync(cronId, ct)` | Create a fresh manual occurrence; return its occurrence ID |
 | `RerunOccurrenceAsync(occurrenceId, ct)` | Re-run the existing occurrence in place; standalone runs keep the occurrence ID and recurring chains retry their existing graph |
 | `RequestCancellationAsync(occurrenceId, ct)` | Signal that running occurrence on this host or its owning node; do not pass its definition ID |
+| `GetNextOccurrencesAsync(cronId, count, ct)` | List the next 1–1,000 run times in UTC, applying the cron's time zone and schedule policy; empty while it is disabled |
+| `GetOutcomeAsync(occurrenceId, ct)` | Read an occurrence's stored status, failure, and published result |
+| `WaitForCompletionAsync(occurrenceId, timeout, ct)` | Wait until the occurrence finishes or the timeout passes, then return its outcome |
 | `DeleteAsync(cronId, ct)` | Delete an eligible definition; this is not an occurrence cancellation operation |
 
 Cron managers also support add/update/delete batches and typed `AddAsync<TFunction>` overloads. A recurring-chain occurrence is a dispatcher: after its chain is launched, manage the resulting time jobs individually.
@@ -111,33 +121,54 @@ Delete, cron update, `CancelAsync`, and `RequestCancellationAsync` calls can suc
 
 Once a mutation commits, a failed dashboard refresh notification does not undo it. Avoid blindly repeating a creation call after an uncertain network response: it may create another job. Make business effects idempotent as described in [reliability](/docs/5.x/guides/reliability).
 
+## Wait for a job and read its result
+
+`GetOutcomeAsync` and `WaitForCompletionAsync` return a `TickerOutcome` with the job's `Status`,
+`IsCompleted`, `IsSucceeded`, `ExecutedAt`, `ExceptionMessage`, and `SkippedReason`. When the job
+succeeded and called `SetResult`, `HasResult` is true and `GetResult<T>()` reads the value:
+
+```csharp
+var added = await timeManager.AddAsync<ExportJob>(DateTime.UtcNow, cancellationToken);
+if (!added.IsSucceeded)
+    throw added.Exception;
+
+var outcome = await timeManager.WaitForCompletionAsync(added.Result.Id, TimeSpan.FromMinutes(2), cancellationToken);
+if (outcome is { IsSucceeded: true, HasResult: true })
+{
+    var export = outcome.GetResult<ExportSummary>();
+}
+```
+
+A job counts as completed once it is Done, DueDone, Failed, Cancelled, or Skipped; retries happen
+before that. After the timeout the method returns the latest stored outcome, so check `IsCompleted`
+rather than catching an exception. It returns `null` when the job does not exist, for example after
+[retention](/docs/5.x/guides/retention) removed it. The store is polled, starting at 100 ms and
+backing off to once a second, so it works whichever replica runs the job. A chain root completes
+before its steps run; wait on the step whose result you need. In a Native AOT application, use
+`GetResult(typeInfo)` with source-generated serializer metadata.
+
+For a cron, pass the occurrence ID, for example the one returned by `RunNowAsync`, not the cron's ID.
+
 ## Run, retry, and cancel on demand
 
 Time and cron `RunNowAsync`, `RetryFromAsync`, and `RerunOccurrenceAsync` dispatch the work from the calling host. That host's scheduler must be running and licensed; otherwise the call returns a failed result with an `InvalidOperationException`. A host configured with `DisableBackgroundServices()` therefore cannot perform these operations. Call them on a scheduler node. Success means the execution was accepted, not that it completed.
 
 `RetryFromAsync` accepts any step of a settled chain: every job in the chain must be terminal, with no acquisition owner or live lease. The chain can contain at most 1,000 jobs, and the selected step can be at most 50 levels deep, counting the root. Larger graphs are rejected.
 
+`RescheduleAsync` reads the job and saves the new time only if its stored state still matches, so a job
+that starts while it is being moved is reported as changed rather than moved. Reschedule a chain by
+its root; steps run after their parent.
+
+`CancelPendingAsync<TFunction>` covers jobs and chain roots of that function. Steps of the function
+inside other chains are left alone; cancel those chains with `CancelAsync`. Cron definitions keep
+creating occurrences, so pause them with `SetEnabledAsync`. `AffectedRows` counts every cancelled
+job, chain steps included.
+
 `RequestCancellationAsync` first signals a matching execution on the current host. If the execution runs elsewhere and the provider supports cluster control, the manager writes a cancellation command for the owning node. The command expires after about 30 seconds. All built-in providers (EF Core, MongoDB, Redis, and in-memory) support this; in-memory storage only reaches hosts that share its process state. `AffectedRows` is 1 when the local signal or the command was accepted and 0 when no running execution could be targeted. Neither result proves that the function has exited. See [cross-node cancellation](/docs/5.x/dashboard/clustering#cross-node-cancellation).
 
 ## Seed one-time work
 
-Declare startup work with [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work), which creates one ticker per key. Use a seeder callback only when the work depends on logic the declaration builder cannot express:
-
-```csharp
-options.UseTickerSeeder(async (ITimeTickerManager<TimeTickerEntity> manager, CancellationToken ct) =>
-{
-    var result = await manager.AddOnceAsync("initial-catalog-import-v1", new TimeTickerEntity
-    {
-        Function = "Catalog.Import",
-        ExecutionTime = DateTime.UtcNow
-    }, ct);
-
-    if (!result.IsSucceeded)
-        throw result.Exception;
-});
-```
-
-Register `Catalog.Import` before startup. Built-in durable providers converge concurrent first-time seeding on one identity. `AddOnceAsync` is scoped to stored records: if deletion or retention removes that record, the identifier can be created again. It is not a permanent business deduplication ledger. Seeder callbacks run whenever startup reconciles, which happens when a deployment's startup inputs change; changing only the callback does not trigger it. `AddAsync` and `AddChainAsync` have no key, so a seeder that calls them adds another job each time.
+Declare startup work with [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work), which creates one ticker per key. Use a seeder callback only when the work depends on logic the declaration builder cannot express. Seeder callbacks run whenever startup reconciles, which happens when a deployment's startup inputs change; changing only the callback does not trigger it. `AddAsync` and `AddChainAsync` have no key, so a seeder that calls them adds another job each time.
 
 To seed recurring schedules, use [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) rather than a cron seeder. Cron manager `AddAsync` has no key, so a cron seeder adds another copy each time startup reconciles; `SeedCronTickers` keeps one row per key and retires schedules you remove.
 

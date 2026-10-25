@@ -32,10 +32,11 @@ The current 5.x source documentation includes the changes below, compared with t
 - type-safe `AddChainAsync` builders with `ThenMany` durable groups and outcome joins;
 - recurring chains, parent-result propagation, progress reporting, and retry from a selected chain step or group;
 - [`SeedCronTickers`](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers) declares code-owned cron schedules with the recurring-chain builder (time zone, schedule policy, request, retries, and chain steps), validated like `AddChainAsync` and reconciled once per epoch without duplicates; `[TickerFunction]` and `WithCron(...)` no longer accept a cron expression;
-- [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work) declares one-time startup work with the same chain builder, created once per key through the `AddOnceAsync` identity;
+- [`SeedTimeTickers`](/docs/5.x/guides/scheduling/time-ticker#seed-one-time-work) declares one-time startup work with the same chain builder, created once per key; it replaces `AddOnceAsync`, which is no longer part of the manager API;
 - automatic [reconciliation epochs](/docs/5.x/guides/configuration#reconciliation-epoch): TickerQ fingerprints functions, request contracts, and seeds, reconciles when they change, and fences hosts running an earlier deployment, so `UseReconciliationEpoch` is no longer required; [`SeedSchedulePolicies`](/docs/5.x/guides/schedule-policies/business-calendars) declares code-owned policies;
 - schedule policies: reusable [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) for time tickers, cron tickers, and chain roots, plus per-schedule [late-start and cron catch-up rules](/docs/5.x/guides/schedule-policies/late-starts) that replace the removed `SkipStaleCronOccurrencesOnStartup(...)` option;
 - [`UseApplicationNamespace("orders", builder.Environment)`](/docs/5.x/guides/configuration#separate-environments) gives each environment sharing a store its own namespace;
+- new [manager operations](/docs/5.x/guides/managers#wait-for-a-job-and-read-its-result): `WaitForCompletionAsync` and `GetOutcomeAsync` return a job's or cron occurrence's status and published result, `RescheduleAsync` moves a job that has not started, `CancelPendingAsync<TFunction>()` cancels a function's pending jobs, and cron `GetNextOccurrencesAsync` lists upcoming run times;
 - `TickerFunctionContext.ParentId` identifies the owning cron definition for a cron occurrence and the parent time ticker for a chain step.
 
 ### Storage

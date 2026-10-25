@@ -52,16 +52,14 @@ application services.
 
 Seeding runs when startup reconciles, which a deployment with new keys does automatically (see
 [reconciliation epoch](/docs/5.x/guides/configuration#reconciliation-epoch)), after schedule policies
-and seeded crons. Each key creates one ticker through the same identity as
-`AddOnceAsync`:
+and seeded crons. Each key creates one ticker:
 
 - a key that already has a ticker is left untouched, even if its declaration changed;
-- restarts, later deployments, and replicas starting together create one ticker per key;
-- a key created earlier with `AddOnceAsync` counts as the same seed.
+- restarts, later deployments, and replicas starting together create one ticker per key.
 
 To run the work again, change the key, for example to `catalog-import-v2`. The old ticker is kept.
-Like `AddOnceAsync`, a key only protects while its ticker is stored: if
-[retention](/docs/5.x/guides/retention) or a delete removes it, the next epoch creates it again.
+A key only protects while its ticker is stored: if [retention](/docs/5.x/guides/retention) or a
+delete removes it, the next epoch creates it again.
 
 ### Validation
 
@@ -100,12 +98,14 @@ for calendar creation, composition, date providers, and dashboard controls, and
 | --- | --- |
 | `AddAsync` | Persist a new job independently |
 | `AddChainAsync` | Build and persist a [one-time chain](/docs/5.x/guides/job-chaining) fluently |
-| `AddOnceAsync` | Create once for a stable initialization identifier; startup work usually uses [`SeedTimeTickers`](#seed-one-time-work) instead |
 | `StageAsync` | Stage a new job or complete chain with your EF business changes |
 | `UpdateAsync` | Update an eligible existing job |
 | `RunNowAsync` | Request a run of an eligible root job |
 | `RetryFromAsync` | Retry a selected settled chain step and its affected downstream path in place |
+| `RescheduleAsync` | Move a root job that has not started to another time |
 | `CancelAsync` | Cancel pending Idle/Queued work and its pending descendants |
+| `CancelPendingAsync<TFunction>` | Cancel every pending job and chain root of one function |
+| `WaitForCompletionAsync` / `GetOutcomeAsync` | Wait for a job to finish, or check it once, and read its [published result](/docs/5.x/guides/managers#wait-for-a-job-and-read-its-result) |
 | `RequestCancellationAsync` | Signal a running execution on this host or, through cluster control, on its owning node |
 | `DeleteAsync` | Permanently remove an eligible job/chain |
 
