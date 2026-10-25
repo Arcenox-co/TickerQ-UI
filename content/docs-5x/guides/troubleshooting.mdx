@@ -235,6 +235,12 @@ On a scheduler host, manager mutations such as `AddAsync`, `UpdateAsync`, `Delet
 
 Common causes are awaiting a manager in `Program.cs` before `app.Run()`, inside an `IHostedService.StartAsync` that runs before TickerQ's startup, without `UseTickerQ()`, or on an unlicensed host. Create startup jobs with `UseTickerSeeder(...)`, which runs inside activation, or after the host has started. Pass a cancellation token with a timeout so a blocked call fails visibly. Queue-only processes do not wait.
 
+### Build-time OpenAPI generation
+
+`Microsoft.Extensions.ApiDescription.Server` generates OpenAPI documents during `dotnet build` by running the application under the `dotnet-getdocument` tool, which also starts the host. TickerQ detects that tool and does not start: no license check, store access, reconciliation, or scheduling runs, so the build does not need a reachable or migrated database. The tool's output shows `TickerQ did not start: the host is running under the design-time tool GetDocument.Insider.` Endpoints, including the dashboard, are still mapped.
+
+Earlier releases needed a workaround such as skipping `UseTickerQ()` when the entry assembly is `GetDocument.Insider`. You can remove it.
+
 ### Legacy code-defined cron ownership errors
 
 These appear on the first namespaced reconciliation of a store that contains code-defined crons created before namespaces existed:
