@@ -12,7 +12,7 @@ Select any screenshot to open the full-size image. See [dashboard setup](/docs/5
 | Task | Views |
 | --- | --- |
 | Run and inspect work | [Overview](#overview), [Time tickers](#time-tickers), [Cron tickers](#cron-tickers), [Chain view](#chain-view), [Saved work](#saved-work), [Schedule policies](#schedule-policies) |
-| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [AI assistant](#ai-assistant) |
+| Investigate an outcome | [Executions](#executions), [Job details and logs](#job-details-and-logs), [Diagnostics](#diagnostics), [Promises](#promises), [AI assistant](#ai-assistant) |
 | Configure alerts | [Integrations](#integrations), [Alert rules](#alert-rules), [Monitoring](#monitoring), [Message templates](#message-templates) |
 | Check the installation | [License](#license), [About](#about), [Nodes](#nodes), [Live updates](#live-updates-and-ownership) |
 
@@ -129,6 +129,18 @@ See [execution-log configuration and limits](/docs/5.x/guides/execution-logs).
 Check the responding host's scheduler and log-storage health. Diagnostics distinguish a current problem from historical failure counts, and explain where to investigate next.
 
 <DashboardScreenshot name="diagnostics" alt="Diagnostics showing healthy scheduler, persistence, and execution-log checks" caption="Healthy checks provide a baseline; a failing check adds its current evidence and next action here." />
+
+## Promises
+
+Promises watch your own tables: each one states that every row of a query gets a successful job of a function within a time limit. The page lists each promise with its state, the last and next check, and how many rows are done, running, or need review. A row needs review when its job was never scheduled, never ran, ran without updating the row, or ran twice.
+
+<DashboardScreenshot name="promises" alt="Promises page listing two promises with their state, done percentage, rows needing review, auto-fix setting, and last check, above trend charts of jobs, run time, and fixes per day" caption="Each promise shows how much of its data is done and how many rows need a person; the trends compare jobs, run time, and fixes per day." />
+
+Open a promise for the rows that need review, grouped by what went wrong with the fix each one offers (**Schedule job**, **Start now**, or **Cancel extra job**), the function's recent jobs with who scheduled each, the activity of fixes and dismissals, and the rule exactly as the developer wrote it. **Fix all** repairs every open finding in one pass; **Dismiss** records a reason instead. Setup can disable a promise, change its time limit, or turn automatic fixing on or off until the code's values are restored.
+
+<DashboardScreenshot name="promise-review" alt="Promise details for 'Paid orders are processed' with the rule as declared in code, done, running, and needs-review counts, and the rows grouped as never scheduled and never ran, each with Schedule job and Dismiss actions" caption="Findings are grouped by what went wrong, each with the fix it allows; Fix all repairs every open finding in one pass." />
+
+Promises are declared in code; see [Promises](/docs/5.x/guides/promises) for the builder, what a check finds, and how it behaves across nodes.
 
 ## Integrations
 

@@ -25,7 +25,7 @@ The sidebar groups guides by task. Open a group to explore its pages; your curre
 | **Jobs and workflows** | Functions, time/cron schedules, schedule policies (business calendars, late starts, and catch-up), requests and results, durable groups, progress, retries, test runs, and cancellation |
 | **Storage** | EF Core, transactional scheduling, MongoDB, and Redis |
 | **Dashboard** | A visual tour, drafts/templates, existing users, roles/scopes, cluster nodes, and the AI assistant |
-| **Operations** | Application namespaces, workers, logging, telemetry, retention, reliability, and troubleshooting |
+| **Operations** | Application namespaces, workers, logging, telemetry, retention, reliability, promises, and troubleshooting |
 | **Integrations** | Slack, Teams, webhooks, payload templates, deadlines, and recovery alerts |
 
 See the [Changelog](/docs/5.x/changelog) for release notes and upgrade information.
@@ -42,6 +42,7 @@ See the [Changelog](/docs/5.x/changelog) for release notes and upgrade informati
 - **Investigate an execution:** inspect [logs](/docs/5.x/guides/execution-logs) or open a bounded [AI run investigation](/docs/5.x/dashboard/ai-assistant#investigate-one-execution).
 - **Operate several replicas:** inspect [nodes and cross-node cancellation](/docs/5.x/dashboard/clustering).
 - **Alert when work misses its deadline:** configure [job monitoring](/docs/5.x/integrations/monitoring).
+- **Find rows whose job was never scheduled, never ran, or ran twice:** declare a [promise](/docs/5.x/guides/promises) on the function.
 
 ## What does 5.x mean?
 
@@ -57,7 +58,7 @@ Use matching package versions throughout your application, including the same pr
 
 ## Explore the packages
 
-- **Core:** functions, scheduling, schedule policies, chains, retries, cancellation, and runtime isolation.
+- **Core:** functions, scheduling, schedule policies, chains, retries, cancellation, promises, and runtime isolation.
 - **[Dashboard](/docs/5.x/dashboard):** execution history, logs, chain views, diagnostics, and an optional AI assistant.
 - **[EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), and [Redis](/docs/5.x/redis):** storage options with documented deployment requirements.
 - **[Integrations](/docs/5.x/integrations):** configurable connections, alert rules, payloads, and function monitoring.
