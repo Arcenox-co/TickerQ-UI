@@ -25,6 +25,13 @@ const config = {
     inlineCss: true,
   },
   async headers() {
+    // Only production builds fingerprint their assets. In `next dev`, chunk URLs stay the same
+    // across rebuilds, so an immutable cache header makes the browser keep stale chunks and
+    // fail with "module factory is not available" after the .next cache is rebuilt.
+    if (process.env.NODE_ENV !== 'production') {
+      return [];
+    }
+
     return [
       {
         // Long-cache immutable static assets (Next.js fingerprints these)

@@ -94,7 +94,11 @@ export default async function Layout({ children, params }: LayoutProps<'/docs/[[
     <DocsLayout
       tree={source.getPageTree()}
       tabs={versionTabs}
-      sidebar={{ defaultOpenLevel: version === 'legacy' ? 2 : 0, banner: <VersionSwitcher version={version} destinations={destinations} /> }}
+      sidebar={{
+        defaultOpenLevel: version === 'legacy' ? 2 : 0,
+        // The sidebar renders its banner inside a list of children, so the element needs a key.
+        banner: <VersionSwitcher key="version-switcher" version={version} destinations={destinations} />,
+      }}
       {...baseOptions()}
     >
       <AISearch key={version} version={version}>
