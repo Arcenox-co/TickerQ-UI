@@ -1,0 +1,406 @@
+---
+title: "Coming from other schedulers"
+description: "Map Quartz.NET and Hangfire concepts to TickerQ, convert your jobs and schedules, and cut over without running work twice."
+---
+
+This guide is for teams that already run background jobs with Quartz.NET or Hangfire. Your business logic and your database stay. What changes is how work is declared, scheduled, and observed. If *function*, *time ticker*, and *cron ticker* are new terms, read [What is TickerQ?](/docs/5.x/what-is-tickerq) first.
+
+## What changes in the model
+
+Three differences explain most of the conversion work:
+
+- **A function is separate from its schedule.** Quartz binds a job class to triggers; Hangfire turns a method call into a job. TickerQ registers a *function* once, then creates *time tickers* (one job each) and *cron tickers* (recurring definitions, each run an *occurrence*) that name it. Registering a function schedules nothing by itself.
+- **Input is a typed request, not a serialized call.** Hangfire stores the method and its arguments; Quartz stores a `JobDataMap`. TickerQ stores a request record that your function receives as `context.Request`, validated against the function's contract when you schedule it. Dispatch code is generated at compile time, so there is no reflection over your job types and [Native AOT](/docs/5.x/guides/native-aot) works.
+- **Everything is a row in your own store.** Jobs, occurrences, chains, logs, and results live in the EF Core, MongoDB, or Redis store you choose, next to your business data. Replicas share one [application namespace](/docs/5.x/guides/configuration) and coordinate through that store. The dashboard and the managers read the same rows.
+
+## Concept map
+
+| You know | Quartz.NET | Hangfire | TickerQ |
+| --- | --- | --- | --- |
+| Job code | `IJob.Execute` | A method called in an expression | A [function](/docs/5.x/guides/defining-jobs) |
+| One job, now or later | `JobDetail` and `SimpleTrigger` | `BackgroundJob.Enqueue`, `BackgroundJob.Schedule` | A [time ticker](/docs/5.x/guides/scheduling/time-ticker) |
+| Recurring job | `CronTrigger` | `RecurringJob.AddOrUpdate` | A [cron ticker](/docs/5.x/guides/scheduling/cron-ticker) |
+| One run of a recurring job | A fired trigger | The job the recurring job creates | A cron occurrence |
+| Job input | `JobDataMap` | Method arguments | A [typed request](/docs/5.x/guides/requests-results) |
+| Job output | A mutated `JobDataMap` | Not available | A [result](/docs/5.x/guides/requests-results) for the next step |
+| Run B after A | `JobChainingJobListener` | `BackgroundJob.ContinueJobWith` | A [chain](/docs/5.x/guides/job-chaining) |
+| Parallel work and a join | Not built in | Batches (Hangfire Pro) | `ThenMany` and group outcomes |
+| Scheduling client | `IScheduler` | `IBackgroundJobClient`, `IRecurringJobManager` | `ITimeTickerManager`, `ICronTickerManager` |
+| Execution context | `IJobExecutionContext` | `PerformContext` | `TickerFunctionContext` |
+| Storage | ADO.NET job store | SQL Server, Redis, others | [EF Core](/docs/5.x/entity-framework), [MongoDB](/docs/5.x/mongodb), [Redis](/docs/5.x/redis), in-memory |
+| Several hosts | Clustered job store | Several servers on one storage | Replicas sharing an [application namespace](/docs/5.x/guides/configuration) |
+| Dashboard | Third-party | `UseHangfireDashboard` | [`AddDashboard`](/docs/5.x/dashboard) |
+| Old history | Not kept | `JobExpirationTimeout` | [Retention](/docs/5.x/guides/retention), off until configured |
+
+A function is `ITickerFunction`, a `[TickerFunction]` method, or a delegate. A cron ticker is declared with `SeedCronTickers` in code or created through `ICronTickerManager` at runtime, and every occurrence has its own ID, status, logs, and result. A chain is built with `AddChainAsync` and `Then`; a parallel group with `ThenMany`, `ThenAfterAll`, and the other outcomes. The context exposes `Id`, `ScheduledFor`, `RetryCount`, `IsDue`, and `ReportProgressAsync`.
+
+## Side by side
+
+Each example shows the same task in all three libraries. The TickerQ tabs build on the [quick start](/docs/5.x/getting-started/quick-start) registration.
+
+### Register the scheduler
+
+<Tabs items={["Quartz.NET", "Hangfire", "TickerQ"]}>
+  <Tab value="Quartz.NET">
+
+```csharp
+builder.Services.AddQuartz(quartz =>
+{
+    quartz.UsePersistentStore(store =>
+    {
+        store.UseSqlServer(connectionString);
+        store.UseClustering();
+        store.UseNewtonsoftJsonSerializer();
+    });
+});
+
+builder.Services.AddQuartzHostedService(options =>
+    options.WaitForJobsToComplete = true);
+```
+
+  </Tab>
+  <Tab value="Hangfire">
+
+```csharp
+builder.Services.AddHangfire(config =>
+    config.UseSqlServerStorage(connectionString));
+
+builder.Services.AddHangfireServer(options =>
+    options.WorkerCount = 8);
+
+var app = builder.Build();
+app.UseHangfireDashboard();
+```
+
+  </Tab>
+  <Tab value="TickerQ">
+
+```csharp
+using TickerQ.Dashboard.DependencyInjection;
+using TickerQ.DependencyInjection;
+using TickerQ.EntityFrameworkCore.Customizer;
+using TickerQ.EntityFrameworkCore.DependencyInjection;
+
+builder.Services.AddDbContext<AppDbContext>(db =>
+    db.UseSqlServer(connectionString));
+
+builder.Services.AddTickerQ(options =>
+{
+    options.UseLicense("tickerq.tqlicense");
+    options.UseApplicationNamespace("orders", builder.Environment);
+    options.AddOperationalStore(store =>
+        store.UseApplicationDbContext<AppDbContext>(ConfigurationType.UseModelCustomizer));
+    options.ConfigureScheduler(scheduler =>
+    {
+        scheduler.SchedulerTimeZone = TimeZoneInfo.Utc;
+        scheduler.MaxConcurrency = 8;
+    });
+    options.AddDashboard(dashboard =>
+        dashboard.WithHostAuthentication("SchedulerOperators"));
+});
+
+var app = builder.Build();
+app.UseTickerQ();
+```
+
+  </Tab>
+</Tabs>
+
+`MaxConcurrency` takes the place of Hangfire's `WorkerCount` and the Quartz thread pool. TickerQ's tables come from an [application-owned EF migration](/docs/5.x/entity-framework#create-the-schema) and live in their own `ticker` schema, so they can share a database with Hangfire's `HangFire` schema or Quartz's `QRTZ_` tables while you move. A [license certificate](/docs/5.x/getting-started/licensing) is required to execute jobs; eligible companies can use the free Community license.
+
+### Write a job
+
+<Tabs items={["Quartz.NET", "Hangfire", "TickerQ"]}>
+  <Tab value="Quartz.NET">
+
+```csharp
+[DisallowConcurrentExecution]
+public class GenerateInvoiceJob(IInvoiceService invoices) : IJob
+{
+    public Task Execute(IJobExecutionContext context)
+    {
+        var orderId = Guid.Parse(context.MergedJobDataMap.GetString("orderId")!);
+        return invoices.GenerateAsync(orderId, context.CancellationToken);
+    }
+}
+```
+
+  </Tab>
+  <Tab value="Hangfire">
+
+```csharp
+public class InvoiceJobs(IInvoiceService invoices)
+{
+    [AutomaticRetry(Attempts = 3)]
+    [DisableConcurrentExecution(timeoutInSeconds: 60)]
+    public Task GenerateAsync(Guid orderId, CancellationToken cancellationToken)
+        => invoices.GenerateAsync(orderId, cancellationToken);
+}
+```
+
+  </Tab>
+  <Tab value="TickerQ">
+
+```csharp
+using TickerQ.DependencyInjection;
+using TickerQ.Utilities.Base;
+using TickerQ.Utilities.Interfaces;
+
+public record GenerateInvoiceRequest(Guid OrderId);
+
+public sealed class GenerateInvoiceJob(IInvoiceService invoices)
+    : ITickerFunction<GenerateInvoiceRequest>
+{
+    public Task ExecuteAsync(
+        TickerFunctionContext<GenerateInvoiceRequest> context,
+        CancellationToken cancellationToken)
+        => invoices.GenerateAsync(context.Request.OrderId, cancellationToken);
+}
+
+// At startup, before builder.Build():
+builder.Services.MapTicker<GenerateInvoiceJob, GenerateInvoiceRequest>()
+    .WithMaxConcurrency(1);
+```
+
+  </Tab>
+</Tabs>
+
+Constructor injection works as before, and each attempt gets its own DI scope, as with Hangfire's job activator and the Quartz DI job factory. The request record replaces `JobDataMap` and method arguments: keep it to identifiers and small snapshots, because the job may run long after the request that scheduled it. Retries are set on the job or schedule rather than on the class; see [behavior settings](#behavior-settings).
+
+If you prefer Hangfire's method style, annotate a method with `[TickerFunction("Invoices.Generate")]` instead of implementing the interface; the source generator registers it. The [function registration guide](/docs/5.x/guides/function-registration) compares the styles.
+
+### Run a job once
+
+<Tabs items={["Quartz.NET", "Hangfire", "TickerQ"]}>
+  <Tab value="Quartz.NET">
+
+```csharp
+// IScheduler from ISchedulerFactory.GetScheduler()
+var job = JobBuilder.Create<GenerateInvoiceJob>()
+    .UsingJobData("orderId", orderId.ToString())
+    .Build();
+
+var trigger = TriggerBuilder.Create()
+    .StartAt(DateTimeOffset.UtcNow.AddMinutes(10)) // or StartNow()
+    .Build();
+
+await scheduler.ScheduleJob(job, trigger);
+```
+
+  </Tab>
+  <Tab value="Hangfire">
+
+```csharp
+BackgroundJob.Enqueue<InvoiceJobs>(
+    jobs => jobs.GenerateAsync(orderId, CancellationToken.None));
+
+BackgroundJob.Schedule<InvoiceJobs>(
+    jobs => jobs.GenerateAsync(orderId, CancellationToken.None),
+    TimeSpan.FromMinutes(10));
+```
+
+  </Tab>
+  <Tab value="TickerQ">
+
+```csharp
+using TickerQ.Utilities.Entities;
+using TickerQ.Utilities.Interfaces.Managers;
+
+// Inject ITimeTickerManager<TimeTickerEntity> into your service.
+var now = await manager.AddAsync<GenerateInvoiceJob, GenerateInvoiceRequest>(
+    DateTime.UtcNow, new GenerateInvoiceRequest(orderId), cancellationToken);
+
+var later = await manager.AddAsync<GenerateInvoiceJob, GenerateInvoiceRequest>(
+    DateTime.UtcNow.AddMinutes(10), new GenerateInvoiceRequest(orderId), cancellationToken);
+
+if (!later.IsSucceeded)
+    throw later.Exception;
+
+var jobId = later.Result.Id;
+```
+
+  </Tab>
+</Tabs>
+
+The result says whether the job was saved, not whether it ran. Use `WaitForCompletionAsync` when the caller needs the outcome, and the returned ID with `CancelAsync` or `RescheduleAsync` later. If you enqueued Hangfire jobs inside a database transaction so that the job and the business change commit together, use [`StageAsync`](/docs/5.x/entity-framework/transactional-scheduling) on your EF context instead of `AddAsync`.
+
+### Run on a schedule
+
+<Tabs items={["Quartz.NET", "Hangfire", "TickerQ"]}>
+  <Tab value="Quartz.NET">
+
+```csharp
+builder.Services.AddQuartz(quartz =>
+{
+    var key = new JobKey("DailyInvoices");
+    quartz.AddJob<DailyInvoicesJob>(job => job.WithIdentity(key));
+    quartz.AddTrigger(trigger => trigger
+        .ForJob(key)
+        .WithIdentity("DailyInvoices-trigger")
+        .WithCronSchedule("0 0 8 ? * MON-FRI", cron =>
+            cron.InTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"))));
+});
+```
+
+  </Tab>
+  <Tab value="Hangfire">
+
+```csharp
+// Usually in Program.cs after Build(), or in a hosted service.
+RecurringJob.AddOrUpdate<InvoiceJobs>(
+    "daily-invoices",
+    jobs => jobs.RunDailyAsync(CancellationToken.None),
+    "0 8 * * 1-5",
+    new RecurringJobOptions
+    {
+        TimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin")
+    });
+```
+
+  </Tab>
+  <Tab value="TickerQ">
+
+```csharp
+builder.Services.MapTicker<DailyInvoicesJob>();
+
+builder.Services.AddTickerQ(options =>
+{
+    // Keep your license, namespace, and store configuration.
+    options.SeedCronTickers(crons => crons
+        .Add("daily-invoices", cron => cron
+            .WithExpression("0 8 * * 1-5")
+            .InTimeZone("Europe/Berlin")
+            .StartWith<DailyInvoicesJob>()));
+});
+```
+
+  </Tab>
+</Tabs>
+
+The key, `daily-invoices`, plays the role of Hangfire's recurring job ID and Quartz's trigger identity: one row per key, updated in place when the declaration changes, retired when you remove it, and never duplicated by restarts or extra replicas. `Add("DailyInvoicesJob", "0 8 * * 1-5")` is the short form when the scheduler time zone is enough. Operators can also create schedules in the dashboard or through `ICronTickerManager`.
+
+Do not port a `RecurringJob.AddOrUpdate` call in `Program.cs` into a manager call: manager `AddAsync` has no key, so every start would add another schedule, and on a scheduler host a manager call awaited before `app.Run()` never returns. `SeedCronTickers` is the declarative replacement; see [seed cron tickers](/docs/5.x/guides/scheduling/cron-ticker#seed-cron-tickers).
+
+### Run jobs after each other
+
+<Tabs items={["Quartz.NET", "Hangfire", "TickerQ"]}>
+  <Tab value="Quartz.NET">
+
+```csharp
+var chain = new JobChainingJobListener("invoice-chain");
+chain.AddJobChainLink(new JobKey("PrepareInvoice"), new JobKey("ChargeInvoice"));
+chain.AddJobChainLink(new JobKey("ChargeInvoice"), new JobKey("NotifyInvoice"));
+
+scheduler.ListenerManager.AddJobListener(chain, GroupMatcher<JobKey>.AnyGroup());
+```
+
+  </Tab>
+  <Tab value="Hangfire">
+
+```csharp
+var prepare = BackgroundJob.Enqueue<InvoiceJobs>(
+    jobs => jobs.PrepareAsync(orderId, CancellationToken.None));
+
+var charge = BackgroundJob.ContinueJobWith<InvoiceJobs>(
+    prepare, jobs => jobs.ChargeAsync(orderId, CancellationToken.None));
+
+BackgroundJob.ContinueJobWith<InvoiceJobs>(
+    charge, jobs => jobs.NotifyAsync(orderId, CancellationToken.None));
+```
+
+  </Tab>
+  <Tab value="TickerQ">
+
+```csharp
+var scheduled = await manager.AddChainAsync(chain => chain
+    .WithDescription($"Invoice order {orderId}")
+    .StartWith<PrepareInvoiceJob, InvoiceRequest>(new InvoiceRequest(orderId))
+    .Then<ChargeInvoiceJob>(step => step.Retries = 2)
+    .Then<NotifyInvoiceJob>(), cancellationToken);
+
+if (!scheduled.IsSucceeded)
+    throw scheduled.Exception;
+```
+
+  </Tab>
+</Tabs>
+
+The chain is one durable graph. Every step keeps its own status, logs, retries, and result, and `PrepareInvoiceJob` can [publish a result](/docs/5.x/guides/requests-results) that `ChargeInvoiceJob` reads instead of every step reloading the order. After a failure, `RetryFromAsync` reruns the failed step and its downstream path without invoking completed ancestors again. Hangfire Pro batches and `ContinueBatchWith` map to [`ThenMany`](/docs/5.x/guides/job-chaining#run-several-branches-and-join-them) with `ThenAfterAll`, `ThenAfterAnyFailed`, and the other group outcomes. To run a chain on every cron occurrence, attach it as a [recurring chain](/docs/5.x/guides/recurring-chains).
+
+## Behavior settings
+
+| Need | Quartz.NET | Hangfire | TickerQ |
+| --- | --- | --- | --- |
+| Retry a failed attempt | `JobExecutionException` with refire; no policy | `[AutomaticRetry]`, 10 attempts by default | `Retries` and `RetryIntervals`; none by default |
+| Limit one attempt's duration | Not built in | Not built in | `TimeoutSeconds` |
+| Stop a running job | `Interrupt` | `BackgroundJob.Delete` | `RequestCancellationAsync` |
+| Avoid overlapping runs | `[DisallowConcurrentExecution]` | `[DisableConcurrentExecution]` | `SkipIfAlreadyRunning` on the cron |
+| Missed runs after downtime | Misfire instructions | `MisfireHandlingMode` | `WhenMissed` and `CatchUp` |
+| Time zone of a cron | `InTimeZone`; local by default | `TimeZone` option; UTC by default | `InTimeZone`; scheduler zone by default |
+| Business calendar | `HolidayCalendar` | Not built in | Schedule policy |
+| Order or route work | Trigger priority | `[Queue]` | `WithPriority`; namespaces |
+| Run a recurring job now | `TriggerJob` | `RecurringJob.TriggerJob` | `RunNowAsync` |
+| Pause a schedule | `PauseTrigger` | `RemoveIfExists` | `SetEnabledAsync` |
+| Remove a pending job | `DeleteJob` | `BackgroundJob.Delete` | `CancelAsync` or `DeleteAsync` |
+| Move a pending job | `RescheduleJob` | Delete and schedule again | `RescheduleAsync` |
+| React to failures in code | `IJobListener` | `IServerFilter` | `ITickerExceptionHandler` |
+| Logs from inside a job | `ILogger` | `Hangfire.Console` | `ILogger`, captured per run |
+| Clean old history | Not kept | `JobExpirationTimeout`, one day | `ConfigureJobRetention`, off by default |
+
+Details for the TickerQ column:
+
+- **Retries** are set on the job, cron, or chain step; `RetryPolicy.Exponential(...)` builds the interval array. See [retries and timeouts](/docs/5.x/guides/job-lifecycle#retries-and-timeouts).
+- **Timeouts** are per attempt. `DefaultExecutionTimeout` on the scheduler applies when a job sets none.
+- **Cancellation** is cooperative through the `CancellationToken` parameter. The request is forwarded to the node that owns the run.
+- **Overlap**: `SkipIfAlreadyRunning()` skips the overlapping occurrence; `WithMaxConcurrency(1)` on the function makes it wait instead. Both apply per host. See [cron overlap](/docs/5.x/guides/cron-overlap).
+- **Missed runs**: `WhenMissed(MissedExecutionPolicy.SkipAfter(...))` bounds how late a run may start, and `CatchUp(CronCatchUpMode.RunLatest)` recovers the newest missed slot. See [late starts and catch-up](/docs/5.x/guides/schedule-policies/late-starts).
+- **Time zones**: `SchedulerTimeZone` is the host's local zone unless you set it; `InTimeZone(...)` overrides it per cron.
+- **Calendars**: apply a [schedule policy](/docs/5.x/guides/schedule-policies/business-calendars) with `UsingPolicy("Business hours")`.
+- **Ordering and routing**: `WithPriority(TickerTaskPriority.High)` orders work on one host. A separate deployment gets its own [application namespace](/docs/5.x/guides/configuration#separate-producers-and-workers).
+- **Removing work**: `CancelAsync` keeps the record as Cancelled; `DeleteAsync` removes it.
+- **Failures**: `ITickerExceptionHandler` is the code hook; alert rules live in [integrations](/docs/5.x/integrations).
+- **Logs** written with `ILogger` are [captured per execution](/docs/5.x/guides/execution-logs); `ReportProgressAsync` reports progress.
+
+## Cron expressions
+
+TickerQ parses five fields (`minute hour day month weekday`) or six fields with seconds first. Lists, ranges, and `*/n` steps are supported. The Quartz `?` placeholder, the optional year field, and the `L`, `W`, and `#` modifiers are not; Hangfire accepts some of these, so check each expression rather than assuming it carries over.
+
+| Schedule | Quartz.NET | Hangfire | TickerQ |
+| --- | --- | --- | --- |
+| Every day at 08:00 | `0 0 8 * * ?` | `0 8 * * *` or `Cron.Daily(8)` | `0 8 * * *` |
+| Weekdays at 08:00 | `0 0 8 ? * MON-FRI` | `0 8 * * 1-5` | `0 8 * * 1-5` |
+| Every 15 minutes | `0 0/15 * * * ?` | `*/15 * * * *` | `*/15 * * * *` |
+| Every 30 seconds | `0/30 * * * * ?` | `*/30 * * * * *` | `*/30 * * * * *` |
+| First of the month at 02:00 | `0 0 2 1 * ?` | `0 2 1 * *` or `Cron.Monthly(1, 2)` | `0 2 1 * *` |
+
+Replace the Hangfire `Cron.*` helpers with the written expression. For a schedule you cannot express, such as the last day of the month, run the cron on the candidate days and return early from the function when the date does not match, or exclude the other dates with a [schedule policy](/docs/5.x/guides/schedule-policies/business-calendars). The dashboard and `GetNextOccurrencesAsync` show the next run times of every cron, so you can check each converted expression before it fires.
+
+Watch the time zone. Hangfire interprets expressions in UTC unless the recurring job says otherwise, while TickerQ's `SchedulerTimeZone` defaults to the host's local zone. Set `scheduler.SchedulerTimeZone = TimeZoneInfo.Utc` to keep Hangfire's behavior, or `InTimeZone(...)` on each cron, and set it on every replica.
+
+## Migration plan
+
+1. **Inventory the work.** List every recurring schedule (Quartz cron triggers, Hangfire recurring job IDs), every call site that enqueues or schedules a job, every continuation or batch, and every filter or listener. Note each job's retry, overlap, and time-zone settings; TickerQ does not retry or expire anything unless you say so.
+2. **Add TickerQ next to the old scheduler.** Install the packages, obtain a license, configure the store and application namespace, and apply the migration. The tables are separate from Hangfire's and Quartz's, so one database can hold both during the move. Add the dashboard now; you will use it to verify every later step.
+3. **Convert the job classes.** Keep the business logic. Replace `IJob` and `IJobExecutionContext`, or the Hangfire method signature, with `ITickerFunction<TRequest>` and a request record, and pass the `CancellationToken` through. Register each class with `MapTicker` and confirm the names in **About → Functions**.
+4. **Declare the recurring schedules in code.** Move each Quartz trigger or `RecurringJob.AddOrUpdate` into `SeedCronTickers`, converting the expression and setting `InTimeZone`, `SkipIfAlreadyRunning`, retries, and a `WhenMissed` or `CatchUp` rule where the old misfire setting mattered. Seed them with `Enabled(false)` to inspect their next occurrences in the dashboard before they run.
+5. **Replace the scheduling call sites.** `Enqueue`, `Schedule`, and `ScheduleJob` become `AddAsync`; `ContinueJobWith` becomes `AddChainAsync`; batches become `ThenMany`. Where a job was enqueued inside a database transaction, use `StageAsync`. Check `IsSucceeded` on every call.
+6. **Carry the behavior over.** Set `Retries` and `RetryIntervals` where Hangfire's default retries or a Quartz refire mattered, `TimeoutSeconds` where a job must not run forever, and `SkipIfAlreadyRunning` where the old attribute prevented overlap. Configure [retention](/docs/5.x/guides/retention) to replace job expiration, and an `ITickerExceptionHandler` or [integration](/docs/5.x/integrations) to replace filters and listeners.
+7. **Cut over without double runs.** A recurring schedule must exist in one system only: enable the TickerQ cron and remove the old one (`RecurringJob.RemoveIfExists`, Quartz `UnscheduleJob`) in the same deployment. Delayed jobs already waiting in the old store can drain on the old server while new call sites write to TickerQ, or you can recreate them in TickerQ and delete them from the old store. Do not do both. Stop the old server, `AddHangfireServer` or `AddQuartzHostedService`, once its queue is empty.
+8. **Remove the old scheduler.** Remove the packages and drop the old tables when you no longer need their history. On functions whose rows must always get a job, declare a [promise](/docs/5.x/guides/promises): it reports rows that were left without a job during the move.
+
+## Differences that surprise people
+
+- **Registering a function schedules nothing.** A recurring schedule comes from `SeedCronTickers`, a manager call, or the dashboard.
+- **No retries by default.** Hangfire retries ten times unless told otherwise; TickerQ runs the attempt once unless `Retries` is set.
+- **History is kept.** Hangfire deletes succeeded jobs after a day. TickerQ keeps every job until you configure retention.
+- **Fire-and-forget is durable.** A job without an execution time runs as soon as a scheduler host can admit it, but it is saved first, so it survives a restart and can run on another replica.
+- **Overlap protection is per host.** `SkipIfAlreadyRunning` and `maxConcurrency` are not distributed locks. Keep a business idempotency key for side effects, as [reliability](/docs/5.x/guides/reliability) describes.
+- **Jobs do not carry mutable state.** There is no `PersistJobDataAfterExecution`. Publish a result for the next chain step, or keep state in your own tables.
+- **Queues are not namespaces.** Replicas in one application namespace cooperate on the same work; a different namespace never sees it. Use priority for ordering on a host and a namespace for a separate deployment.
+- **Manager calls wait for activation on a scheduler host.** Do not await them before `app.Run()`; use the seed methods for startup work.
+- **The dashboard needs explicit authentication.** Configure it before exposing the dashboard; see [authentication](/docs/5.x/dashboard/authentication).
+- **A license certificate is required**, in development too. See [licensing](/docs/5.x/getting-started/licensing).
+
+## Next steps
+
+Run the [quick start](/docs/5.x/getting-started/quick-start), then read [function registration](/docs/5.x/guides/function-registration), [cron tickers](/docs/5.x/guides/scheduling/cron-ticker), and [one-time chains](/docs/5.x/guides/job-chaining). Review [reliability](/docs/5.x/guides/reliability) before the first production deployment.
