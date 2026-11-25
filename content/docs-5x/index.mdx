@@ -15,13 +15,14 @@ Use this guide to set up TickerQ, build background workflows, and operate them i
   <Card title="Installation" href="/docs/5.x/getting-started/installation" description="Choose matching packages for your .NET application." />
   <Card title="Quick start" href="/docs/5.x/getting-started/quick-start" description="Run your first one-time job and recurring function." />
   <Card title="Upgrade to 5.x" href="/docs/5.x/getting-started/migration" description="Plan the certificate, schema, and application changes for an existing deployment." />
+  <Card title="Coming from other schedulers" href="/docs/5.x/getting-started/from-other-schedulers" description="Map Quartz.NET and Hangfire concepts to TickerQ and move an existing application over." />
 </Cards>
 
 The sidebar groups guides by task. Open a group to explore its pages; your current section opens automatically. The version selector switches between this line and the earlier documentation.
 
 | Group | What you will find |
 | --- | --- |
-| **Getting started** | Package selection, your first job, licensing, and migration |
+| **Getting started** | Package selection, your first job, licensing, the 5.x upgrade, and moving from Quartz.NET or Hangfire |
 | **Jobs and workflows** | Functions, time/cron schedules, schedule policies (business calendars, late starts, and catch-up), requests and results, durable groups, progress, retries, test runs, and cancellation |
 | **Storage** | EF Core, transactional scheduling, MongoDB, and Redis |
 | **Dashboard** | A visual tour, drafts/templates, existing users, roles/scopes, cluster nodes, and the AI assistant |
@@ -32,6 +33,7 @@ See the [Changelog](/docs/5.x/changelog) for release notes and upgrade informati
 
 ## Common tasks
 
+- **Move from Quartz.NET or Hangfire:** follow the [concept map and migration plan](/docs/5.x/getting-started/from-other-schedulers).
 - **Save a job with a business change:** use [EF transactional scheduling](/docs/5.x/entity-framework/transactional-scheduling).
 - **Keep work inside business hours or skip stale runs:** define [business calendars](/docs/5.x/guides/schedule-policies/business-calendars) and choose a [late-start and catch-up rule](/docs/5.x/guides/schedule-policies/late-starts).
 - **Run a recurring workflow:** define [recurring chains](/docs/5.x/guides/recurring-chains) and choose an overlap policy.
